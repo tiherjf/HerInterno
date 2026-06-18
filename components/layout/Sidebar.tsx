@@ -53,15 +53,40 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Settings,
 };
 
-const adminItems = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/usuarios", label: "Usuários", icon: Users },
-  { href: "/admin/pacientes", label: "Pacientes", icon: Stethoscope },
-  { href: "/admin/treinamentos", label: "Treinamentos", icon: ClipboardList },
-  { href: "/admin/chatbot", label: "Base de Conhecimento", icon: MessageSquare },
-  { href: "/admin/chamados", label: "Chamados", icon: Ticket },
-  { href: "/admin/inventario", label: "Inventário TI", icon: Package },
-  { href: "/admin/ponto", label: "Ponto / RH", icon: BarChart3 },
+const adminGroups = [
+  {
+    label: "Gestão",
+    items: [
+      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/admin/usuarios", label: "Usuários", icon: Users },
+    ],
+  },
+  {
+    label: "Clínica",
+    items: [
+      { href: "/admin/pacientes", label: "Pacientes", icon: Stethoscope },
+    ],
+  },
+  {
+    label: "Capacitação",
+    items: [
+      { href: "/admin/treinamentos", label: "Treinamentos", icon: ClipboardList },
+      { href: "/admin/chatbot", label: "Base de Conhecimento", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Suporte & TI",
+    items: [
+      { href: "/admin/chamados", label: "Chamados", icon: Ticket },
+      { href: "/admin/inventario", label: "Inventário TI", icon: Package },
+    ],
+  },
+  {
+    label: "RH",
+    items: [
+      { href: "/admin/ponto", label: "Ponto / RH", icon: BarChart3 },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -237,17 +262,17 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
           </div>
         )}
 
-        {/* Seção Admin (admin + ti) */}
-        {isAdmin && (
-          <div className="mb-2">
+        {/* Seção Admin agrupada por categoria (admin + ti) */}
+        {isAdmin && adminGroups.map((group) => (
+          <div key={group.label} className="mb-2">
             {!collapsed && (
               <p className="px-4 pt-3 pb-1 text-xs font-semibold text-blue-300 uppercase tracking-wider">
-                Administração
+                {group.label}
               </p>
             )}
             {collapsed && <div className="border-t border-blue-600 my-1 mx-2" />}
             <div className="px-2 space-y-0.5">
-              {adminItems.map((item) => (
+              {group.items.map((item) => (
                 <NavLink
                   key={item.href}
                   href={item.href}
@@ -257,7 +282,7 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
               ))}
             </div>
           </div>
-        )}
+        ))}
       </nav>
     </aside>
     </>
