@@ -2,18 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const profile = await requireStaff();
     const supabase = createClient();
+    const all = req.nextUrl.searchParams.get("all") === "true";
+    const canManage = ["admin", "ti", "manutencao"].includes(profile.role);
 
     let query = supabase
       .from("ticket_categories")
       .select("*")
-      .eq("active", true)
+      .order("team")
       .order("name");
 
-    // Agentes só veem suas próprias categorias; usuários comuns veem todas
+    // Gestores podem ver inativas ao solicitar ?all=true
+    if (!all || !canManage) query = query.eq("active", true);
+
+    // Agentes só veem suas próprias categorias
     if (profile.role === "ti") query = query.eq("team", "ti");
     else if (profile.role === "manutencao") query = query.eq("team", "manutencao");
 
@@ -32,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
-    const { name, color, sla_hours, team } = await req.json();
+    const { name, color, sla_hours, team, default_priority } = await req.json();
     if (!name?.trim()) {
       return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
     }
@@ -41,7 +46,6 @@ export async function POST(req: NextRequest) {
     let resolvedTeam = team ?? "ti";
     if (profile.role === "manutencao") resolvedTeam = "manutencao";
     else if (profile.role === "ti") resolvedTeam = "ti";
-    // admin pode passar qualquer team
 
     const supabase = createServiceClient();
     const { data, error } = await supabase
@@ -51,6 +55,7 @@ export async function POST(req: NextRequest) {
         color: color ?? "#3b82f6",
         sla_hours: sla_hours ?? 24,
         team: resolvedTeam,
+        default_priority: default_priority || null,
       })
       .select()
       .single();

@@ -7,7 +7,7 @@ import {
   Search, RefreshCw, Clock, CheckCircle2, XCircle, AlertTriangle,
   User, BarChart2, SlidersHorizontal, ChevronDown, ChevronUp,
   ListChecks, BookOpen, Check, Square, X, Plus, Trash2, RotateCcw,
-  UserCheck, GripVertical, List, Columns,
+  UserCheck, GripVertical, List, Columns, Tag, Pencil, ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -35,6 +35,12 @@ interface HistoryEntry { id: string; user_name: string; action: string; old_valu
 interface ChecklistItem { id: string; text: string; completed: boolean; completed_at: string | null; completer?: { full_name: string } | null }
 interface Template { id: string; name: string; content: string; team: string }
 interface AgentUser { id: string; full_name: string; role: string }
+interface Category {
+  id: string; name: string; color: string; sla_hours: number;
+  team: string; default_priority: string | null; active: boolean;
+}
+
+const EMPTY_CAT = { name: "", color: "#3b82f6", sla_hours: "24", team: "ti", default_priority: "" };
 
 type TimelineItem =
   | ({ kind: "comment" } & Comment)
@@ -66,6 +72,7 @@ const TABS = [
   { key: "unassigned",  label: "Não Atribuídos" },
   { key: "my_assigned", label: "Meus" },
   { key: "resolved",    label: "Resolvidos" },
+  { key: "categorias",  label: "Categorias" },
 ];
 const TEAM_TABS = [
   { key: "",           label: "Todas" },
@@ -134,6 +141,14 @@ export default function AdminChamadosPage() {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [newChecklistText, setNewChecklistText] = useState("");
   const [addingChecklist, setAddingChecklist] = useState(false);
+
+  // Gestão de categorias
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCats, setLoadingCats] = useState(false);
+  const [showCatForm, setShowCatForm] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [catForm, setCatForm] = useState(EMPTY_CAT);
+  const [savingCat, setSavingCat] = useState(false);
 
   // View mode e Kanban
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
@@ -221,6 +236,66 @@ export default function AdminChamadosPage() {
     setDetail(json);
     setSelected(json.ticket);
   };
+
+  const fetchCategories = useCallback(async () => {
+    setLoadingCats(true);
+    const res = await fetch("/api/chamados/categorias?all=true");
+    const json = await res.json();
+    setCategories(json.categories ?? []);
+    setLoadingCats(false);
+  }, []);
+
+  useEffect(() => {
+    if (tab === "categorias") fetchCategories();
+  }, [tab, fetchCategories]);
+
+  const openCreateCat = () => {
+    setEditingCatId(null);
+    setCatForm(EMPTY_CAT);
+    setShowCatForm(true);
+  };
+
+  const openEditCat = (cat: Category) => {
+    setEditingCatId(cat.id);
+    setCatForm({
+      name: cat.name,
+      color: cat.color,
+      sla_hours: String(cat.sla_hours),
+      team: cat.team,
+      default_priority: cat.default_priority ?? "",
+    });
+    setShowCatForm(true);
+  };
+
+  const saveCat = async () => {
+    if (!catForm.name.trim()) return;
+    setSavingCat(true);
+    const body = {
+      name: catForm.name.trim(),
+      color: catForm.color,
+      sla_hours: Number(catForm.sla_hours) || 24,
+      team: catForm.team,
+      default_priority: catForm.default_priority || null,
+    };
+    const url = editingCatId ? `/api/chamados/categorias/${editingCatId}` : "/api/chamados/categorias";
+    const method = editingCatId ? "PATCH" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    setSavingCat(false);
+    if (res.ok) { setShowCatForm(false); fetchCategories(); }
+  };
+
+  const toggleCatActive = async (cat: Category) => {
+    await fetch(`/api/chamados/categorias/${cat.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !cat.active }),
+    });
+    fetchCategories();
+  };
+
+  const fc = (field: keyof typeof EMPTY_CAT) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => setCatForm(prev => ({ ...prev, [field]: e.target.value }));
 
   const quickStatusChange = async (ticketId: string, status: string) => {
     await fetch(`/api/chamados/${ticketId}`, {
@@ -360,7 +435,7 @@ export default function AdminChamadosPage() {
           <p className="text-sm text-muted-foreground">Gestão de solicitações de suporte</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border overflow-hidden">
+          {tab !== "categorias" && <div className="flex rounded-lg border overflow-hidden">
             <button
               onClick={() => setViewMode("list")}
               className={`px-3 py-1.5 flex items-center gap-1.5 text-sm transition-colors ${viewMode === "list" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
@@ -371,22 +446,22 @@ export default function AdminChamadosPage() {
               className={`px-3 py-1.5 flex items-center gap-1.5 text-sm border-l transition-colors ${viewMode === "kanban" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
               <Columns size={14} /> Kanban
             </button>
-          </div>
+          </div>}
           <Link href="/admin/chamados/indicadores">
             <Button variant="outline" size="sm"><BarChart2 size={16} /> Indicadores ONA</Button>
           </Link>
         </div>
       </div>
 
-      {/* Filtro de equipe */}
-      <div className="flex gap-2">
+      {/* Filtro de equipe — oculto em categorias */}
+      {tab !== "categorias" && <div className="flex gap-2">
         {TEAM_TABS.map(t => (
           <button key={t.key} onClick={() => setTeamFilter(t.key)}
             className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
               teamFilter === t.key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}>{t.label}</button>
         ))}
-      </div>
+      </div>}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b">
@@ -398,8 +473,8 @@ export default function AdminChamadosPage() {
         ))}
       </div>
 
-      {/* Busca + filtros avançados */}
-      <div className="space-y-3">
+      {/* Busca + filtros avançados — ocultos na aba de categorias */}
+      {tab !== "categorias" && <div className="space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1 max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -450,10 +525,88 @@ export default function AdminChamadosPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* ── Painel de Categorias ─────────────────────────────────────────── */}
+      {tab === "categorias" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Gerencie as categorias de chamados, SLA e prioridade padrão.
+            </p>
+            <Button onClick={openCreateCat} className="gap-2">
+              <Plus size={14} /> Nova Categoria
+            </Button>
+          </div>
+
+          <div className="bg-white rounded-xl border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Categoria</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Equipe</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">SLA</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Prioridade Padrão</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-600">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {loadingCats ? (
+                  <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Carregando...</td></tr>
+                ) : categories.length === 0 ? (
+                  <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Nenhuma categoria cadastrada</td></tr>
+                ) : categories.map(cat => (
+                  <tr key={cat.id} className={`transition-colors ${cat.active ? "hover:bg-gray-50" : "opacity-50 bg-gray-50"}`}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        <span className="font-medium">{cat.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {cat.team === "ti"
+                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">TI</span>
+                        : <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Manutenção</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-1 text-sm"><Clock size={12} />{cat.sla_hours}h</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {cat.default_priority
+                        ? <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITY[cat.default_priority]?.color}`}>{PRIORITY[cat.default_priority]?.label}</span>
+                        : <span className="text-xs text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${cat.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        {cat.active ? "Ativa" : "Inativa"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button size="sm" variant="ghost" onClick={() => openEditCat(cat)} title="Editar">
+                          <Pencil size={13} />
+                        </Button>
+                        <Button
+                          size="sm" variant="ghost"
+                          className={cat.active ? "text-gray-400 hover:text-red-500" : "text-gray-400 hover:text-green-600"}
+                          onClick={() => toggleCatActive(cat)}
+                          title={cat.active ? "Desativar" : "Reativar"}
+                        >
+                          {cat.active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Tabela (modo lista) */}
-      {viewMode === "list" && (
+      {tab !== "categorias" && viewMode === "list" && (
         <div className="bg-white rounded-xl border overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -522,7 +675,7 @@ export default function AdminChamadosPage() {
       )}
 
       {/* Kanban */}
-      {viewMode === "kanban" && (
+      {tab !== "categorias" && viewMode === "kanban" && (
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {KANBAN_COLS.map(col => {
@@ -941,6 +1094,72 @@ export default function AdminChamadosPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Categoria */}
+      <Dialog open={showCatForm} onOpenChange={v => { if (!v) setShowCatForm(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag size={16} /> {editingCatId ? "Editar Categoria" : "Nova Categoria"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Nome *</label>
+              <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                placeholder="Ex: Suporte a Sistemas" value={catForm.name} onChange={fc("name")} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Equipe</label>
+                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  value={catForm.team} onChange={fc("team")}>
+                  <option value="ti">TI</option>
+                  <option value="manutencao">Manutenção</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Cor</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <input type="color" className="h-9 w-12 rounded border cursor-pointer p-0.5"
+                    value={catForm.color} onChange={fc("color")} />
+                  <span className="text-xs font-mono text-muted-foreground">{catForm.color}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">SLA (horas)</label>
+                <input type="number" min="1" step="1"
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  placeholder="24" value={catForm.sla_hours} onChange={fc("sla_hours")} />
+                <p className="text-[10px] text-muted-foreground mt-1">Prazo máximo de atendimento</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Prioridade Padrão</label>
+                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  value={catForm.default_priority} onChange={fc("default_priority")}>
+                  <option value="">Nenhuma (manual)</option>
+                  <option value="low">Baixa</option>
+                  <option value="medium">Média</option>
+                  <option value="high">Alta</option>
+                  <option value="critical">Crítica</option>
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">Pré-preenche ao abrir chamado</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setShowCatForm(false)}>Cancelar</Button>
+              <Button onClick={saveCat} disabled={!catForm.name.trim() || savingCat}>
+                {savingCat ? "Salvando..." : editingCatId ? "Salvar" : "Criar Categoria"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

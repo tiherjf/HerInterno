@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const updates = await req.json();
-    const allowed = ["name", "color", "sla_hours", "active"];
+    const allowed = ["name", "color", "sla_hours", "active", "default_priority"];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => allowed.includes(k))
     );
@@ -37,6 +37,42 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { error } = await supabase
       .from("ticket_categories")
       .update(filtered)
+      .eq("id", params.id);
+
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Erro interno";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  try {
+    const profile = await requireStaff();
+    const canManage = ["admin", "ti", "manutencao"].includes(profile.role);
+    if (!canManage) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+
+    const supabase = createServiceClient();
+
+    if (profile.role !== "admin") {
+      const { data: cat } = await supabase
+        .from("ticket_categories")
+        .select("team")
+        .eq("id", params.id)
+        .single();
+      const expectedTeam = profile.role === "manutencao" ? "manutencao" : "ti";
+      if (cat?.team && cat.team !== expectedTeam) {
+        return NextResponse.json({ error: "Sem permissão para esta categoria" }, { status: 403 });
+      }
+    }
+
+    // Soft delete — não remove dados históricos de chamados
+    const { error } = await supabase
+      .from("ticket_categories")
+      .update({ active: false })
       .eq("id", params.id);
 
     if (error) throw error;

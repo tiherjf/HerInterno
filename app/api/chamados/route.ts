@@ -89,10 +89,11 @@ export async function POST(req: NextRequest) {
     let sla_deadline: string | null = null;
     let ticketTeam = "ti";
 
+    let resolvedPriority = priority;
     if (category_id) {
       const { data: cat } = await supabase
         .from("ticket_categories")
-        .select("sla_hours, team")
+        .select("sla_hours, team, default_priority")
         .eq("id", category_id)
         .single();
       if (cat?.sla_hours) {
@@ -101,6 +102,10 @@ export async function POST(req: NextRequest) {
         sla_deadline = deadline.toISOString();
       }
       if (cat?.team) ticketTeam = cat.team;
+      // Aplica prioridade padrão da categoria se não foi explicitamente definida
+      if (cat?.default_priority && priority === "medium") {
+        resolvedPriority = cat.default_priority;
+      }
     }
 
     const { data, error } = await supabase
@@ -109,7 +114,7 @@ export async function POST(req: NextRequest) {
         title: title.trim(),
         description: description.trim(),
         category_id: category_id || null,
-        priority,
+        priority: resolvedPriority,
         team: ticketTeam,
         requester_id: profile.id,
         requester_name: profile.full_name,
