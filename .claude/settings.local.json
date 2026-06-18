@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(vercel --version 2>&1)",
+      "PowerShell(vercel whoami 2>&1)"
+    ]
+  }
+}

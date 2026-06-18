@@ -7,7 +7,6 @@ import {
   Newspaper,
   GraduationCap,
   Stethoscope,
-  Video,
   Activity,
   TrendingUp,
 } from "lucide-react";
@@ -16,25 +15,23 @@ import { formatDateTime } from "@/lib/utils";
 export default async function AdminDashboard() {
   await requireAdmin();
 
-  let usersCount = 0, newsCount = 0, trainingsCount = 0, patientsCount = 0, examsCount = 0;
+  let usersCount = 0, newsCount = 0, trainingsCount = 0, patientsCount = 0;
   let recentLogs: { id: string; action: string; module: string; user_type: string; created_at: string }[] = [];
 
   try {
     const supabase = createClient();
-    const [r1, r2, r3, r4, r5, r6] = await Promise.all([
+    const [r1, r2, r3, r4, r5] = await Promise.all([
       supabase.from("profiles").select("*", { count: "exact", head: true }).eq("active", true),
       supabase.from("news").select("*", { count: "exact", head: true }).eq("status", "published"),
       supabase.from("trainings").select("*", { count: "exact", head: true }).eq("active", true),
       supabase.from("patients").select("*", { count: "exact", head: true }),
-      supabase.from("exams").select("*", { count: "exact", head: true }),
       supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(10),
     ]);
     usersCount = r1.count || 0;
     newsCount = r2.count || 0;
     trainingsCount = r3.count || 0;
     patientsCount = r4.count || 0;
-    examsCount = r5.count || 0;
-    recentLogs = r6.data || [];
+    recentLogs = r5.data || [];
   } catch {
     // Supabase não configurado
   }
@@ -44,7 +41,6 @@ export default async function AdminDashboard() {
     { label: "Notícias Publicadas", value: newsCount || 0, icon: Newspaper, color: "green" },
     { label: "Treinamentos", value: trainingsCount || 0, icon: GraduationCap, color: "purple" },
     { label: "Pacientes Cadastrados", value: patientsCount || 0, icon: Stethoscope, color: "red" },
-    { label: "Exames no Sistema", value: examsCount || 0, icon: Video, color: "orange" },
   ];
 
   const colorMap: Record<string, string> = {
@@ -134,7 +130,6 @@ export default async function AdminDashboard() {
         {[
           { href: "/admin/usuarios", label: "Gerenciar Usuários", icon: Users },
           { href: "/admin/pacientes", label: "Gerenciar Pacientes", icon: Stethoscope },
-          { href: "/admin/exames", label: "Gerenciar Exames", icon: Video },
           { href: "/admin/chatbot", label: "Base de Conhecimento", icon: TrendingUp },
         ].map((link) => {
           const Icon = link.icon;

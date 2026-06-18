@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Eye, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Search, RefreshCw, Loader2 } from "lucide-react";
 import { formatDate, formatCPF, cleanCPF } from "@/lib/utils";
 
 interface Patient {
@@ -166,21 +166,14 @@ export default function PacientesAdminPage() {
                     {formatDate(p.created_at)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <a href={`/admin/exames?patient=${p.id}`}>
-                        <Button size="sm" variant="ghost" title="Ver exames">
-                          <Eye size={14} />
-                        </Button>
-                      </a>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => resetPassword(p.id)}
-                        title="Redefinir senha"
-                      >
-                        <RefreshCw size={14} />
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => resetPassword(p.id)}
+                      title="Redefinir senha"
+                    >
+                      <RefreshCw size={14} />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

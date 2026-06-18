@@ -96,14 +96,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-sm text-center text-muted-foreground">
-                É paciente?{" "}
-                <a href="/pacientes/login" className="text-primary hover:underline font-medium">
-                  Acesse aqui seus exames
-                </a>
-              </p>
-            </div>
           </CardContent>
         </Card>
 
