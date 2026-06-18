@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const allowed = [
       "name", "asset_type", "brand", "model", "serial_number", "asset_tag",
       "location", "assigned_to", "status", "purchase_date", "warranty_expiry",
-      "operating_system", "ip_address", "notes",
+      "operating_system", "ip_address", "notes", "purchase_value", "useful_life_months",
     ];
     const updates = Object.fromEntries(
       Object.entries(body).filter(([k]) => allowed.includes(k))

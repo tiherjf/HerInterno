@@ -43,10 +43,15 @@ export async function GET(req: NextRequest) {
     const resolved = rows.filter(t => ["resolved", "closed"].includes(t.status)).length;
     const critical_open = rows.filter(t => t.priority === "critical" && ["open", "in_progress"].includes(t.status)).length;
 
-    // SLA compliance — tickets resolvidos dentro do prazo
+    // SLA compliance — tickets resolvidos dentro do prazo (base: resolvidos com SLA)
     const resolvedRows = rows.filter(t => t.resolved_at && t.sla_deadline);
     const slaOk = resolvedRows.filter(t => new Date(t.resolved_at!) <= new Date(t.sla_deadline!)).length;
     const sla_compliance = resolvedRows.length > 0 ? Math.round((slaOk / resolvedRows.length) * 100) : null;
+
+    // ONA: numerador = solucionados no prazo / denominador = TOTAL recebidos no período
+    const ona_numerator = slaOk;
+    const ona_denominator = total;
+    const ona_result = ona_denominator > 0 ? Math.round((ona_numerator / ona_denominator) * 100) : null;
 
     // Tempo médio de primeira resposta (minutos)
     const withFirstResponse = rows.filter(t => t.first_response_at);
@@ -117,14 +122,40 @@ export async function GET(req: NextRequest) {
     });
     const monthly_volume = Object.entries(monthly).map(([month, count]) => ({ month, count }));
 
+    // Tendência ONA mensal (últimos 6 meses)
+    // Por mês de criação: total recebidos vs solucionados no prazo naquele mês
+    const onaMonthly: Record<string, { total: number; within: number }> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      onaMonthly[key] = { total: 0, within: 0 };
+    }
+    rows.forEach(t => {
+      const d = new Date(t.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!(key in onaMonthly)) return;
+      onaMonthly[key].total++;
+      if (t.resolved_at && t.sla_deadline && new Date(t.resolved_at) <= new Date(t.sla_deadline)) {
+        onaMonthly[key].within++;
+      }
+    });
+    const monthly_ona = Object.entries(onaMonthly).map(([month, v]) => ({
+      month,
+      total: v.total,
+      within: v.within,
+      pct: v.total > 0 ? Math.round((v.within / v.total) * 100) : null,
+    }));
+
     return NextResponse.json({
       period,
       from: from.toISOString(),
       kpis: { total, open, in_progress: inProgress, resolved, critical_open, sla_compliance, avg_first_response, avg_resolution, csat, rated_count: rated.length },
+      ona: { numerator: ona_numerator, denominator: ona_denominator, result: ona_result },
       by_category,
       by_priority,
       by_sector,
       monthly_volume,
+      monthly_ona,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro interno";

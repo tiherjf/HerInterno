@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
         id, name, asset_type, brand, model, serial_number, asset_tag,
         location, status, purchase_date, warranty_expiry,
         operating_system, ip_address, notes, created_at, updated_at,
+        purchase_value, useful_life_months,
         assigned:profiles!assigned_to(id, full_name, sector)
       `)
       .order("name");
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     const {
       name, asset_type, brand, model, serial_number, asset_tag,
       location, assigned_to, status, purchase_date, warranty_expiry,
-      operating_system, ip_address, notes,
+      operating_system, ip_address, notes, purchase_value, useful_life_months,
     } = body;
 
     if (!name?.trim() || !asset_type?.trim()) {
@@ -73,6 +74,8 @@ export async function POST(req: NextRequest) {
         operating_system: operating_system || null,
         ip_address: ip_address || null,
         notes: notes || null,
+        purchase_value: purchase_value ? Number(purchase_value) : null,
+        useful_life_months: useful_life_months ? Number(useful_life_months) : 60,
         created_by: profile.id,
       })
       .select()

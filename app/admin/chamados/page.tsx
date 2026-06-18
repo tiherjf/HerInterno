@@ -7,7 +7,7 @@ import {
   Search, RefreshCw, Clock, CheckCircle2, XCircle, AlertTriangle,
   User, BarChart2, SlidersHorizontal, ChevronDown, ChevronUp,
   ListChecks, BookOpen, Check, Square, X, Plus, Trash2, RotateCcw,
-  UserCheck,
+  UserCheck, GripVertical, List, Columns,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -19,9 +19,17 @@ interface Ticket {
   requester_name: string; requester_sector: string | null;
   created_at: string; updated_at: string; sla_deadline: string | null;
   first_response_at: string | null; resolved_at: string | null; rating: number | null;
+  solution: string | null;
   ticket_categories: { id: string; name: string; color: string } | null;
   assigned: { id: string; full_name: string } | null;
 }
+
+const KANBAN_COLS: { key: string; label: string; header: string; bg: string }[] = [
+  { key: "open",        label: "Aberto",          header: "bg-gray-200 text-gray-700",  bg: "bg-gray-50" },
+  { key: "in_progress", label: "Em Atendimento",   header: "bg-blue-100 text-blue-800",  bg: "bg-blue-50/40" },
+  { key: "resolved",    label: "Resolvido",        header: "bg-green-100 text-green-800",bg: "bg-green-50/40" },
+  { key: "closed",      label: "Encerrado",        header: "bg-slate-200 text-slate-700",bg: "bg-slate-50" },
+];
 interface Comment { id: string; author_name: string; content: string; is_internal: boolean; created_at: string }
 interface HistoryEntry { id: string; user_name: string; action: string; old_value: string | null; new_value: string | null; created_at: string }
 interface ChecklistItem { id: string; text: string; completed: boolean; completed_at: string | null; completer?: { full_name: string } | null }
@@ -127,6 +135,16 @@ export default function AdminChamadosPage() {
   const [newChecklistText, setNewChecklistText] = useState("");
   const [addingChecklist, setAddingChecklist] = useState(false);
 
+  // View mode e Kanban
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+
+  // Modal resolver (campos obrigatórios)
+  const [resolveModal, setResolveModal] = useState<Ticket | null>(null);
+  const [resolveSolution, setResolveSolution] = useState("");
+  const [resolveAssignTo, setResolveAssignTo] = useState("");
+
   // ── fetch ──────────────────────────────────────────────────────────────
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -202,6 +220,53 @@ export default function AdminChamadosPage() {
     const json = await res.json();
     setDetail(json);
     setSelected(json.ticket);
+  };
+
+  const quickStatusChange = async (ticketId: string, status: string) => {
+    await fetch(`/api/chamados/${ticketId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_status", status }),
+    });
+    fetchTickets();
+  };
+
+  const openResolveModal = (ticket: Ticket) => {
+    setResolveModal(ticket);
+    setResolveSolution("");
+    setResolveAssignTo(ticket.assigned?.id ?? "");
+  };
+
+  const doResolve = async () => {
+    if (!resolveModal || !resolveSolution.trim()) return;
+    const assignee = resolveAssignTo || resolveModal.assigned?.id;
+    if (!assignee) return;
+    setActioning(true);
+    const res = await fetch(`/api/chamados/${resolveModal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "set_status", status: "resolved",
+        solution: resolveSolution,
+        assigned_to: assignee,
+      }),
+    });
+    setActioning(false);
+    if (res.ok) {
+      setResolveModal(null);
+      setResolveSolution("");
+      setResolveAssignTo("");
+      fetchTickets();
+      if (selected?.id === resolveModal.id) {
+        const r = await fetch(`/api/chamados/${resolveModal.id}`);
+        const json = await r.json();
+        setDetail(json);
+        setSelected(json.ticket);
+      }
+    } else {
+      const json = await res.json();
+      alert(json.error ?? "Erro ao resolver chamado");
+    }
   };
 
   const submitComment = async () => {
@@ -294,9 +359,23 @@ export default function AdminChamadosPage() {
           <h1 className="text-2xl font-bold text-gray-900">Chamados</h1>
           <p className="text-sm text-muted-foreground">Gestão de solicitações de suporte</p>
         </div>
-        <Link href="/admin/chamados/indicadores">
-          <Button variant="outline" size="sm"><BarChart2 size={16} /> Indicadores ONA</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border overflow-hidden">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`px-3 py-1.5 flex items-center gap-1.5 text-sm transition-colors ${viewMode === "list" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              <List size={14} /> Lista
+            </button>
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={`px-3 py-1.5 flex items-center gap-1.5 text-sm border-l transition-colors ${viewMode === "kanban" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              <Columns size={14} /> Kanban
+            </button>
+          </div>
+          <Link href="/admin/chamados/indicadores">
+            <Button variant="outline" size="sm"><BarChart2 size={16} /> Indicadores ONA</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filtro de equipe */}
@@ -373,72 +452,175 @@ export default function AdminChamadosPage() {
         )}
       </div>
 
-      {/* Tabela */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-600 w-16">#</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Título</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Categoria</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Equipe</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Prioridade</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Solicitante</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Responsável</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">SLA</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Abertura</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {loading ? (
-              <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Carregando...</td></tr>
-            ) : filteredTickets.length === 0 ? (
-              <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Nenhum chamado</td></tr>
-            ) : filteredTickets.map(t => {
-              const slaUrgent = t.sla_deadline && !["resolved","closed","cancelled"].includes(t.status) &&
-                new Date(t.sla_deadline).getTime() - Date.now() < 7200000;
+      {/* Tabela (modo lista) */}
+      {viewMode === "list" && (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 w-16">#</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Título</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Categoria</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Equipe</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Prioridade</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Solicitante</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Responsável</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">SLA</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Abertura</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {loading ? (
+                <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Carregando...</td></tr>
+              ) : filteredTickets.length === 0 ? (
+                <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Nenhum chamado</td></tr>
+              ) : filteredTickets.map(t => {
+                const slaUrgent = t.sla_deadline && !["resolved","closed","cancelled"].includes(t.status) &&
+                  new Date(t.sla_deadline).getTime() - Date.now() < 7200000;
+                return (
+                  <tr key={t.id} onClick={() => openDetail(t)}
+                    className={`cursor-pointer transition-colors ${slaUrgent ? "bg-red-50 hover:bg-red-100" : "hover:bg-gray-50"}`}
+                    style={slaUrgent ? { borderLeft: "3px solid #ef4444" } : undefined}>
+                    <td className="px-4 py-3 font-mono text-muted-foreground">#{String(t.number).padStart(4, "0")}</td>
+                    <td className="px-4 py-3 max-w-50"><span className="font-medium truncate block">{t.title}</span></td>
+                    <td className="px-4 py-3">
+                      {t.ticket_categories ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: t.ticket_categories.color }}>
+                          {t.ticket_categories.name}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {t.team === "manutencao" ? <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Manutenção</span>
+                        : t.team === "ti" ? <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">TI</span>
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITY[t.priority]?.color}`}>{PRIORITY[t.priority]?.label}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[t.status]?.color}`}>{STATUS[t.status]?.label}</span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <div>{t.requester_name}</div>
+                      {t.requester_sector && <div className="text-xs">{t.requester_sector}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {t.assigned ? (
+                        <span className="flex items-center gap-1 text-sm"><User size={12} />{t.assigned.full_name}</span>
+                      ) : <span className="text-muted-foreground text-xs">Não atribuído</span>}
+                    </td>
+                    <td className="px-4 py-3"><SlaChip deadline={t.sla_deadline} status={t.status} /></td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(t.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Kanban */}
+      {viewMode === "kanban" && (
+        <div className="overflow-x-auto pb-4">
+          <div className="flex gap-4 min-w-max">
+            {KANBAN_COLS.map(col => {
+              const colTickets = filteredTickets.filter(t =>
+                t.status === col.key && t.status !== "cancelled"
+              );
+              const isOver = dragOverCol === col.key;
               return (
-                <tr key={t.id} onClick={() => openDetail(t)}
-                  className={`cursor-pointer transition-colors ${slaUrgent ? "bg-red-50 hover:bg-red-100" : "hover:bg-gray-50"}`}
-                  style={slaUrgent ? { borderLeft: "3px solid #ef4444" } : undefined}>
-                  <td className="px-4 py-3 font-mono text-muted-foreground">#{String(t.number).padStart(4, "0")}</td>
-                  <td className="px-4 py-3 max-w-50"><span className="font-medium truncate block">{t.title}</span></td>
-                  <td className="px-4 py-3">
-                    {t.ticket_categories ? (
-                      <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: t.ticket_categories.color }}>
-                        {t.ticket_categories.name}
-                      </span>
-                    ) : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {t.team === "manutencao" ? <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Manutenção</span>
-                      : t.team === "ti" ? <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">TI</span>
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITY[t.priority]?.color}`}>{PRIORITY[t.priority]?.label}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[t.status]?.color}`}>{STATUS[t.status]?.label}</span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    <div>{t.requester_name}</div>
-                    {t.requester_sector && <div className="text-xs">{t.requester_sector}</div>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {t.assigned ? (
-                      <span className="flex items-center gap-1 text-sm"><User size={12} />{t.assigned.full_name}</span>
-                    ) : <span className="text-muted-foreground text-xs">Não atribuído</span>}
-                  </td>
-                  <td className="px-4 py-3"><SlaChip deadline={t.sla_deadline} status={t.status} /></td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(t.created_at)}</td>
-                </tr>
+                <div
+                  key={col.key}
+                  className={`w-72 flex flex-col rounded-xl border-2 transition-colors ${isOver ? "border-blue-400 shadow-lg" : "border-transparent"}`}
+                  onDragOver={e => { e.preventDefault(); setDragOverCol(col.key); }}
+                  onDragLeave={() => setDragOverCol(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    if (!dragId) return;
+                    const ticket = filteredTickets.find(t => t.id === dragId);
+                    if (!ticket || ticket.status === col.key) { setDragId(null); setDragOverCol(null); return; }
+                    if (col.key === "resolved") {
+                      openResolveModal(ticket);
+                    } else {
+                      quickStatusChange(dragId, col.key);
+                    }
+                    setDragId(null);
+                    setDragOverCol(null);
+                  }}
+                >
+                  {/* Cabeçalho da coluna */}
+                  <div className={`px-4 py-3 rounded-t-xl flex items-center justify-between ${col.header}`}>
+                    <span className="font-semibold text-sm">{col.label}</span>
+                    <span className="text-xs font-bold bg-white/60 rounded-full px-2 py-0.5">{colTickets.length}</span>
+                  </div>
+
+                  {/* Cards */}
+                  <div className={`flex-1 p-2 space-y-2 min-h-32 rounded-b-xl ${col.bg}`}>
+                    {loading ? (
+                      <div className="text-xs text-center text-muted-foreground py-4">Carregando...</div>
+                    ) : colTickets.length === 0 ? (
+                      <div className={`text-xs text-center text-muted-foreground py-4 rounded-lg border-2 border-dashed transition-colors ${isOver ? "border-blue-300 bg-blue-50" : "border-gray-200"}`}>
+                        {isOver ? "Soltar aqui" : "Sem chamados"}
+                      </div>
+                    ) : colTickets.map(t => {
+                      const slaUrgent = t.sla_deadline && !["resolved","closed","cancelled"].includes(t.status) &&
+                        new Date(t.sla_deadline).getTime() - Date.now() < 7200000;
+                      return (
+                        <div
+                          key={t.id}
+                          draggable
+                          onDragStart={() => setDragId(t.id)}
+                          onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
+                          onClick={() => openDetail(t)}
+                          className={`bg-white rounded-lg border p-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all select-none ${
+                            dragId === t.id ? "opacity-40" : ""
+                          } ${slaUrgent ? "border-l-4 border-l-red-400" : ""}`}
+                        >
+                          {/* Topo: número + drag handle */}
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-mono text-xs text-muted-foreground">#{String(t.number).padStart(4,"0")}</span>
+                            <GripVertical size={14} className="text-gray-300" />
+                          </div>
+
+                          {/* Título */}
+                          <p className="text-sm font-medium leading-snug mb-2 line-clamp-2">{t.title}</p>
+
+                          {/* Badges */}
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${PRIORITY[t.priority]?.color}`}>
+                              {PRIORITY[t.priority]?.label}
+                            </span>
+                            {t.ticket_categories && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full text-white"
+                                style={{ backgroundColor: t.ticket_categories.color }}>
+                                {t.ticket_categories.name}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Solicitante */}
+                          <p className="text-xs text-muted-foreground truncate">{t.requester_name}{t.requester_sector ? ` · ${t.requester_sector}` : ""}</p>
+
+                          {/* Responsável + SLA */}
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t">
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <User size={10} />
+                              {t.assigned?.full_name ?? <span className="text-orange-500">Não atribuído</span>}
+                            </span>
+                            <SlaChip deadline={t.sla_deadline} status={t.status} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal detalhe */}
       <Dialog open={!!selected} onOpenChange={v => { if (!v) { setSelected(null); setDetail(null); } }}>
@@ -479,7 +661,7 @@ export default function AdminChamadosPage() {
                 )}
                 {selected.status === "in_progress" && (
                   <Button size="sm" className="bg-green-600 hover:bg-green-700"
-                    onClick={() => doAction("set_status", { status: "resolved" })} disabled={actioning}>
+                    onClick={() => openResolveModal(selected)} disabled={actioning}>
                     <CheckCircle2 size={14} /> Resolver
                   </Button>
                 )}
@@ -547,6 +729,14 @@ export default function AdminChamadosPage() {
 
                   {/* Descrição */}
                   <div className="bg-gray-50 rounded-lg p-4 text-sm whitespace-pre-wrap">{detail.ticket.description}</div>
+
+                  {/* Solução */}
+                  {detail.ticket.solution && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-xs font-bold text-green-700 mb-1 flex items-center gap-1"><CheckCircle2 size={12} /> Solução aplicada</p>
+                      <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.solution}</p>
+                    </div>
+                  )}
 
                   {/* Timeline unificada */}
                   {timeline.length > 0 && (
@@ -682,6 +872,74 @@ export default function AdminChamadosPage() {
                 </div>
               ) : null}
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Resolver — campos obrigatórios */}
+      <Dialog open={!!resolveModal} onOpenChange={v => { if (!v) { setResolveModal(null); setResolveSolution(""); setResolveAssignTo(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 size={18} className="text-green-600" />
+              Resolver #{resolveModal && String(resolveModal.number).padStart(4, "0")}
+            </DialogTitle>
+          </DialogHeader>
+          {resolveModal && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Preencha os campos obrigatórios antes de marcar como resolvido.</p>
+
+              {/* Atribuição — obrigatória se não atribuído */}
+              <div>
+                <label className="text-sm font-medium flex items-center gap-1">
+                  <UserCheck size={14} /> Responsável *
+                </label>
+                <select
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  value={resolveAssignTo}
+                  onChange={e => setResolveAssignTo(e.target.value)}
+                >
+                  <option value="">Selecionar responsável...</option>
+                  {(resolveModal.team ? agents.filter(a => a.role === "admin" || a.role === resolveModal.team) : agents).map(a => (
+                    <option key={a.id} value={a.id}>{a.full_name}</option>
+                  ))}
+                </select>
+                {!resolveAssignTo && !resolveModal.assigned && (
+                  <p className="text-xs text-red-500 mt-1">Obrigatório para resolver</p>
+                )}
+              </div>
+
+              {/* Solução — obrigatória */}
+              <div>
+                <label className="text-sm font-medium flex items-center gap-1">
+                  <CheckCircle2 size={14} /> Solução aplicada *
+                </label>
+                <textarea
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none"
+                  rows={4}
+                  placeholder="Descreva o que foi feito para resolver o chamado..."
+                  value={resolveSolution}
+                  onChange={e => setResolveSolution(e.target.value)}
+                  autoFocus
+                />
+                {!resolveSolution.trim() && (
+                  <p className="text-xs text-red-500 mt-1">Obrigatório para resolver</p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => { setResolveModal(null); setResolveSolution(""); setResolveAssignTo(""); }}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={!resolveSolution.trim() || (!resolveAssignTo && !resolveModal.assigned) || actioning}
+                  onClick={doResolve}
+                >
+                  <CheckCircle2 size={14} /> {actioning ? "Resolvendo..." : "Marcar como Resolvido"}
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

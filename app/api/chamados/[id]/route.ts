@@ -88,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { data: current, error: fetchErr } = await supabase
       .from("tickets")
-      .select("id, status, priority, requester_id, assigned_to")
+      .select("id, status, priority, requester_id, assigned_to, solution")
       .eq("id", params.id)
       .single();
 
@@ -143,6 +143,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     } else if (action === "set_status") {
       const allowed = ["open", "in_progress", "resolved", "closed", "cancelled"];
       if (!allowed.includes(rest.status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
+
+      // Validações obrigatórias para resolver
+      if (rest.status === "resolved") {
+        if (!rest.solution?.trim()) {
+          return NextResponse.json({ error: "Descreva a solução antes de resolver o chamado" }, { status: 400 });
+        }
+        const effectiveAssignee = rest.assigned_to ?? current.assigned_to;
+        if (!effectiveAssignee) {
+          return NextResponse.json({ error: "Atribua o chamado a um responsável antes de resolver" }, { status: 400 });
+        }
+        updates.solution = rest.solution.trim();
+        if (rest.assigned_to && rest.assigned_to !== current.assigned_to) {
+          updates.assigned_to = rest.assigned_to;
+          if (!current.assigned_to) updates.first_response_at = new Date().toISOString();
+        }
+      }
+
       updates.status = rest.status;
       if (["resolved", "closed"].includes(rest.status)) updates.resolved_at = new Date().toISOString();
       if (rest.status === "closed") updates.closed_at = new Date().toISOString();

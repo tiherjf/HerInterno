@@ -32,6 +32,8 @@ interface Asset {
   operating_system: string | null;
   ip_address: string | null;
   notes: string | null;
+  purchase_value: number | null;
+  useful_life_months: number | null;
   created_at: string;
   updated_at: string;
   assigned: AssignedProfile | null;
@@ -59,13 +61,41 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   disposed:    { label: "Descartado",    color: "bg-red-100 text-red-800" },
 };
 
+// Vida útil padrão por tipo (meses) — alinhado com tabela RFB
+const DEFAULT_USEFUL_LIFE: Record<string, number> = {
+  desktop: 60, notebook: 48, servidor: 60,
+  impressora: 60, roteador: 60, storage: 60, outro: 60,
+};
+
 const EMPTY_FORM = {
   name: "", asset_type: "desktop", brand: "", model: "",
   serial_number: "", asset_tag: "", location: "",
   assigned_to: "", status: "active",
   purchase_date: "", warranty_expiry: "",
   operating_system: "", ip_address: "", notes: "",
+  purchase_value: "", useful_life_months: "60",
 };
+
+function calcDepreciacao(asset: Asset): {
+  bookValue: number; depreciatedPct: number; annualRate: number; fullyDepreciated: boolean;
+} | null {
+  if (!asset.purchase_value || !asset.purchase_date) return null;
+  const lifeMonths = asset.useful_life_months ?? 60;
+  const purchaseMs = new Date(asset.purchase_date).getTime();
+  const ageMonths = Math.max(0, (Date.now() - purchaseMs) / (1000 * 60 * 60 * 24 * 30.44));
+  const depPct = Math.min(100, (ageMonths / lifeMonths) * 100);
+  const bookValue = Math.max(0, asset.purchase_value * (1 - depPct / 100));
+  return {
+    bookValue: Math.round(bookValue * 100) / 100,
+    depreciatedPct: Math.round(depPct),
+    annualRate: Math.round((100 / (lifeMonths / 12)) * 10) / 10,
+    fullyDepreciated: depPct >= 100,
+  };
+}
+
+function formatBRL(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
 function warrantyStatus(date: string | null): { label: string; color: string } | null {
   if (!date) return null;
@@ -115,7 +145,7 @@ export default function InventarioPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, useful_life_months: "60" });
     setShowForm(true);
   };
 
@@ -136,6 +166,8 @@ export default function InventarioPage() {
       operating_system: asset.operating_system ?? "",
       ip_address: asset.ip_address ?? "",
       notes: asset.notes ?? "",
+      purchase_value: asset.purchase_value != null ? String(asset.purchase_value) : "",
+      useful_life_months: String(asset.useful_life_months ?? DEFAULT_USEFUL_LIFE[asset.asset_type] ?? 60),
     });
     setShowForm(true);
   };
@@ -149,6 +181,8 @@ export default function InventarioPage() {
         assigned_to: form.assigned_to || null,
         purchase_date: form.purchase_date || null,
         warranty_expiry: form.warranty_expiry || null,
+        purchase_value: form.purchase_value ? Number(form.purchase_value) : null,
+        useful_life_months: form.useful_life_months ? Number(form.useful_life_months) : 60,
       };
       const url = editingId ? `/api/admin/inventario/${editingId}` : "/api/admin/inventario";
       const method = editingId ? "PATCH" : "POST";
@@ -195,7 +229,7 @@ export default function InventarioPage() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-50">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm"
@@ -240,6 +274,44 @@ export default function InventarioPage() {
         ))}
       </div>
 
+      {/* Resumo financeiro / depreciação */}
+      {(() => {
+        const comValor = assets.filter(a => a.purchase_value);
+        if (!comValor.length) return null;
+        const totalInvestido = comValor.reduce((s, a) => s + (a.purchase_value ?? 0), 0);
+        const totalAtual = comValor.reduce((s, a) => {
+          const d = calcDepreciacao(a);
+          return s + (d ? d.bookValue : (a.purchase_value ?? 0));
+        }, 0);
+        const totalDepreciado = totalInvestido - totalAtual;
+        const fullDep = comValor.filter(a => { const d = calcDepreciacao(a); return d?.fullyDepreciated; }).length;
+        return (
+          <div className="bg-linear-to-r from-slate-50 to-gray-50 border rounded-xl p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Depreciação — {comValor.length} equipamentos com valor cadastrado</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Valor investido</p>
+                <p className="text-lg font-bold text-gray-800">{formatBRL(totalInvestido)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Valor atual (contábil)</p>
+                <p className="text-lg font-bold text-green-700">{formatBRL(totalAtual)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total depreciado</p>
+                <p className="text-lg font-bold text-red-600">{formatBRL(totalDepreciado)}</p>
+                <p className="text-[10px] text-muted-foreground">{totalInvestido > 0 ? Math.round((totalDepreciado / totalInvestido) * 100) : 0}% do total</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Totalmente depreciados</p>
+                <p className="text-lg font-bold text-orange-600">{fullDep}</p>
+                <p className="text-[10px] text-muted-foreground">equipamentos</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Tabela */}
       <div className="bg-white rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
@@ -253,16 +325,17 @@ export default function InventarioPage() {
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Responsável</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Garantia</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Depreciação</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">IP</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-600">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {loading ? (
-                <tr><td colSpan={9} className="py-10 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={10} className="py-10 text-center text-muted-foreground">Carregando...</td></tr>
               ) : assets.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center">
+                  <td colSpan={10} className="py-12 text-center">
                     <TypeIcon size={40} className="mx-auto text-gray-300 mb-2" />
                     <p className="text-muted-foreground">Nenhum equipamento encontrado</p>
                     <Button className="mt-3" size="sm" onClick={openCreate}>Adicionar equipamento</Button>
@@ -314,6 +387,26 @@ export default function InventarioPage() {
                         <span className={`text-xs ${warranty.color}`}>{warranty.label}</span>
                       ) : <span className="text-muted-foreground">—</span>}
                     </td>
+                    <td className="px-4 py-3 min-w-36">
+                      {(() => {
+                        const dep = calcDepreciacao(asset);
+                        if (!dep) return <span className="text-muted-foreground text-xs">—</span>;
+                        return (
+                          <div className="space-y-1">
+                            <p className={`text-xs font-medium ${dep.fullyDepreciated ? "text-red-600" : "text-gray-700"}`}>
+                              {formatBRL(dep.bookValue)}
+                            </p>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className={`h-1.5 rounded-full ${dep.fullyDepreciated ? "bg-red-500" : dep.depreciatedPct > 70 ? "bg-orange-400" : "bg-blue-400"}`}
+                                style={{ width: `${dep.depreciatedPct}%` }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">{dep.depreciatedPct}% depreciado</p>
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{asset.ip_address ?? "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
@@ -360,7 +453,15 @@ export default function InventarioPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Tipo *</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.asset_type} onChange={f("asset_type")}>
+                <select
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  value={form.asset_type}
+                  onChange={e => setForm(prev => ({
+                    ...prev,
+                    asset_type: e.target.value,
+                    useful_life_months: String(DEFAULT_USEFUL_LIFE[e.target.value] ?? 60),
+                  }))}
+                >
                   {ASSET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
@@ -432,6 +533,38 @@ export default function InventarioPage() {
               <div>
                 <label className="text-sm font-medium">Vencimento da Garantia</label>
                 <input type="date" className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.warranty_expiry} onChange={f("warranty_expiry")} />
+              </div>
+            </div>
+
+            {/* Depreciação */}
+            <div className="grid grid-cols-2 gap-3 bg-blue-50 rounded-lg p-3">
+              <div className="col-span-2">
+                <p className="text-xs font-semibold text-blue-700 mb-2">Depreciação (linear)</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Valor de Compra (R$)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  placeholder="Ex: 3500.00"
+                  value={form.purchase_value}
+                  onChange={f("purchase_value")}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Vida Útil (meses)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+                  placeholder="60"
+                  value={form.useful_life_months}
+                  onChange={f("useful_life_months")}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Padrão por tipo: Desktop/Servidor = 60m, Notebook = 48m</p>
               </div>
             </div>
 
