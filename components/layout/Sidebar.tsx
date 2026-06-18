@@ -31,6 +31,7 @@ import {
 import { useState } from "react";
 import type { StaffRole } from "@/lib/auth/staff";
 import type { MenuItemConfig } from "@/lib/menu/types";
+import { NotificacaoDot } from "@/components/news/NotificacaoDot";
 import { CATEGORY_ORDER } from "@/lib/menu/types";
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -106,10 +107,12 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
     href,
     label,
     icon: Icon,
+    showBadge,
   }: {
     href: string;
     label: string;
     icon: LucideIcon;
+    showBadge?: boolean;
   }) {
     const isActive =
       href === "/intranet"
@@ -128,6 +131,7 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
       >
         <Icon size={18} className="shrink-0" />
         {!collapsed && <span>{label}</span>}
+        {!collapsed && showBadge && <NotificacaoDot />}
       </Link>
     );
   }
@@ -181,6 +185,7 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
                     href={item.href}
                     label={item.label}
                     icon={Icon}
+                    showBadge={item.key === "noticias"}
                   />
                 );
               })}

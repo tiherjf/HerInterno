@@ -34,6 +34,7 @@ export default async function NoticiasPage({
 
   let news: { id: string; title: string; summary: string; category: string; published_at: string; cover_url: string }[] = [];
   let totalPages = 0;
+  let readSet = new Set<string>();
 
   try {
     const supabase = createClient();
@@ -48,11 +49,26 @@ export default async function NoticiasPage({
       query = query.eq("category", searchParams.categoria);
     }
 
-    const { data, count } = await query;
+    const [{ data, count }, { data: reads }] = await Promise.all([
+      query,
+      supabase.from("news_reads").select("news_id").eq("user_id", profile.id),
+    ]);
+
     news = data || [];
     totalPages = Math.ceil((count || 0) / limit);
+    readSet = new Set((reads ?? []).map((r: { news_id: string }) => r.news_id));
   } catch {
     // Supabase não configurado
+  }
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  function isNovo(item: { id: string; published_at: string }) {
+    return (
+      !readSet.has(item.id) &&
+      item.published_at &&
+      new Date(item.published_at) > sevenDaysAgo
+    );
   }
 
   return (
@@ -96,7 +112,12 @@ export default async function NoticiasPage({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {news.map((item) => (
             <Link key={item.id} href={`/intranet/noticias/${item.id}`}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full relative">
+                {isNovo(item) && (
+                  <span className="absolute top-3 right-3 z-10 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow animate-pulse">
+                    NOVO
+                  </span>
+                )}
                 {item.cover_url && (
                   <img
                     src={item.cover_url}

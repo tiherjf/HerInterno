@@ -7,6 +7,8 @@ import { ROLE_LABELS, ROLE_COLORS } from "@/lib/utils";
 import { StaffProfile } from "@/lib/auth/staff";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { NotificacaoDot } from "@/components/news/NotificacaoDot";
 
 interface HeaderProps {
   profile: StaffProfile;
@@ -43,9 +45,12 @@ export function Header({ profile }: HeaderProps) {
 
       {/* Ações */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" title="Notificações" className="text-gray-500 hover:text-gray-800">
-          <Bell size={18} />
-        </Button>
+        <Link href="/intranet/noticias" title="Notificações" className="relative inline-flex">
+          <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-800">
+            <Bell size={18} />
+          </Button>
+          <NotificacaoDot corner />
+        </Link>
 
         <div className="flex items-center gap-2.5 pl-2 border-l ml-1">
           <Avatar className="h-8 w-8">

@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, Edit } from "lucide-react";
+import { MarcarLida } from "@/components/news/MarcarLida";
 
 interface NewsArticle {
   id: string;
@@ -48,6 +49,7 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <MarcarLida newsId={params.id} />
       <div className="flex items-center justify-between">
         <Link href="/intranet/noticias">
           <Button variant="ghost" size="sm">
