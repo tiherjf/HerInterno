@@ -20,6 +20,7 @@ export interface StaffProfile {
   phone_ext: string;
   active: boolean;
   is_manager?: boolean;
+  manager_id?: string | null;
 }
 
 export async function getStaffProfile(): Promise<StaffProfile | null> {

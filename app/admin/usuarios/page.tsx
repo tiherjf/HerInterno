@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,8 +26,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, UserX, UserCheck, Loader2, Search } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  UserX,
+  UserCheck,
+  Loader2,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { ROLE_LABELS, ROLE_COLORS } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 interface User {
   id: string;
@@ -38,10 +46,32 @@ interface User {
   unit: string;
   phone_ext: string;
   active: boolean;
+  is_manager: boolean;
+  manager_id: string | null;
   email?: string;
 }
 
-const ROLES = ["admin", "ti", "marketing", "rh", "recepcao", "enfermagem", "administrativo"];
+const ROLES = [
+  "admin",
+  "ti",
+  "marketing",
+  "rh",
+  "recepcao",
+  "enfermagem",
+  "administrativo",
+];
+
+const EMPTY_FORM = {
+  email: "",
+  full_name: "",
+  role: "",
+  sector: "",
+  unit: "Matriz",
+  phone_ext: "",
+  password: "",
+  is_manager: false,
+  manager_id: "",
+};
 
 export default function UsuariosPage() {
   const supabase = createClient();
@@ -51,40 +81,40 @@ export default function UsuariosPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    email: "",
-    full_name: "",
-    role: "",
-    sector: "",
-    unit: "Matriz",
-    phone_ext: "",
-    password: "",
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
 
-  async function fetchUsers() {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
-    let query = supabase
+    const { data } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, full_name, role, sector, unit, phone_ext, active, is_manager, manager_id")
       .order("full_name");
-
-    if (search) {
-      query = query.or(`full_name.ilike.%${search}%,sector.ilike.%${search}%`);
-    }
-
-    const { data } = await query;
     setUsers(data || []);
     setLoading(false);
-  }
+  }, [supabase]);
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchUsers(), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const filtered = search
+    ? users.filter(
+        (u) =>
+          u.full_name.toLowerCase().includes(search.toLowerCase()) ||
+          (u.sector || "").toLowerCase().includes(search.toLowerCase())
+      )
+    : users;
+
+  const activeManagers = users.filter((u) => u.is_manager && u.active);
+
+  function managerName(id: string | null) {
+    if (!id) return "—";
+    return users.find((u) => u.id === id)?.full_name ?? "—";
+  }
 
   function openCreateDialog() {
     setEditUser(null);
-    setForm({ email: "", full_name: "", role: "", sector: "", unit: "Matriz", phone_ext: "", password: "" });
+    setForm({ ...EMPTY_FORM });
     setDialogOpen(true);
   }
 
@@ -98,29 +128,31 @@ export default function UsuariosPage() {
       unit: user.unit || "Matriz",
       phone_ext: user.phone_ext || "",
       password: "",
+      is_manager: user.is_manager || false,
+      manager_id: user.manager_id || "",
     });
     setDialogOpen(true);
   }
 
   async function handleSave() {
     setSaving(true);
+    const payload = {
+      ...form,
+      is_manager: form.is_manager,
+      manager_id: form.manager_id || null,
+    };
+
     if (editUser) {
-      await supabase
-        .from("profiles")
-        .update({
-          full_name: form.full_name,
-          role: form.role,
-          sector: form.sector,
-          unit: form.unit,
-          phone_ext: form.phone_ext,
-        })
-        .eq("id", editUser.id);
+      await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editUser.id, ...payload }),
+      });
     } else {
-      // Criar via API route para segurança
       await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
     }
     setDialogOpen(false);
@@ -138,23 +170,37 @@ export default function UsuariosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Usuários Colaboradores</h2>
-          <p className="text-muted-foreground">{users.length} usuário(s) encontrado(s)</p>
+      {/* Cabeçalho */}
+      <div className="brand-gradient rounded-xl p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Usuários Colaboradores</h2>
+            <p className="text-blue-100 text-sm">
+              {users.filter((u) => u.active).length} ativos ·{" "}
+              {activeManagers.length} gestores
+            </p>
+          </div>
+          <Button
+            onClick={openCreateDialog}
+            className="bg-white/20 hover:bg-white/30 text-white border-white/30 border"
+            variant="secondary"
+          >
+            <Plus size={16} className="mr-1.5" /> Novo Usuário
+          </Button>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus size={16} /> Novo Usuário
-        </Button>
       </div>
 
+      {/* Busca */}
       <div className="relative max-w-sm">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Search
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
         <Input
           placeholder="Buscar por nome ou setor..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
+          className="pl-9 bg-white"
         />
       </div>
 
@@ -170,26 +216,50 @@ export default function UsuariosPage() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Perfil</TableHead>
                 <TableHead>Setor</TableHead>
+                <TableHead>Gestor direto</TableHead>
                 <TableHead>Ramal</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
+              {filtered.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.full_name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {user.full_name}
+                      {user.is_manager && (
+                        <span
+                          title="Gestor"
+                          className="inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium"
+                        >
+                          <ShieldCheck size={10} /> Gestor
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[user.role]}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        ROLE_COLORS[user.role]
+                      }`}
+                    >
                       {ROLE_LABELS[user.role]}
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{user.sector || "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {user.sector || "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {managerName(user.manager_id)}
+                  </TableCell>
                   <TableCell className="text-sm">{user.phone_ext || "—"}</TableCell>
                   <TableCell>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        user.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+                        user.active
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-600"
                       }`}
                     >
                       {user.active ? "Ativo" : "Inativo"}
@@ -197,16 +267,28 @@ export default function UsuariosPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Button size="sm" variant="ghost" onClick={() => openEditDialog(user)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openEditDialog(user)}
+                      >
                         <Pencil size={14} />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => toggleActive(user)}
-                        className={user.active ? "text-red-500 hover:text-red-700" : "text-green-500 hover:text-green-700"}
+                        className={
+                          user.active
+                            ? "text-red-500 hover:text-red-700"
+                            : "text-green-500 hover:text-green-700"
+                        }
                       >
-                        {user.active ? <UserX size={14} /> : <UserCheck size={14} />}
+                        {user.active ? (
+                          <UserX size={14} />
+                        ) : (
+                          <UserCheck size={14} />
+                        )}
                       </Button>
                     </div>
                   </TableCell>
@@ -217,14 +299,19 @@ export default function UsuariosPage() {
         </div>
       )}
 
+      {/* Dialog criar / editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editUser ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
+            <DialogTitle>
+              {editUser ? "Editar Usuário" : "Novo Usuário"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="space-y-4 py-1">
+            {/* Criação: e-mail + senha */}
             {!editUser && (
-              <>
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>E-mail *</Label>
                   <Input
@@ -239,24 +326,35 @@ export default function UsuariosPage() {
                   <Input
                     type="password"
                     value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, password: e.target.value })
+                    }
                     placeholder="Senha para primeiro acesso"
                   />
                 </div>
-              </>
+              </div>
             )}
+
+            {/* Nome completo */}
             <div className="space-y-2">
               <Label>Nome completo *</Label>
               <Input
                 value={form.full_name}
-                onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, full_name: e.target.value })
+                }
                 placeholder="Nome completo"
               />
             </div>
+
+            {/* Perfil + Setor */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Perfil *</Label>
-                <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                <Select
+                  value={form.role}
+                  onValueChange={(v) => setForm({ ...form, role: v })}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
@@ -273,11 +371,15 @@ export default function UsuariosPage() {
                 <Label>Setor</Label>
                 <Input
                   value={form.sector}
-                  onChange={(e) => setForm({ ...form, sector: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, sector: e.target.value })
+                  }
                   placeholder="Ex: UTI, Recepção"
                 />
               </div>
             </div>
+
+            {/* Unidade + Ramal */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Unidade</Label>
@@ -290,18 +392,74 @@ export default function UsuariosPage() {
                 <Label>Ramal</Label>
                 <Input
                   value={form.phone_ext}
-                  onChange={(e) => setForm({ ...form, phone_ext: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, phone_ext: e.target.value })
+                  }
                   placeholder="Ex: 1234"
                 />
               </div>
             </div>
+
+            {/* Gestor direto */}
+            <div className="space-y-2">
+              <Label>Gestor direto</Label>
+              <Select
+                value={form.manager_id || "__none__"}
+                onValueChange={(v) =>
+                  setForm({ ...form, manager_id: v === "__none__" ? "" : v })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem gestor definido" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem gestor</SelectItem>
+                  {activeManagers
+                    .filter((m) => m.id !== editUser?.id)
+                    .map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.full_name}
+                        {m.sector ? ` · ${m.sector}` : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Apenas usuários marcados como gestor aparecem aqui.
+              </p>
+            </div>
+
+            {/* É gestor? */}
+            <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <input
+                id="is_manager"
+                type="checkbox"
+                checked={form.is_manager}
+                onChange={(e) =>
+                  setForm({ ...form, is_manager: e.target.checked })
+                }
+                className="w-4 h-4 accent-amber-600"
+              />
+              <label
+                htmlFor="is_manager"
+                className="flex items-center gap-1.5 text-sm font-medium text-amber-800 cursor-pointer"
+              >
+                <ShieldCheck size={15} />
+                Este usuário é gestor (pode aprovar ponto de subordinados)
+              </label>
+            </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               Cancelar
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
+              {saving ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                "Salvar"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

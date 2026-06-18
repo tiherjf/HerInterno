@@ -11,8 +11,7 @@ export async function GET() {
     const supabase = createServiceClient();
     const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, sector")
-      .eq("active", true)
+      .select("id, full_name, role, sector, unit, phone_ext, active, is_manager, manager_id")
       .order("full_name");
     return NextResponse.json({ users: data || [] });
   } catch {
@@ -35,7 +34,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
   }
 
-  const { email, password, full_name, role, sector, unit, phone_ext } = await req.json();
+  const { email, password, full_name, role, sector, unit, phone_ext, is_manager, manager_id } =
+    await req.json();
 
   if (!email || !password || !full_name || !role) {
     return NextResponse.json({ error: "Campos obrigatórios ausentes" }, { status: 400 });
@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
 
   const serviceClient = createServiceClient();
 
-  // Criar usuário no Supabase Auth
   const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
     email,
     password,
@@ -57,7 +56,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Criar perfil
   const { error: profileError } = await serviceClient.from("profiles").insert({
     id: newUser.user.id,
     full_name,
@@ -65,14 +63,62 @@ export async function POST(req: NextRequest) {
     sector: sector || null,
     unit: unit || "Matriz",
     phone_ext: phone_ext || null,
+    is_manager: is_manager === true,
+    manager_id: manager_id || null,
     active: true,
   });
 
   if (profileError) {
-    // Reverter criação do usuário
     await serviceClient.auth.admin.deleteUser(newUser.user.id);
     return NextResponse.json({ error: "Erro ao criar perfil" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, id: newUser.user.id });
+}
+
+export async function PATCH(req: NextRequest) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || !["admin", "ti", "rh"].includes(profile.role)) {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+  }
+
+  const { id, full_name, role, sector, unit, phone_ext, is_manager, manager_id } =
+    await req.json();
+
+  if (!id) return NextResponse.json({ error: "ID obrigatório" }, { status: 400 });
+
+  // RH só pode alterar manager_id e is_manager
+  const isRHOnly = profile.role === "rh";
+  const updateData = isRHOnly
+    ? {
+        is_manager: is_manager === true,
+        manager_id: manager_id || null,
+      }
+    : {
+        full_name,
+        role,
+        sector: sector || null,
+        unit: unit || "Matriz",
+        phone_ext: phone_ext || null,
+        is_manager: is_manager === true,
+        manager_id: manager_id || null,
+      };
+
+  const serviceClient = createServiceClient();
+  const { error } = await serviceClient
+    .from("profiles")
+    .update(updateData)
+    .eq("id", id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

@@ -43,12 +43,13 @@ export async function GET(req: NextRequest) {
       if (isRH) {
         query = query.eq("status", "pending");
       } else {
-        const { data: sectorUsers } = await supabase
+        // Gestor vê apenas seus subordinados diretos (manager_id = profile.id)
+        const { data: subordinates } = await supabase
           .from("profiles")
           .select("id")
-          .eq("sector", profile.sector)
+          .eq("manager_id", profile.id)
           .eq("active", true);
-        const ids = (sectorUsers || []).map((u: { id: string }) => u.id);
+        const ids = (subordinates || []).map((u: { id: string }) => u.id);
         if (ids.length === 0) return NextResponse.json({ justifications: [] });
         query = query.in("user_id", ids).eq("status", "pending");
       }
