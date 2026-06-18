@@ -94,6 +94,15 @@ export default function LoginPage() {
                   "Entrar"
                 )}
               </Button>
+
+              <div className="text-center">
+                <a
+                  href="/esqueci-senha"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Esqueceu sua senha?
+                </a>
+              </div>
             </form>
 
           </CardContent>

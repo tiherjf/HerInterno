@@ -31,6 +31,7 @@ import { useState } from "react";
 import type { StaffRole } from "@/lib/auth/staff";
 import type { MenuItemConfig } from "@/lib/menu/types";
 import { NotificacaoDot } from "@/components/news/NotificacaoDot";
+import { useMobileSidebar } from "@/components/layout/MobileSidebarContext";
 import { CATEGORY_ORDER } from "@/lib/menu/types";
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -72,6 +73,7 @@ interface SidebarProps {
 export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { isOpen: mobileOpen, close } = useMobileSidebar();
   const isAdmin = ["admin", "ti"].includes(role);
   const canConfig = ["admin", "ti", "marketing"].includes(role);
   const isRH = ["admin", "ti", "rh"].includes(role);
@@ -118,6 +120,7 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
     return (
       <Link
         href={href}
+        onClick={close}
         className={cn(
           "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
           isActive
@@ -134,12 +137,26 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
   }
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col bg-[#1e40af] text-white transition-all duration-300 min-h-screen",
-        collapsed ? "w-16" : "w-64"
+    <>
+      {/* Backdrop mobile */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={close}
+          aria-hidden
+        />
       )}
-    >
+      <aside
+        className={cn(
+          "flex flex-col bg-[#1e40af] text-white transition-all duration-300",
+          // Mobile: overlay fixo
+          "fixed inset-y-0 left-0 z-50",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          // Desktop: sempre visível no fluxo normal
+          "lg:relative lg:translate-x-0 lg:min-h-screen",
+          collapsed ? "w-16" : "w-64"
+        )}
+      >
       {/* Logo */}
       <div className="flex items-center justify-between p-4 border-b border-blue-600">
         {!collapsed && (
@@ -243,5 +260,6 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
         )}
       </nav>
     </aside>
+    </>
   );
 }
