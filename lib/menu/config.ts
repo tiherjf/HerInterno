@@ -8,6 +8,7 @@ const ALL: StaffRole[] = [
   "recepcao",
   "enfermagem",
   "administrativo",
+  "manutencao",
 ];
 
 export const DEFAULT_MENU: MenuItemConfig[] = [
@@ -41,7 +42,7 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
     category: "Clínica",
     order_num: 3,
     can_view: ALL,
-    can_edit: ["admin", "ti"],
+    can_edit: ["admin", "ti", "marketing", "recepcao"],
     active: true,
   },
   {
@@ -90,13 +91,13 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
   },
   {
     key: "chamados",
-    label: "Chamados TI",
+    label: "Chamados",
     href: "/intranet/chamados",
     icon: "Ticket",
     category: "Suporte",
     order_num: 8,
     can_view: ALL,
-    can_edit: ["admin", "ti"],
+    can_edit: ["admin", "ti", "manutencao"],
     active: true,
   },
   {
