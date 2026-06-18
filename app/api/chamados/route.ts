@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
     const category = req.nextUrl.searchParams.get("category") ?? "";
     const search = req.nextUrl.searchParams.get("q") ?? "";
     const limit = parseInt(req.nextUrl.searchParams.get("limit") ?? "50");
+    const dateFrom = req.nextUrl.searchParams.get("date_from") ?? "";
+    const dateTo = req.nextUrl.searchParams.get("date_to") ?? "";
+    const sector = req.nextUrl.searchParams.get("sector") ?? "";
+    const responsible = req.nextUrl.searchParams.get("responsible") ?? "";
 
     const supabase = isAgent ? createServiceClient() : createClient();
 
@@ -56,6 +60,10 @@ export async function GET(req: NextRequest) {
     if (priority) query = query.eq("priority", priority);
     if (category) query = query.eq("category_id", category);
     if (search) query = query.ilike("title", `%${search}%`);
+    if (dateFrom) query = query.gte("created_at", dateFrom);
+    if (dateTo) query = query.lte("created_at", `${dateTo}T23:59:59`);
+    if (sector) query = query.ilike("requester_sector", `%${sector}%`);
+    if (responsible) query = query.eq("assigned_to", responsible);
 
     const { data, error } = await query;
     if (error) throw error;

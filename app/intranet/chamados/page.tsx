@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw, RotateCcw } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 interface Category { id: string; name: string; color: string; sla_hours: number }
@@ -14,6 +14,10 @@ interface Ticket {
   created_at: string; sla_deadline: string | null; resolved_at: string | null; rating: number | null;
   ticket_categories: { id: string; name: string; color: string } | null;
 }
+interface HistoryEntry { id: string; user_name: string; action: string; old_value: string | null; new_value: string | null; created_at: string }
+type TimelineItem =
+  | ({ kind: "comment" } & { id: string; author_name: string; content: string; is_internal: boolean; created_at: string })
+  | ({ kind: "history" } & HistoryEntry);
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
   low:      { label: "Baixa",   color: "bg-blue-100 text-blue-700" },
@@ -82,6 +86,7 @@ export default function ChamadosPage() {
       description: string;
       rating_comment: string | null;
       ticket_comments: Array<{ id: string; author_name: string; content: string; is_internal: boolean; created_at: string }>;
+      ticket_history: HistoryEntry[];
     }
   } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -183,6 +188,20 @@ export default function ChamadosPage() {
     setSelected(null);
     setDetail(null);
     fetchTickets();
+  };
+
+  const reopenTicket = async () => {
+    if (!selected || !confirm("Reabrir este chamado?")) return;
+    await fetch(`/api/chamados/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reopen" }),
+    });
+    fetchTickets();
+    const res = await fetch(`/api/chamados/${selected.id}`);
+    const json = await res.json();
+    setDetail(json);
+    if (json.ticket) setSelected(json.ticket);
   };
 
   const filtered = tickets.filter(t =>
@@ -396,23 +415,38 @@ export default function ChamadosPage() {
                     {detail.ticket.description}
                   </div>
 
-                  {detail.ticket.ticket_comments?.length > 0 && (
-                    <div className="space-y-3">
-                      <p className="text-sm font-medium text-gray-700">Atualizações</p>
-                      {detail.ticket.ticket_comments.map(c => (
-                        <div
-                          key={c.id}
-                          className={`rounded-lg p-3 text-sm ${c.is_internal ? "bg-amber-50 border border-amber-200" : "bg-blue-50"}`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-medium">{c.author_name}</span>
-                            <span className="text-xs text-muted-foreground">{formatDate(c.created_at)}</span>
-                          </div>
-                          <p className="whitespace-pre-wrap text-gray-700">{c.content}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {(() => {
+                    const timeline: TimelineItem[] = [
+                      ...(detail.ticket.ticket_comments ?? []).map(c => ({ kind: "comment" as const, ...c })),
+                      ...(detail.ticket.ticket_history ?? []).map(h => ({ kind: "history" as const, ...h })),
+                    ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                    if (!timeline.length) return null;
+                    return (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-gray-700">Atualizações</p>
+                        {timeline.map(item =>
+                          item.kind === "comment" ? (
+                            <div key={item.id} className="rounded-lg p-3 text-sm bg-blue-50">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-medium">{item.author_name}</span>
+                                <span className="text-xs text-muted-foreground">{formatDate(item.created_at)}</span>
+                              </div>
+                              <p className="whitespace-pre-wrap text-gray-700">{item.content}</p>
+                            </div>
+                          ) : (
+                            <div key={item.id} className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                              <div className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+                              <span>
+                                {item.action === "status_changed" ? `Status atualizado: ${item.old_value} → ${item.new_value}`
+                                  : item.action === "reopened" ? "Chamado reaberto" : item.action}
+                              </span>
+                              <span className="ml-auto">{formatDate(item.created_at)}</span>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {!["closed", "cancelled"].includes(selected.status) && (
                     <div>
@@ -464,18 +498,19 @@ export default function ChamadosPage() {
                     </div>
                   )}
 
-                  {selected.status === "open" && (
-                    <div className="flex justify-end pt-2 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 border-red-200 hover:bg-red-50"
-                        onClick={cancelTicket}
-                      >
+                  <div className="flex justify-end gap-2 pt-2 border-t">
+                    {selected.status === "open" && (
+                      <Button variant="outline" size="sm"
+                        className="text-red-600 border-red-200 hover:bg-red-50" onClick={cancelTicket}>
                         <XCircle size={14} /> Cancelar chamado
                       </Button>
-                    </div>
-                  )}
+                    )}
+                    {selected.status === "resolved" && (
+                      <Button variant="outline" size="sm" onClick={reopenTicket}>
+                        <RotateCcw size={14} /> Reabrir chamado
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ) : null}
             </>

@@ -7,7 +7,7 @@ type Params = { params: { id: string } };
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    const isAgent = ["admin", "ti", "rh"].includes(profile.role);
+    const isAgent = ["admin", "ti", "rh", "manutencao"].includes(profile.role);
     const { content, is_internal = false } = await req.json();
 
     if (!content?.trim()) {
