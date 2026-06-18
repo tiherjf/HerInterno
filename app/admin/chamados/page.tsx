@@ -12,6 +12,7 @@ import Link from "next/link";
 
 interface Ticket {
   id: string; number: number; title: string; priority: string; status: string;
+  team: string | null;
   requester_name: string; requester_sector: string | null;
   created_at: string; updated_at: string; sla_deadline: string | null;
   first_response_at: string | null; resolved_at: string | null; rating: number | null;
@@ -55,9 +56,16 @@ const TABS = [
   { key: "resolved",    label: "Resolvidos" },
 ];
 
+const TEAM_TABS = [
+  { key: "",           label: "Todas as equipes" },
+  { key: "ti",         label: "TI" },
+  { key: "manutencao", label: "Manutenção" },
+];
+
 export default function AdminChamadosPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [tab, setTab] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Ticket | null>(null);
@@ -73,13 +81,14 @@ export default function AdminChamadosPage() {
     try {
       const params = new URLSearchParams({ view: tab || "all", limit: "200" });
       if (search) params.set("q", search);
+      if (teamFilter) params.set("team", teamFilter);
       const res = await fetch(`/api/chamados?${params}`);
       const json = await res.json();
       setTickets(json.tickets ?? []);
     } finally {
       setLoading(false);
     }
-  }, [tab, search]);
+  }, [tab, search, teamFilter]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
@@ -129,6 +138,9 @@ export default function AdminChamadosPage() {
   const filteredTickets = tickets.filter(t => {
     if (tab === "resolved") return ["resolved", "closed"].includes(t.status);
     return true;
+  }).filter(t => {
+    if (!teamFilter) return true;
+    return t.team === teamFilter;
   });
 
   return (
@@ -143,6 +155,23 @@ export default function AdminChamadosPage() {
             <BarChart2 size={16} /> Indicadores ONA
           </Button>
         </Link>
+      </div>
+
+      {/* Filtro de equipe */}
+      <div className="flex gap-2">
+        {TEAM_TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTeamFilter(t.key)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              teamFilter === t.key
+                ? "bg-blue-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Tabs */}
@@ -179,6 +208,7 @@ export default function AdminChamadosPage() {
               <th className="px-4 py-3 text-left font-medium text-gray-600 w-16">#</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Título</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Categoria</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-600">Equipe</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Prioridade</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
               <th className="px-4 py-3 text-left font-medium text-gray-600">Solicitante</th>
@@ -189,9 +219,9 @@ export default function AdminChamadosPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={9} className="py-8 text-center text-muted-foreground">Carregando...</td></tr>
+              <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Carregando...</td></tr>
             ) : filteredTickets.length === 0 ? (
-              <tr><td colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum chamado</td></tr>
+              <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Nenhum chamado</td></tr>
             ) : filteredTickets.map(t => (
               <tr
                 key={t.id}
@@ -201,7 +231,7 @@ export default function AdminChamadosPage() {
                 <td className="px-4 py-3 font-mono text-muted-foreground">
                   #{String(t.number).padStart(4, "0")}
                 </td>
-                <td className="px-4 py-3 max-w-[200px]">
+                <td className="px-4 py-3 max-w-50">
                   <span className="font-medium truncate block">{t.title}</span>
                 </td>
                 <td className="px-4 py-3">
@@ -209,6 +239,13 @@ export default function AdminChamadosPage() {
                     <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: t.ticket_categories.color }}>
                       {t.ticket_categories.name}
                     </span>
+                  ) : "—"}
+                </td>
+                <td className="px-4 py-3">
+                  {t.team === "manutencao" ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Manutenção</span>
+                  ) : t.team === "ti" ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">TI</span>
                   ) : "—"}
                 </td>
                 <td className="px-4 py-3">

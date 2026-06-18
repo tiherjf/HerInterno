@@ -25,6 +25,7 @@ import {
   BarChart3,
   CalendarDays,
   Settings,
+  Package,
   LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -60,6 +61,7 @@ const adminItems = [
   { href: "/admin/treinamentos", label: "Treinamentos", icon: ClipboardList },
   { href: "/admin/chatbot", label: "Base de Conhecimento", icon: MessageSquare },
   { href: "/admin/chamados", label: "Chamados", icon: Ticket },
+  { href: "/admin/inventario", label: "Inventário TI", icon: Package },
   { href: "/admin/ponto", label: "Ponto / RH", icon: BarChart3 },
 ];
 
