@@ -5,7 +5,8 @@ export type StaffRole =
   | "rh"
   | "recepcao"
   | "enfermagem"
-  | "administrativo";
+  | "administrativo"
+  | "manutencao";
 
 export const ALL_ROLES: StaffRole[] = [
   "admin",
@@ -15,6 +16,7 @@ export const ALL_ROLES: StaffRole[] = [
   "recepcao",
   "enfermagem",
   "administrativo",
+  "manutencao",
 ];
 
 export const ROLE_LABELS: Record<StaffRole, string> = {
@@ -25,6 +27,7 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
   recepcao: "Recepção",
   enfermagem: "Enfermagem",
   administrativo: "Administrativo",
+  manutencao: "Manutenção",
 };
 
 export const CATEGORY_ORDER = [

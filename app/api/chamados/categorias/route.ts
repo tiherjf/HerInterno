@@ -4,15 +4,22 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
-    await requireStaff();
+    const profile = await requireStaff();
     const supabase = createClient();
-    const { data } = await supabase
+
+    let query = supabase
       .from("ticket_categories")
       .select("*")
       .eq("active", true)
       .order("name");
+
+    // Agentes só veem suas próprias categorias; usuários comuns veem todas
+    if (profile.role === "ti") query = query.eq("team", "ti");
+    else if (profile.role === "manutencao") query = query.eq("team", "manutencao");
+
+    const { data } = await query;
     return NextResponse.json({ categories: data ?? [] });
-  } catch (err: unknown) {
+  } catch {
     return NextResponse.json({ categories: [] });
   }
 }
@@ -20,19 +27,34 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    if (!["admin", "ti"].includes(profile.role)) {
+    const canManage = ["admin", "ti", "manutencao"].includes(profile.role);
+    if (!canManage) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
-    const { name, color, sla_hours } = await req.json();
+
+    const { name, color, sla_hours, team } = await req.json();
     if (!name?.trim()) {
       return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
     }
+
+    // Cada equipe só cria categorias da sua própria fila
+    let resolvedTeam = team ?? "ti";
+    if (profile.role === "manutencao") resolvedTeam = "manutencao";
+    else if (profile.role === "ti") resolvedTeam = "ti";
+    // admin pode passar qualquer team
+
     const supabase = createServiceClient();
     const { data, error } = await supabase
       .from("ticket_categories")
-      .insert({ name: name.trim(), color: color ?? "#3b82f6", sla_hours: sla_hours ?? 24 })
+      .insert({
+        name: name.trim(),
+        color: color ?? "#3b82f6",
+        sla_hours: sla_hours ?? 24,
+        team: resolvedTeam,
+      })
       .select()
       .single();
+
     if (error) throw error;
     return NextResponse.json({ ok: true, category: data }, { status: 201 });
   } catch (err: unknown) {

@@ -57,6 +57,7 @@ export const ROLE_LABELS: Record<string, string> = {
   recepcao: "Recepção",
   enfermagem: "Enfermagem",
   administrativo: "Administrativo",
+  manutencao: "Manutenção",
 };
 
 export const ROLE_COLORS: Record<string, string> = {
@@ -67,4 +68,5 @@ export const ROLE_COLORS: Record<string, string> = {
   recepcao: "bg-blue-100 text-blue-800",
   enfermagem: "bg-pink-100 text-pink-800",
   administrativo: "bg-gray-100 text-gray-800",
+  manutencao: "bg-orange-100 text-orange-800",
 };

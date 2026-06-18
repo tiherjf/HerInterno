@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
-// GET — lista tickets
-// ?view=own (default) | all | unassigned | my_assigned
+// Determina a equipe do agente (ti ou manutencao)
+function agentTeam(role: string): string | null {
+  if (["admin"].includes(role)) return null; // admin vê tudo
+  if (role === "ti") return "ti";
+  if (role === "manutencao") return "manutencao";
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    const isAgent = ["admin", "ti", "rh"].includes(profile.role);
+    const isAgent = ["admin", "ti", "rh", "manutencao"].includes(profile.role);
     const view = req.nextUrl.searchParams.get("view") ?? "own";
     const status = req.nextUrl.searchParams.get("status") ?? "";
     const priority = req.nextUrl.searchParams.get("priority") ?? "";
@@ -22,8 +28,8 @@ export async function GET(req: NextRequest) {
       .select(`
         id, number, title, priority, status, requester_name, requester_sector,
         created_at, updated_at, sla_deadline, first_response_at, resolved_at,
-        rating,
-        ticket_categories(id, name, color, sla_hours),
+        rating, team,
+        ticket_categories(id, name, color, sla_hours, team),
         assigned:profiles!assigned_to(id, full_name)
       `)
       .order("created_at", { ascending: false })
@@ -32,9 +38,18 @@ export async function GET(req: NextRequest) {
     if (!isAgent || view === "own") {
       query = query.eq("requester_id", profile.id);
     } else if (view === "unassigned") {
-      query = query.is("assigned_to", null).neq("status", "closed").neq("status", "cancelled");
+      query = query
+        .is("assigned_to", null)
+        .neq("status", "closed")
+        .neq("status", "cancelled");
     } else if (view === "my_assigned") {
       query = query.eq("assigned_to", profile.id);
+    }
+
+    // Filtro por equipe: ti vê só tickets de ti, manutencao vê só manutencao
+    const team = agentTeam(profile.role);
+    if (team && isAgent && view !== "own") {
+      query = query.eq("team", team);
     }
 
     if (status) query = query.eq("status", status);
@@ -52,7 +67,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — abre novo chamado
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
@@ -64,12 +78,13 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient();
 
-    // busca SLA da categoria para calcular prazo
     let sla_deadline: string | null = null;
+    let ticketTeam = "ti";
+
     if (category_id) {
       const { data: cat } = await supabase
         .from("ticket_categories")
-        .select("sla_hours")
+        .select("sla_hours, team")
         .eq("id", category_id)
         .single();
       if (cat?.sla_hours) {
@@ -77,6 +92,7 @@ export async function POST(req: NextRequest) {
         deadline.setHours(deadline.getHours() + cat.sla_hours);
         sla_deadline = deadline.toISOString();
       }
+      if (cat?.team) ticketTeam = cat.team;
     }
 
     const { data, error } = await supabase
@@ -86,6 +102,7 @@ export async function POST(req: NextRequest) {
         description: description.trim(),
         category_id: category_id || null,
         priority,
+        team: ticketTeam,
         requester_id: profile.id,
         requester_name: profile.full_name,
         requester_sector: profile.sector || null,

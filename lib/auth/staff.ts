@@ -9,7 +9,8 @@ export type StaffRole =
   | "rh"
   | "recepcao"
   | "enfermagem"
-  | "administrativo";
+  | "administrativo"
+  | "manutencao";
 
 export interface StaffProfile {
   id: string;
