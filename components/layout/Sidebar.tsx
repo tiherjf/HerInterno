@@ -25,6 +25,9 @@ import {
   CalendarDays,
   Settings,
   Package,
+  Monitor,
+  Wrench,
+  Megaphone,
   LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -51,6 +54,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   BarChart3,
   Users,
   Settings,
+  Monitor,
+  Wrench,
+  Megaphone,
 };
 
 const adminGroups = [

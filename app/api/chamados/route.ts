@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     const dateTo = req.nextUrl.searchParams.get("date_to") ?? "";
     const sector = req.nextUrl.searchParams.get("sector") ?? "";
     const responsible = req.nextUrl.searchParams.get("responsible") ?? "";
+    const teamFilter = req.nextUrl.searchParams.get("team") ?? "";
 
     const isAgent = ["admin", "ti", "rh", "manutencao", "marketing"].includes(profile.role);
     const supabase = isAgent ? createServiceClient() : createClient();
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest) {
       query = query.eq("team", team);
     }
 
+    if (teamFilter) query = query.eq("team", teamFilter);
     if (status) query = query.eq("status", status);
     if (priority) query = query.eq("priority", priority);
     if (category) query = query.eq("category_id", category);
