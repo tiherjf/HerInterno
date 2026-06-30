@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 type Params = { params: { id: string } };
 
@@ -50,8 +51,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (error) throw error;
 
     return NextResponse.json({ ok: true });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erro interno";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

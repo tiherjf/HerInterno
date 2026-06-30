@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff, canCreateNews } from "@/lib/auth/staff";
 import { notFound } from "next/navigation";

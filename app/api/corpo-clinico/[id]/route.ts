@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 const CAN_MANAGE = ["admin", "ti", "marketing", "recepcao"];
 type Params = { params: { id: string } };
@@ -26,8 +27,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (error) throw error;
     return NextResponse.json({ ok: true });
-  } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }
 
@@ -47,7 +48,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
     if (error) throw error;
     return NextResponse.json({ ok: true });
-  } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

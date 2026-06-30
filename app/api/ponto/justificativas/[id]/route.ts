@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 type Params = { params: { id: string } };
 
@@ -33,8 +34,8 @@ export async function GET(_: NextRequest, { params }: Params) {
       .order("created_at", { ascending: true });
 
     return NextResponse.json({ justification: data, history: history ?? [] });
-  } catch {
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }
 
@@ -108,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
 
     return NextResponse.json({ ok: true });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

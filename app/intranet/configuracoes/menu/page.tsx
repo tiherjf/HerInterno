@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/auth/staff";
 import { getAllMenuItems } from "@/lib/menu/server";

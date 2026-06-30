@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,6 +32,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ avatar_url: avatarUrl });
   } catch (err) {
-    return NextResponse.json({ error: "Erro ao fazer upload" }, { status: 500 });
+    return apiError(err);
   }
 }

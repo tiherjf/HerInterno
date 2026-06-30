@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 type Params = { params: { id: string } };
 
@@ -14,7 +15,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const { error } = await supabase.from("ponto_fechamentos").delete().eq("id", params.id);
     if (error) throw error;
     return NextResponse.json({ ok: true });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

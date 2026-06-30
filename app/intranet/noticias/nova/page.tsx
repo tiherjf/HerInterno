@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 import { requireStaff, canCreateNews } from "@/lib/auth/staff";
 import { redirect } from "next/navigation";
 import { NewsForm } from "@/components/modules/NewsForm";

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,7 +25,8 @@ export async function GET(req: NextRequest) {
 
     const { data } = await query;
     return NextResponse.json({ categories: data ?? [] });
-  } catch {
+  } catch (err) {
+    console.error("[API]", err);
     return NextResponse.json({ categories: [] });
   }
 }
@@ -62,8 +64,7 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
     return NextResponse.json({ ok: true, category: data }, { status: 201 });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erro interno";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

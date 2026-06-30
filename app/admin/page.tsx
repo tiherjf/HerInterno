@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/staff";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

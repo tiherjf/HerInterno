@@ -36,7 +36,8 @@ export async function GET() {
     }));
 
     return NextResponse.json({ news: result, userId: profile.id });
-  } catch {
+  } catch (err) {
+    console.error("[API]", err);
     return NextResponse.json({ news: [], userId: null });
   }
 }

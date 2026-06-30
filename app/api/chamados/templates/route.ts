@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 const IS_AGENT = ["admin", "ti", "manutencao"];
 
@@ -18,8 +19,8 @@ export async function GET() {
     const { data, error } = await query;
     if (error) throw error;
     return NextResponse.json({ templates: data ?? [] });
-  } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       .select().single();
     if (error) throw error;
     return NextResponse.json({ ok: true, template: data }, { status: 201 });
-  } catch (err: unknown) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

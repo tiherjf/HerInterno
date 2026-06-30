@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 function addBusinessDays(date: Date, days: number): Date {
   const result = new Date(date);
@@ -76,8 +77,8 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
     return NextResponse.json({ justifications: data || [] });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }
 
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, justification: data });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

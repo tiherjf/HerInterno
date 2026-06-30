@@ -26,7 +26,8 @@ export async function GET() {
     const unreadIds = (recentNews ?? []).filter(n => !readSet.has(n.id)).map(n => n.id);
 
     return NextResponse.json({ count: unreadIds.length, ids: unreadIds });
-  } catch {
+  } catch (err) {
+    console.error("[API]", err);
     return NextResponse.json({ count: 0, ids: [] });
   }
 }

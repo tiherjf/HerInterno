@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 type Params = { params: { id: string } };
 
@@ -34,7 +35,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
       .eq("news_id", params.id);
 
     return NextResponse.json({ liked: !existing, count: count ?? 0 });
-  } catch {
-    return NextResponse.json({ error: "Erro" }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }

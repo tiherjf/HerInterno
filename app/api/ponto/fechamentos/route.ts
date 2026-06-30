@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
 
 export async function GET() {
   try {
@@ -11,8 +12,8 @@ export async function GET() {
       .select("*")
       .order("reference_month", { ascending: false });
     return NextResponse.json({ fechamentos: data ?? [] });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
       throw error;
     }
     return NextResponse.json({ ok: true }, { status: 201 });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  } catch (err) {
+    return apiError(err);
   }
 }
