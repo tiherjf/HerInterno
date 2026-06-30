@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { nome, especialidade, grupo, dias, horarios, observacoes, sem_agenda } = body;
+    const { nome, especialidade, grupo, unidade, dias, horarios, observacoes, sem_agenda } = body;
 
     if (!nome?.trim() || !especialidade?.trim() || !grupo?.trim()) {
       return NextResponse.json({ error: "Nome, especialidade e grupo são obrigatórios" }, { status: 400 });
@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         nome: nome.trim(),
         especialidade: especialidade.trim(),
         grupo: grupo.trim(),
+        unidade: unidade?.trim() || "Hospital",
         dias: dias?.trim() || "—",
         horarios: horarios?.trim() || "—",
         observacoes: observacoes?.trim() || null,

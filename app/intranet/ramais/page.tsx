@@ -15,7 +15,8 @@ interface Setor {
   id: string;
   label: string;
   icon: string;
-  cor: string;
+  headerClass: string;
+  chipClass: string;
   ramais: Ramal[];
 }
 
@@ -24,7 +25,8 @@ const SETORES: Setor[] = [
     id: "terreo",
     label: "Térreo",
     icon: "🏥",
-    cor: "bg-blue-50 border-blue-200 text-blue-700",
+    headerClass: "bg-blue-600 text-white",
+    chipClass: "bg-blue-50 border-blue-200 text-blue-700",
     ramais: [
       { ramal: "4912", descricao: "Recepção Térreo",                       localizacao: "Térreo" },
       { ramal: "4932", descricao: "Recepção 2",                             localizacao: "Térreo" },
@@ -53,7 +55,8 @@ const SETORES: Setor[] = [
     id: "primeiro",
     label: "1º Andar",
     icon: "🔼",
-    cor: "bg-purple-50 border-purple-200 text-purple-700",
+    headerClass: "bg-purple-600 text-white",
+    chipClass: "bg-purple-50 border-purple-200 text-purple-700",
     ramais: [
       { ramal: "4921", descricao: "Recepção Centro Cirúrgico",             localizacao: "1º Andar" },
       { ramal: "4941", descricao: "Recepção Centro Cirúrgico 2",           localizacao: "1º Andar" },
@@ -74,7 +77,8 @@ const SETORES: Setor[] = [
     id: "segundo",
     label: "2º Andar",
     icon: "🔼",
-    cor: "bg-teal-50 border-teal-200 text-teal-700",
+    headerClass: "bg-teal-600 text-white",
+    chipClass: "bg-teal-50 border-teal-200 text-teal-700",
     ramais: [
       { ramal: "4967", descricao: "Recepção Audiometria 1",                           localizacao: "2º Andar" },
       { ramal: "4902", descricao: "Recepção Audiometria 2",                           localizacao: "2º Andar" },
@@ -93,7 +97,8 @@ const SETORES: Setor[] = [
     id: "terceiro",
     label: "3º Andar",
     icon: "🔼",
-    cor: "bg-orange-50 border-orange-200 text-orange-700",
+    headerClass: "bg-orange-600 text-white",
+    chipClass: "bg-orange-50 border-orange-200 text-orange-700",
     ramais: [
       { ramal: "4969", descricao: "Centro de Estudos",                                localizacao: "3º Andar" },
       { ramal: "4924", descricao: "RH (Sabrina e Igor)",                               localizacao: "3º Andar" },
@@ -111,7 +116,8 @@ const SETORES: Setor[] = [
     id: "milan",
     label: "Ed. Milan",
     icon: "🏢",
-    cor: "bg-indigo-50 border-indigo-200 text-indigo-700",
+    headerClass: "bg-indigo-600 text-white",
+    chipClass: "bg-indigo-50 border-indigo-200 text-indigo-700",
     ramais: [
       { ramal: "4903", descricao: "Direção (Virgínia)",                                localizacao: "Ed. Milan" },
       { ramal: "4911", descricao: "Financeiro (Raquel)",                               localizacao: "Ed. Milan" },
@@ -135,7 +141,8 @@ const SETORES: Setor[] = [
     id: "saudeAuditiva",
     label: "Saúde Auditiva",
     icon: "👂",
-    cor: "bg-green-50 border-green-200 text-green-700",
+    headerClass: "bg-green-600 text-white",
+    chipClass: "bg-green-50 border-green-200 text-green-700",
     ramais: [
       { ramal: "4856", descricao: "Recepção (Vanessa)",                                localizacao: "Saúde Auditiva" },
       { ramal: "4857", descricao: "Recepção (Gabriela)",                               localizacao: "Saúde Auditiva" },
@@ -152,7 +159,8 @@ const SETORES: Setor[] = [
     id: "instituto",
     label: "Instituto",
     icon: "🏛️",
-    cor: "bg-rose-50 border-rose-200 text-rose-700",
+    headerClass: "bg-rose-600 text-white",
+    chipClass: "bg-rose-50 border-rose-200 text-rose-700",
     ramais: [
       { ramal: "9978", descricao: "Instituto — Recepção",                              localizacao: "Instituto" },
       { ramal: "4940", descricao: "Instituto — Financeiro",                            localizacao: "Instituto" },
@@ -164,7 +172,8 @@ const SETORES: Setor[] = [
     id: "clinicaExame",
     label: "Clínica Exame",
     icon: "🔬",
-    cor: "bg-cyan-50 border-cyan-200 text-cyan-700",
+    headerClass: "bg-cyan-600 text-white",
+    chipClass: "bg-cyan-50 border-cyan-200 text-cyan-700",
     ramais: [
       { ramal: "4898",           descricao: "Recepção Clínica Exame", localizacao: "Clínica Exame" },
       { ramal: "(32) 3257-6464", descricao: "Clínica Exame",          localizacao: "Clínica Exame" },
@@ -174,7 +183,8 @@ const SETORES: Setor[] = [
     id: "institutoLevy",
     label: "Instituto Levy",
     icon: "🏥",
-    cor: "bg-amber-50 border-amber-200 text-amber-700",
+    headerClass: "bg-amber-600 text-white",
+    chipClass: "bg-amber-50 border-amber-200 text-amber-700",
     ramais: [
       { ramal: "4863", descricao: "Recepção Levy",  localizacao: "Instituto Levy" },
       { ramal: "4864", descricao: "Consultório 1",  localizacao: "Instituto Levy" },
@@ -203,38 +213,31 @@ export default function RamaisPage() {
       if (setorAtivo !== "todos" && s.id !== setorAtivo) return false;
       if (!termo) return true;
       return s.ramais.some(
-        (r) =>
-          r.ramal.toLowerCase().includes(termo) ||
-          r.descricao.toLowerCase().includes(termo)
+        (r) => r.ramal.toLowerCase().includes(termo) || r.descricao.toLowerCase().includes(termo)
       );
     }).map((s) => ({
       ...s,
       ramais: termo
         ? s.ramais.filter(
-            (r) =>
-              r.ramal.toLowerCase().includes(termo) ||
-              r.descricao.toLowerCase().includes(termo)
+            (r) => r.ramal.toLowerCase().includes(termo) || r.descricao.toLowerCase().includes(termo)
           )
         : s.ramais,
     }));
   }, [search, setorAtivo]);
 
-  const totalFiltrado = setoresFiltrados.reduce(
-    (acc, s) => acc + s.ramais.length,
-    0
-  );
+  const totalFiltrado = setoresFiltrados.reduce((acc, s) => acc + s.ramais.length, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Cabeçalho */}
-      <div className="brand-gradient rounded-xl p-6 text-white">
+      <div className="brand-gradient rounded-xl p-5 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <Phone size={24} />
+            <div className="p-2 bg-white/20 rounded-lg shrink-0">
+              <Phone size={22} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold">Lista de Ramais</h2>
+              <h2 className="text-xl font-bold">Lista de Ramais</h2>
               <p className="text-blue-100 text-sm">
                 {SETORES.length} setores · {TOTAL} ramais cadastrados
               </p>
@@ -243,31 +246,30 @@ export default function RamaisPage() {
           <Button
             variant="secondary"
             size="sm"
-            className="bg-white/20 hover:bg-white/30 text-white border-white/30 border no-print"
+            className="bg-white/20 hover:bg-white/30 text-white border-white/30 border no-print self-start sm:self-auto"
             onClick={() => window.print()}
           >
-            <Download size={15} className="mr-1.5" /> Imprimir / PDF
+            <Download size={14} className="mr-1.5" /> Imprimir / PDF
           </Button>
         </div>
       </div>
 
-      {/* Busca */}
-      <div className="relative max-w-lg">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-        />
-        <Input
-          placeholder="Buscar por ramal, nome ou setor..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 bg-white"
-        />
-        {search && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-            {totalFiltrado} resultado{totalFiltrado !== 1 ? "s" : ""}
-          </span>
-        )}
+      {/* Busca sticky */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur pb-2 pt-1 -mx-4 px-4 sm:-mx-6 sm:px-6">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Buscar por ramal, nome ou setor..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 bg-white shadow-sm"
+          />
+          {search && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              {totalFiltrado} resultado{totalFiltrado !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Filtros por setor */}
@@ -297,7 +299,6 @@ export default function RamaisPage() {
         ))}
       </div>
 
-      {/* Resultado vazio */}
       {setoresFiltrados.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Phone size={40} className="mb-3 opacity-20" />
@@ -305,46 +306,41 @@ export default function RamaisPage() {
         </div>
       )}
 
-      {/* Tabelas por setor */}
+      {/* Listas por setor */}
       <div className="space-y-5">
         {setoresFiltrados.map((setor) => (
-          <div
-            key={setor.id}
-            className="rounded-xl border bg-white shadow-sm overflow-hidden print:break-inside-avoid"
-          >
-            {/* Header do setor */}
-            <div
-              className={`flex items-center gap-3 px-5 py-3 border-b ${setor.cor}`}
-            >
-              <span className="text-lg">{setor.icon}</span>
+          <div key={setor.id} className="rounded-xl border bg-white shadow-sm overflow-hidden print:break-inside-avoid">
+            {/* Header colorido do setor */}
+            <div className={`flex items-center justify-between px-4 py-3 ${setor.headerClass}`}>
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-sm">{setor.label}</h3>
-                <span className="text-xs opacity-70">
-                  {setor.ramais.length} ramal
-                  {setor.ramais.length !== 1 ? "is" : ""}
+                <span className="text-lg">{setor.icon}</span>
+                <h3 className="font-bold text-sm">{setor.label}</h3>
+                <span className="text-xs opacity-75 bg-white/20 px-2 py-0.5 rounded-full">
+                  {setor.ramais.length} ramal{setor.ramais.length !== 1 ? "is" : ""}
                 </span>
               </div>
-              <div className="ml-auto flex items-center gap-1 text-xs opacity-60">
-                <MapPin size={12} />
+              <div className="flex items-center gap-1 text-xs opacity-75">
+                <MapPin size={11} />
                 {setor.ramais[0]?.localizacao}
               </div>
             </div>
 
-            {/* Grid de cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-px bg-border">
+            {/* Grid de ramais */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x-0">
               {setor.ramais.map((r, idx) => {
                 const semRamal = r.ramal === "N/A";
+                const isCopiado = copiado === r.ramal;
                 return (
                   <div
                     key={idx}
-                    className="bg-white px-4 py-3 flex items-center gap-3 group hover:bg-muted/40 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b last:border-b-0 sm:nth-[2n]:border-l sm:nth-[2n+1]:border-l-0 lg:nth-[3n+2]:border-l lg:nth-[3n+3]:border-l"
                   >
-                    {/* Número */}
+                    {/* Número bem visível */}
                     <div
-                      className={`shrink-0 flex items-center justify-center w-14 h-10 rounded-lg text-sm font-bold tabular-nums ${
+                      className={`shrink-0 flex items-center justify-center min-w-18 h-12 rounded-lg font-bold tabular-nums text-base px-2 ${
                         semRamal
-                          ? "bg-gray-100 text-gray-400"
-                          : "bg-primary/10 text-primary"
+                          ? "bg-gray-100 text-gray-400 text-sm"
+                          : "bg-blue-50 text-blue-700 border border-blue-200"
                       }`}
                     >
                       {semRamal ? "—" : r.ramal}
@@ -352,31 +348,31 @@ export default function RamaisPage() {
 
                     {/* Descrição */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-800 truncate leading-snug">
-                        {r.descricao}
-                      </p>
+                      <p className="text-sm font-medium text-gray-800 leading-tight">{r.descricao}</p>
                     </div>
 
-                    {/* Ações */}
+                    {/* Botões de ação — sempre visíveis */}
                     {!semRamal && (
-                      <div className="shrink-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity no-print">
+                      <div className="shrink-0 flex gap-1 no-print">
                         <a
                           href={`tel:${r.ramal}`}
                           title="Ligar"
-                          className="p-1.5 rounded hover:bg-green-100 text-green-600 transition-colors"
+                          aria-label={`Ligar para ${r.descricao}`}
+                          className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition-colors border border-green-200"
                         >
-                          <Phone size={13} />
+                          <Phone size={14} />
                         </a>
                         <button
                           onClick={() => copiar(r.ramal)}
                           title="Copiar ramal"
-                          className="p-1.5 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                          aria-label={`Copiar ramal ${r.ramal}`}
+                          className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors border ${
+                            isCopiado
+                              ? "bg-green-50 text-green-600 border-green-200"
+                              : "bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200"
+                          }`}
                         >
-                          {copiado === r.ramal ? (
-                            <Check size={13} className="text-green-600" />
-                          ) : (
-                            <Copy size={13} />
-                          )}
+                          {isCopiado ? <Check size={14} /> : <Copy size={14} />}
                         </button>
                       </div>
                     )}

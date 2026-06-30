@@ -57,6 +57,17 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
     active: true,
   },
   {
+    key: "procedimentos",
+    label: "Procedimentos e Exames",
+    href: "/intranet/procedimentos",
+    icon: "ClipboardList",
+    category: "Clínica",
+    order_num: 41,
+    can_view: ALL,
+    can_edit: ["admin", "ti", "marketing", "recepcao"],
+    active: true,
+  },
+  {
     key: "treinamentos",
     label: "Treinamentos",
     href: "/intranet/treinamentos",
