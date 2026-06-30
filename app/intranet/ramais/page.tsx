@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Search, Phone, Copy, Check, Download, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface Ramal {
   ramal: string;
@@ -274,28 +275,24 @@ export default function RamaisPage() {
 
       {/* Filtros por setor */}
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
+          size="sm"
+          variant={setorAtivo === "todos" ? "default" : "outline"}
           onClick={() => setSetorAtivo("todos")}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-            setorAtivo === "todos"
-              ? "bg-[#1e40af] text-white border-[#1e40af]"
-              : "bg-white text-gray-600 border-gray-200 hover:border-[#1e40af]"
-          }`}
+          className="rounded-full text-xs"
         >
           Todos ({TOTAL})
-        </button>
+        </Button>
         {SETORES.map((s) => (
-          <button
+          <Button
             key={s.id}
+            size="sm"
+            variant={setorAtivo === s.id ? "default" : "outline"}
             onClick={() => setSetorAtivo(setorAtivo === s.id ? "todos" : s.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-              setorAtivo === s.id
-                ? "bg-[#1e40af] text-white border-[#1e40af]"
-                : "bg-white text-gray-600 border-gray-200 hover:border-[#1e40af]"
-            }`}
+            className="rounded-full text-xs"
           >
             {s.icon} {s.label} ({s.ramais.length})
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -315,9 +312,9 @@ export default function RamaisPage() {
               <div className="flex items-center gap-2">
                 <span className="text-lg">{setor.icon}</span>
                 <h3 className="font-bold text-sm">{setor.label}</h3>
-                <span className="text-xs opacity-75 bg-white/20 px-2 py-0.5 rounded-full">
+                <Badge className="text-xs opacity-90 bg-white/20 text-white border-white/30 hover:bg-white/30">
                   {setor.ramais.length} ramal{setor.ramais.length !== 1 ? "is" : ""}
-                </span>
+                </Badge>
               </div>
               <div className="flex items-center gap-1 text-xs opacity-75">
                 <MapPin size={11} />
@@ -354,18 +351,16 @@ export default function RamaisPage() {
                     {/* Botão copiar */}
                     {!semRamal && (
                       <div className="shrink-0 no-print">
-                        <button
+                        <Button
+                          size="icon"
+                          variant="outline"
                           onClick={() => copiar(r.ramal)}
                           title="Copiar ramal"
                           aria-label={`Copiar ramal ${r.ramal}`}
-                          className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors border ${
-                            isCopiado
-                              ? "bg-green-50 text-green-600 border-green-200"
-                              : "bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200"
-                          }`}
+                          className={`w-8 h-8 ${isCopiado ? "border-green-200 bg-green-50 text-green-600" : "border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-600"}`}
                         >
                           {isCopiado ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
+                        </Button>
                       </div>
                     )}
                   </div>

@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Camera, Save, Lock, User, Building, Phone } from "lucide-react";
+import { Camera, Save, Lock, User, Building, Phone, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ROLE_LABELS, ROLE_COLORS } from "@/lib/utils";
 
 interface PerfilData {
@@ -143,17 +145,19 @@ export default function PerfilPage() {
                   <span className="text-white text-2xl font-bold">{initials}</span>
                 )}
               </div>
-              <button
+              <Button
+                size="icon"
+                variant="outline"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingAvatar}
-                className="absolute bottom-0 right-0 w-7 h-7 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
+                className="absolute bottom-0 right-0 w-7 h-7 rounded-full p-0 shadow-sm border-2 border-background"
               >
                 {uploadingAvatar ? (
-                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <Loader2 size={12} className="animate-spin" />
                 ) : (
-                  <Camera size={13} className="text-gray-600" />
+                  <Camera size={12} />
                 )}
-              </button>
+              </Button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -165,13 +169,9 @@ export default function PerfilPage() {
             <div>
               <p className="text-xl font-bold text-gray-900">{perfil?.full_name ?? "..."}</p>
               {perfil?.role && (
-                <span
-                  className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium mt-1 ${
-                    ROLE_COLORS[perfil.role] ?? "bg-gray-100 text-gray-800"
-                  }`}
-                >
+                <Badge className={`text-xs border-0 mt-1 ${ROLE_COLORS[perfil.role] ?? "bg-gray-100 text-gray-800"}`}>
                   {ROLE_LABELS[perfil.role] ?? perfil.role}
-                </span>
+                </Badge>
               )}
               {perfil?.sector && (
                 <p className="text-sm text-muted-foreground mt-1">{perfil.sector}</p>
@@ -219,12 +219,14 @@ export default function PerfilPage() {
               />
             </div>
           </div>
-          <div className="flex items-center justify-between pt-1">
-            <span className={`text-sm transition-opacity ${msgPerfil ? "opacity-100" : "opacity-0"} ${msgPerfil?.ok ? "text-green-600" : "text-red-600"}`}>
-              {msgPerfil?.text ?? "."}
-            </span>
+          {msgPerfil && (
+            <Alert variant={msgPerfil.ok ? "success" : "destructive"}>
+              <AlertDescription>{msgPerfil.text}</AlertDescription>
+            </Alert>
+          )}
+          <div className="flex justify-end">
             <Button onClick={handleSavePerfil} disabled={savingPerfil}>
-              <Save size={15} />
+              {savingPerfil ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
               {savingPerfil ? "Salvando..." : "Salvar alterações"}
             </Button>
           </div>
@@ -259,16 +261,18 @@ export default function PerfilPage() {
               autoComplete="new-password"
             />
           </div>
-          <div className="flex items-center justify-between pt-1">
-            <span className={`text-sm transition-opacity ${msgPwd ? "opacity-100" : "opacity-0"} ${msgPwd?.ok ? "text-green-600" : "text-red-600"}`}>
-              {msgPwd?.text ?? "."}
-            </span>
+          {msgPwd && (
+            <Alert variant={msgPwd.ok ? "success" : "destructive"}>
+              <AlertDescription>{msgPwd.text}</AlertDescription>
+            </Alert>
+          )}
+          <div className="flex justify-end">
             <Button
               variant="outline"
               onClick={handleChangePwd}
               disabled={savingPwd || !novaSenha}
             >
-              <Lock size={15} />
+              {savingPwd ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
               {savingPwd ? "Alterando..." : "Alterar senha"}
             </Button>
           </div>

@@ -14,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, CheckCircle2, Loader2, Upload, ArrowLeft, Info } from "lucide-react";
+import { CheckCircle2, Loader2, Upload, ArrowLeft, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 
 interface JustificationType {
@@ -198,23 +199,17 @@ export default function NovaJustificativaPage() {
           {selectedType?.allows_partial_day && (
             <div className="space-y-3">
               <Label>Período</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    checked={form.is_full_day}
-                    onChange={() => setForm({ ...form, is_full_day: true })}
-                  />
-                  <span className="text-sm">Dia todo</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    checked={!form.is_full_day}
-                    onChange={() => setForm({ ...form, is_full_day: false })}
-                  />
-                  <span className="text-sm">Horário específico</span>
-                </label>
+              <div className="flex gap-2">
+                <Button type="button" size="sm"
+                  variant={form.is_full_day ? "default" : "outline"}
+                  onClick={() => setForm({ ...form, is_full_day: true })}>
+                  Dia todo
+                </Button>
+                <Button type="button" size="sm"
+                  variant={!form.is_full_day ? "default" : "outline"}
+                  onClick={() => setForm({ ...form, is_full_day: false })}>
+                  Horário específico
+                </Button>
               </div>
               {!form.is_full_day && (
                 <div className="grid grid-cols-2 gap-3">
@@ -273,10 +268,9 @@ export default function NovaJustificativaPage() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 p-3 rounded-lg">
-              <AlertCircle size={16} />
-              {error}
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           <div className="flex gap-3 pt-2">

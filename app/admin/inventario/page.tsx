@@ -2,8 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Search, Plus, Pencil, Trash2, Package, Monitor, Printer,
@@ -231,29 +236,27 @@ export default function InventarioPage() {
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-50">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm"
+          <Input
+            className="pl-9"
             placeholder="Buscar por nome, marca, modelo, serial..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <select
-          className="border rounded-lg px-3 py-2 text-sm"
-          value={filterType}
-          onChange={e => setFilterType(e.target.value)}
-        >
-          <option value="">Todos os tipos</option>
-          {ASSET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-        <select
-          className="border rounded-lg px-3 py-2 text-sm"
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
-        >
-          <option value="">Todos os status</option>
-          {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
+        <Select value={filterType || "_all"} onValueChange={v => setFilterType(v === "_all" ? "" : v)}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Todos os tipos" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all">Todos os tipos</SelectItem>
+            {ASSET_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterStatus || "_all"} onValueChange={v => setFilterStatus(v === "_all" ? "" : v)}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Todos os status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all">Todos os status</SelectItem>
+            {Object.entries(STATUS_MAP).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Button variant="outline" size="sm" onClick={fetchAssets}>
           <RefreshCw size={14} />
         </Button>
@@ -378,9 +381,9 @@ export default function InventarioPage() {
                       ) : <span className="text-muted-foreground text-sm">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_MAP[asset.status]?.color ?? "bg-gray-100"}`}>
+                      <Badge className={`text-xs border-0 ${STATUS_MAP[asset.status]?.color ?? "bg-gray-100"}`}>
                         {STATUS_MAP[asset.status]?.label ?? asset.status}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-4 py-3">
                       {warranty ? (
@@ -442,97 +445,96 @@ export default function InventarioPage() {
           <div className="space-y-4">
             {/* Nome + Tipo */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-sm font-medium">Nome *</label>
-                <input
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  placeholder="Ex: Desktop RH 01"
-                  value={form.name}
-                  onChange={f("name")}
-                />
+              <div className="col-span-2 space-y-1.5">
+                <Label>Nome *</Label>
+                <Input placeholder="Ex: Desktop RH 01" value={form.name} onChange={f("name")} />
               </div>
-              <div>
-                <label className="text-sm font-medium">Tipo *</label>
-                <select
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  value={form.asset_type}
-                  onChange={e => setForm(prev => ({
-                    ...prev,
-                    asset_type: e.target.value,
-                    useful_life_months: String(DEFAULT_USEFUL_LIFE[e.target.value] ?? 60),
-                  }))}
-                >
-                  {ASSET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+              <div className="space-y-1.5">
+                <Label>Tipo *</Label>
+                <Select value={form.asset_type} onValueChange={v => setForm(prev => ({
+                  ...prev, asset_type: v,
+                  useful_life_months: String(DEFAULT_USEFUL_LIFE[v] ?? 60),
+                }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ASSET_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <label className="text-sm font-medium">Status</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.status} onChange={f("status")}>
-                  {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={v => setForm(prev => ({ ...prev, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STATUS_MAP).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             {/* Marca + Modelo */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Marca</label>
-                <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" placeholder="Ex: Dell" value={form.brand} onChange={f("brand")} />
+              <div className="space-y-1.5">
+                <Label>Marca</Label>
+                <Input placeholder="Ex: Dell" value={form.brand} onChange={f("brand")} />
               </div>
-              <div>
-                <label className="text-sm font-medium">Modelo</label>
-                <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" placeholder="Ex: OptiPlex 7090" value={form.model} onChange={f("model")} />
+              <div className="space-y-1.5">
+                <Label>Modelo</Label>
+                <Input placeholder="Ex: OptiPlex 7090" value={form.model} onChange={f("model")} />
               </div>
             </div>
 
             {/* Serial + Patrimônio */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Número de Série</label>
-                <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm font-mono" placeholder="SN12345" value={form.serial_number} onChange={f("serial_number")} />
+              <div className="space-y-1.5">
+                <Label>Número de Série</Label>
+                <Input className="font-mono" placeholder="SN12345" value={form.serial_number} onChange={f("serial_number")} />
               </div>
-              <div>
-                <label className="text-sm font-medium">Patrimônio / Asset Tag</label>
-                <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm font-mono" placeholder="HER-001" value={form.asset_tag} onChange={f("asset_tag")} />
+              <div className="space-y-1.5">
+                <Label>Patrimônio / Asset Tag</Label>
+                <Input className="font-mono" placeholder="HER-001" value={form.asset_tag} onChange={f("asset_tag")} />
               </div>
             </div>
 
             {/* Localização + Responsável */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Localização</label>
-                <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" placeholder="Ex: Sala TI — 2º Andar" value={form.location} onChange={f("location")} />
+              <div className="space-y-1.5">
+                <Label>Localização</Label>
+                <Input placeholder="Ex: Sala TI — 2º Andar" value={form.location} onChange={f("location")} />
               </div>
-              <div>
-                <label className="text-sm font-medium">Usuário Responsável</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.assigned_to} onChange={f("assigned_to")}>
-                  <option value="">Sem responsável</option>
-                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name}{u.sector ? ` (${u.sector})` : ""}</option>)}
-                </select>
+              <div className="space-y-1.5">
+                <Label>Usuário Responsável</Label>
+                <Select value={form.assigned_to || "_none"} onValueChange={v => setForm(prev => ({ ...prev, assigned_to: v === "_none" ? "" : v }))}>
+                  <SelectTrigger><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">Sem responsável</SelectItem>
+                    {users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name}{u.sector ? ` (${u.sector})` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             {/* SO + IP */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Sistema Operacional</label>
-                <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" placeholder="Ex: Windows 11 Pro" value={form.operating_system} onChange={f("operating_system")} />
+              <div className="space-y-1.5">
+                <Label>Sistema Operacional</Label>
+                <Input placeholder="Ex: Windows 11 Pro" value={form.operating_system} onChange={f("operating_system")} />
               </div>
-              <div>
-                <label className="text-sm font-medium">Endereço IP</label>
-                <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm font-mono" placeholder="192.168.1.x" value={form.ip_address} onChange={f("ip_address")} />
+              <div className="space-y-1.5">
+                <Label>Endereço IP</Label>
+                <Input className="font-mono" placeholder="192.168.1.x" value={form.ip_address} onChange={f("ip_address")} />
               </div>
             </div>
 
             {/* Datas */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Data de Compra</label>
-                <input type="date" className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.purchase_date} onChange={f("purchase_date")} />
+              <div className="space-y-1.5">
+                <Label>Data de Compra</Label>
+                <Input type="date" value={form.purchase_date} onChange={f("purchase_date")} />
               </div>
-              <div>
-                <label className="text-sm font-medium">Vencimento da Garantia</label>
-                <input type="date" className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.warranty_expiry} onChange={f("warranty_expiry")} />
+              <div className="space-y-1.5">
+                <Label>Vencimento da Garantia</Label>
+                <Input type="date" value={form.warranty_expiry} onChange={f("warranty_expiry")} />
               </div>
             </div>
 
@@ -541,52 +543,35 @@ export default function InventarioPage() {
               <div className="col-span-2">
                 <p className="text-xs font-semibold text-blue-700 mb-2">Depreciação (linear)</p>
               </div>
-              <div>
-                <label className="text-sm font-medium">Valor de Compra (R$)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  placeholder="Ex: 3500.00"
-                  value={form.purchase_value}
-                  onChange={f("purchase_value")}
-                />
+              <div className="space-y-1.5">
+                <Label>Valor de Compra (R$)</Label>
+                <Input type="number" min="0" step="0.01" placeholder="Ex: 3500.00" value={form.purchase_value} onChange={f("purchase_value")} />
               </div>
-              <div>
-                <label className="text-sm font-medium">Vida Útil (meses)</label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  placeholder="60"
-                  value={form.useful_life_months}
-                  onChange={f("useful_life_months")}
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">Padrão por tipo: Desktop/Servidor = 60m, Notebook = 48m</p>
+              <div className="space-y-1.5">
+                <Label>Vida Útil (meses)</Label>
+                <Input type="number" min="1" step="1" placeholder="60" value={form.useful_life_months} onChange={f("useful_life_months")} />
+                <p className="text-[10px] text-muted-foreground">Padrão por tipo: Desktop/Servidor = 60m, Notebook = 48m</p>
               </div>
             </div>
 
             {/* Notas */}
-            <div>
-              <label className="text-sm font-medium">Notas / Observações</label>
-              <textarea
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none"
+            <div className="space-y-1.5">
+              <Label>Notas / Observações</Label>
+              <Textarea
                 rows={3}
                 placeholder="Informações adicionais, histórico de manutenção..."
                 value={form.notes}
                 onChange={f("notes")}
+                className="resize-none"
               />
             </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button onClick={save} disabled={saving || !form.name.trim()}>
-                {saving ? "Salvando..." : editingId ? "Salvar Alterações" : "Cadastrar"}
-              </Button>
-            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button onClick={save} disabled={saving || !form.name.trim()}>
+              {saving ? "Salvando..." : editingId ? "Salvar Alterações" : "Cadastrar"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

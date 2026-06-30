@@ -21,8 +21,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Loader2, Users } from "lucide-react";
+import { Plus, Pencil, Loader2, Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 interface Training {
   id: string;
@@ -152,11 +153,11 @@ export default function TreinamentosAdminPage() {
                       <TableCell>{t.workload_hours}h</TableCell>
                       <TableCell>{t.passing_score}%</TableCell>
                       <TableCell>
-                        <button onClick={() => toggleActive(t)}>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>
+                        <Button variant="ghost" size="sm" className="h-auto p-0" onClick={() => toggleActive(t)}>
+                          <Badge variant={t.active ? "success" : "secondary"} className="text-xs cursor-pointer">
                             {t.active ? "Ativo" : "Inativo"}
-                          </span>
-                        </button>
+                          </Badge>
+                        </Button>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button size="sm" variant="ghost" onClick={() => openEdit(t)}>

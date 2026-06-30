@@ -26,6 +26,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   Pencil,
@@ -229,23 +231,16 @@ export default function UsuariosPage() {
                     <div className="flex items-center gap-2">
                       {user.full_name}
                       {user.is_manager && (
-                        <span
-                          title="Gestor"
-                          className="inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium"
-                        >
+                        <Badge variant="warning" className="text-[10px] gap-1 py-0.5">
                           <ShieldCheck size={10} /> Gestor
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        ROLE_COLORS[user.role]
-                      }`}
-                    >
+                    <Badge className={`text-xs font-medium border-0 ${ROLE_COLORS[user.role]}`}>
                       {ROLE_LABELS[user.role]}
-                    </span>
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {user.sector || "—"}
@@ -255,15 +250,9 @@ export default function UsuariosPage() {
                   </TableCell>
                   <TableCell className="text-sm">{user.phone_ext || "—"}</TableCell>
                   <TableCell>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        user.active
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
+                    <Badge variant={user.active ? "success" : "secondary"} className="text-xs">
                       {user.active ? "Ativo" : "Inativo"}
-                    </span>
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -431,22 +420,21 @@ export default function UsuariosPage() {
 
             {/* É gestor? */}
             <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <input
+              <Checkbox
                 id="is_manager"
-                type="checkbox"
                 checked={form.is_manager}
-                onChange={(e) =>
-                  setForm({ ...form, is_manager: e.target.checked })
+                onCheckedChange={(checked) =>
+                  setForm({ ...form, is_manager: checked === true })
                 }
-                className="w-4 h-4 accent-amber-600"
+                className="border-amber-600 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
               />
-              <label
+              <Label
                 htmlFor="is_manager"
                 className="flex items-center gap-1.5 text-sm font-medium text-amber-800 cursor-pointer"
               >
                 <ShieldCheck size={15} />
                 Este usuário é gestor (pode aprovar ponto de subordinados)
-              </label>
+              </Label>
             </div>
           </div>
 

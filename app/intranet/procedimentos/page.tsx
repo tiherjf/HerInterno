@@ -2,14 +2,19 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  Search, Plus, Pencil, X, ClipboardList, ChevronDown, ChevronUp,
+  Search, Plus, Pencil, ClipboardList, ChevronDown, ChevronUp,
   Info, AlertCircle, ToggleLeft, ToggleRight, Stethoscope, FlaskConical,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 
 const UNIDADES = [
@@ -205,17 +210,19 @@ export default function ProcedimentosPage() {
         {/* Tabs de unidade */}
         <div className="flex flex-wrap gap-2 mt-4">
           {UNIDADES.map(u => (
-            <button
+            <Button
               key={u.key}
+              size="sm"
               onClick={() => setUnidadeAtiva(u.key)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+              variant="outline"
+              className={`rounded-full text-sm h-8 px-3 ${
                 unidadeAtiva === u.key
-                  ? "bg-white text-gray-900 border-white"
+                  ? "bg-white text-gray-900 border-white hover:bg-white/90"
                   : "bg-white/20 text-white border-white/40 hover:bg-white/30"
               }`}
             >
               {u.emoji} {u.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -235,17 +242,15 @@ export default function ProcedimentosPage() {
           {["todos", ...TIPOS.map(t => t.key)].map(k => {
             const label = k === "todos" ? "Todos" : TIPOS.find(t => t.key === k)?.label ?? k;
             return (
-              <button
+              <Button
                 key={k}
+                size="sm"
+                variant={tipoAtivo === k ? "default" : "outline"}
                 onClick={() => setTipoAtivo(k)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                  tipoAtivo === k
-                    ? "bg-gray-800 text-white border-gray-800"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
-                }`}
+                className="rounded-full text-xs h-7"
               >
                 {label}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -254,7 +259,7 @@ export default function ProcedimentosPage() {
       {/* Loading */}
       {loading && (
         <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-xl" />)}
+          {[1,2,3].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}
         </div>
       )}
 
@@ -266,8 +271,9 @@ export default function ProcedimentosPage() {
             const Icon = tipo.icon;
             return (
               <Card key={tipo.key} className="overflow-hidden">
-                <button
-                  className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left border-b"
+                <Button
+                  variant="ghost"
+                  className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left border-b h-auto rounded-none"
                   onClick={() => toggleExpandido(tipo.key)}
                 >
                   <div className="flex items-center gap-2">
@@ -279,7 +285,7 @@ export default function ProcedimentosPage() {
                     ? <ChevronUp size={16} className="text-gray-400" />
                     : <ChevronDown size={16} className="text-gray-400" />
                   }
-                </button>
+                </Button>
 
                 {expandidos.has(tipo.key) && (
                   <CardContent className="p-0">
@@ -288,9 +294,9 @@ export default function ProcedimentosPage() {
                         <Icon size={28} className="mx-auto mb-2 opacity-30" />
                         <p>Nenhum {tipo.label.toLowerCase().slice(0, -1)} cadastrado{busca ? ` para "${busca}"` : ""} para esta unidade.</p>
                         {podeEditar && (
-                          <button onClick={openCreate} className="mt-2 text-xs text-blue-600 hover:underline">
+                          <Button variant="link" size="sm" className="mt-2 text-xs h-auto p-0" onClick={openCreate}>
                             + Adicionar {tipo.key}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     ) : (
@@ -300,10 +306,10 @@ export default function ProcedimentosPage() {
                             key={p.id}
                             className={`px-5 py-4 flex items-start gap-4 ${!p.ativo ? "opacity-50" : ""}`}
                           >
-                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border shrink-0 mt-0.5 ${tipo.cor}`}>
+                            <Badge className={`inline-flex items-center gap-1 text-xs shrink-0 mt-0.5 ${tipo.cor}`}>
                               <Icon size={11} />
                               {p.tipo === "exame" ? "Exame" : "Procedimento"}
-                            </span>
+                            </Badge>
 
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
@@ -369,63 +375,68 @@ export default function ProcedimentosPage() {
 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Tipo *</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.tipo} onChange={f("tipo")}>
-                  {TIPOS.map(t => <option key={t.key} value={t.key}>{t.label.slice(0, -1)}</option>)}
-                </select>
+              <div className="space-y-1.5">
+                <Label>Tipo *</Label>
+                <Select value={form.tipo} onValueChange={v => setForm(prev => ({ ...prev, tipo: v as TipoKey }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TIPOS.map(t => <SelectItem key={t.key} value={t.key}>{t.label.slice(0, -1)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <label className="text-sm font-medium">Unidade *</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.unidade} onChange={f("unidade")}>
-                  {UNIDADES.map(u => <option key={u.key} value={u.key}>{u.emoji} {u.label}</option>)}
-                </select>
+              <div className="space-y-1.5">
+                <Label>Unidade *</Label>
+                <Select value={form.unidade} onValueChange={v => setForm(prev => ({ ...prev, unidade: v as UnidadeKey }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {UNIDADES.map(u => <SelectItem key={u.key} value={u.key}>{u.emoji} {u.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Nome *</label>
-              <Input className="mt-1" placeholder="Ex: Hemograma completo, Ressonância magnética..." value={form.nome} onChange={f("nome")} />
+            <div className="space-y-1.5">
+              <Label>Nome *</Label>
+              <Input placeholder="Ex: Hemograma completo, Ressonância magnética..." value={form.nome} onChange={f("nome")} />
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Descrição</label>
-              <textarea
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none"
+            <div className="space-y-1.5">
+              <Label>Descrição</Label>
+              <Textarea
                 rows={2}
                 placeholder="Informações gerais sobre o exame ou procedimento..."
                 value={form.descricao}
                 onChange={f("descricao")}
+                className="resize-none"
               />
             </div>
 
-            <div>
-              <label className="text-sm font-medium flex items-center gap-1">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">
                 <AlertCircle size={13} className="text-amber-600" /> Preparo / Instruções
-              </label>
-              <textarea
-                className="w-full mt-1 border border-yellow-300 rounded-lg px-3 py-2 text-sm resize-none bg-yellow-50"
+              </Label>
+              <Textarea
                 rows={3}
                 placeholder="Instruções de preparo que o paciente deve seguir antes do exame..."
                 value={form.preparacao}
                 onChange={f("preparacao")}
+                className="resize-none border-yellow-300 bg-yellow-50 focus-visible:ring-yellow-400"
               />
-              <p className="text-xs text-muted-foreground mt-0.5">Deixe em branco se não há preparo especial.</p>
+              <p className="text-xs text-muted-foreground">Deixe em branco se não há preparo especial.</p>
             </div>
 
             {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                <X size={14} /> {formError}
-              </div>
+              <Alert variant="destructive">
+                <AlertDescription>{formError}</AlertDescription>
+              </Alert>
             )}
-
-            <div className="flex justify-end gap-3 pt-1">
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? "Salvando..." : editingId ? "Salvar Alterações" : "Cadastrar"}
-              </Button>
-            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? "Salvando..." : editingId ? "Salvar Alterações" : "Cadastrar"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

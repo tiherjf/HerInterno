@@ -2,12 +2,35 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Search, RefreshCw, Clock, CheckCircle2, XCircle, AlertTriangle,
   User, BarChart2, SlidersHorizontal, ChevronDown, ChevronUp,
   ListChecks, BookOpen, Check, Square, X, Plus, Trash2, RotateCcw,
   UserCheck, GripVertical, List, Columns, Tag, Pencil, ToggleLeft, ToggleRight,
+  Loader2,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -436,18 +459,26 @@ export default function AdminChamadosPage() {
           <p className="text-sm text-muted-foreground">Gestão de solicitações de suporte</p>
         </div>
         <div className="flex items-center gap-2">
-          {tab !== "categorias" && <div className="flex rounded-lg border overflow-hidden">
-            <button
+          {tab !== "categorias" && (
+          <div className="flex rounded-lg border overflow-hidden">
+            <Button
+              size="sm"
+              variant={viewMode === "list" ? "default" : "ghost"}
               onClick={() => setViewMode("list")}
-              className={`px-3 py-1.5 flex items-center gap-1.5 text-sm transition-colors ${viewMode === "list" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              className="rounded-none gap-1.5"
+            >
               <List size={14} /> Lista
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === "kanban" ? "default" : "ghost"}
               onClick={() => setViewMode("kanban")}
-              className={`px-3 py-1.5 flex items-center gap-1.5 text-sm border-l transition-colors ${viewMode === "kanban" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              className="rounded-none border-l gap-1.5"
+            >
               <Columns size={14} /> Kanban
-            </button>
-          </div>}
+            </Button>
+          </div>
+        )}
           <Link href="/admin/chamados/indicadores">
             <Button variant="outline" size="sm"><BarChart2 size={16} /> Indicadores ONA</Button>
           </Link>
@@ -455,22 +486,36 @@ export default function AdminChamadosPage() {
       </div>
 
       {/* Filtro de equipe — oculto em categorias */}
-      {tab !== "categorias" && <div className="flex gap-2">
-        {TEAM_TABS.map(t => (
-          <button key={t.key} onClick={() => setTeamFilter(t.key)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-              teamFilter === t.key ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}>{t.label}</button>
-        ))}
-      </div>}
+      {tab !== "categorias" && (
+        <div className="flex gap-2 flex-wrap">
+          {TEAM_TABS.map(t => (
+            <Button
+              key={t.key}
+              size="sm"
+              variant={teamFilter === t.key ? "default" : "outline"}
+              onClick={() => setTeamFilter(t.key)}
+              className="rounded-full"
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-1 border-b">
         {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}>{t.label}</button>
+              tab === t.key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
@@ -478,9 +523,9 @@ export default function AdminChamadosPage() {
       {tab !== "categorias" && <div className="space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1 max-w-sm">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              className="w-full border rounded-lg pl-9 pr-3 py-2 text-sm"
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              className="pl-9"
               placeholder="Buscar por título..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -500,29 +545,30 @@ export default function AdminChamadosPage() {
         </div>
 
         {showFilters && (
-          <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">De</label>
-              <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
+          <div className="bg-muted/50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">De</Label>
+              <Input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Até</label>
-              <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs">Até</Label>
+              <Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Setor do solicitante</label>
-              <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Ex: UTI, Recepcão"
-                value={filterSector} onChange={e => setFilterSector(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs">Setor do solicitante</Label>
+              <Input placeholder="Ex: UTI, Recepção" value={filterSector} onChange={e => setFilterSector(e.target.value)} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Responsável</label>
-              <select className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={filterResponsible} onChange={e => setFilterResponsible(e.target.value)}>
-                <option value="">Todos</option>
-                {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
-              </select>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Responsável</Label>
+              <Select value={filterResponsible || "__all__"} onValueChange={v => setFilterResponsible(v === "__all__" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todos</SelectItem>
+                  {agents.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
@@ -567,21 +613,23 @@ export default function AdminChamadosPage() {
                     </td>
                     <td className="px-4 py-3">
                       {cat.team === "ti"
-                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">TI</span>
-                        : <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Manutenção</span>}
+                        ? <Badge className="text-xs bg-blue-100 text-blue-700 border-0">TI</Badge>
+                        : cat.team === "marketing"
+                          ? <Badge className="text-xs bg-pink-100 text-pink-700 border-0">MKT</Badge>
+                          : <Badge className="text-xs bg-orange-100 text-orange-700 border-0">Manutenção</Badge>}
                     </td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1 text-sm"><Clock size={12} />{cat.sla_hours}h</span>
                     </td>
                     <td className="px-4 py-3">
                       {cat.default_priority
-                        ? <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITY[cat.default_priority]?.color}`}>{PRIORITY[cat.default_priority]?.label}</span>
+                        ? <Badge className={`text-xs border-0 ${PRIORITY[cat.default_priority]?.color}`}>{PRIORITY[cat.default_priority]?.label}</Badge>
                         : <span className="text-xs text-muted-foreground">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${cat.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      <Badge className={`text-xs border-0 ${cat.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                         {cat.active ? "Ativa" : "Inativa"}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
@@ -640,22 +688,22 @@ export default function AdminChamadosPage() {
                     <td className="px-4 py-3 max-w-50"><span className="font-medium truncate block">{t.title}</span></td>
                     <td className="px-4 py-3">
                       {t.ticket_categories ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: t.ticket_categories.color }}>
+                        <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ backgroundColor: t.ticket_categories.color }}>
                           {t.ticket_categories.name}
                         </span>
                       ) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {t.team === "manutencao" ? <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Manutenção</span>
-                        : t.team === "ti" ? <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">TI</span>
-                        : t.team === "marketing" ? <span className="text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-700">MKT</span>
+                      {t.team === "manutencao" ? <Badge className="text-xs bg-orange-100 text-orange-700 border-0">Manutenção</Badge>
+                        : t.team === "ti" ? <Badge className="text-xs bg-blue-100 text-blue-700 border-0">TI</Badge>
+                        : t.team === "marketing" ? <Badge className="text-xs bg-pink-100 text-pink-700 border-0">MKT</Badge>
                         : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${PRIORITY[t.priority]?.color}`}>{PRIORITY[t.priority]?.label}</span>
+                      <Badge className={`text-xs border-0 ${PRIORITY[t.priority]?.color}`}>{PRIORITY[t.priority]?.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[t.status]?.color}`}>{STATUS[t.status]?.label}</span>
+                      <Badge className={`text-xs border-0 ${STATUS[t.status]?.color}`}>{STATUS[t.status]?.label}</Badge>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       <div>{t.requester_name}</div>
@@ -791,15 +839,19 @@ export default function AdminChamadosPage() {
 
               {/* Atribuição manual */}
               {["open","in_progress"].includes(selected.status) && (
-                <div className="flex gap-2 items-center border rounded-lg px-3 py-2 bg-gray-50">
-                  <UserCheck size={15} className="text-gray-500 shrink-0" />
-                  <select className="flex-1 text-sm border-0 bg-transparent focus:outline-none"
-                    value={assignToId} onChange={e => setAssignToId(e.target.value)}>
-                    <option value="">Atribuir para...</option>
-                    {availableAgents.map(a => (
-                      <option key={a.id} value={a.id}>{a.full_name}</option>
-                    ))}
-                  </select>
+                <div className="flex gap-2 items-center border rounded-lg px-3 py-2 bg-muted/50">
+                  <UserCheck size={15} className="text-muted-foreground shrink-0" />
+                  <Select value={assignToId || "__none__"} onValueChange={v => setAssignToId(v === "__none__" ? "" : v)}>
+                    <SelectTrigger className="flex-1 border-0 bg-transparent h-8 shadow-none focus:ring-0 text-sm">
+                      <SelectValue placeholder="Atribuir para..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Atribuir para...</SelectItem>
+                      {availableAgents.map(a => (
+                        <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button size="sm" disabled={!assignToId || actioning}
                     onClick={() => { doAction("assign", { assigned_to: assignToId }); setAssignToId(""); }}>
                     Atribuir
@@ -841,27 +893,31 @@ export default function AdminChamadosPage() {
               </div>
 
               {loadingDetail ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">Carregando...</div>
+                <div className="space-y-3 py-4">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-24" />
+                  <Skeleton className="h-16" />
+                </div>
               ) : detail ? (
                 <div className="space-y-4">
                   {/* Badges */}
                   <div className="flex flex-wrap gap-2">
                     {selected.ticket_categories && (
-                      <span className="text-xs px-2 py-1 rounded-full text-white"
+                      <span className="text-xs px-2 py-1 rounded-full text-white font-medium"
                         style={{ backgroundColor: selected.ticket_categories.color }}>
                         {selected.ticket_categories.name}
                       </span>
                     )}
-                    <span className={`text-xs px-2 py-1 rounded-full ${PRIORITY[selected.priority]?.color}`}>
+                    <Badge className={`text-xs border-0 ${PRIORITY[selected.priority]?.color}`}>
                       {PRIORITY[selected.priority]?.label}
-                    </span>
-                    <span className={`text-xs px-2 py-1 rounded-full ${STATUS[selected.status]?.color}`}>
+                    </Badge>
+                    <Badge className={`text-xs border-0 ${STATUS[selected.status]?.color}`}>
                       {STATUS[selected.status]?.label}
-                    </span>
+                    </Badge>
                     {selected.assigned && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 flex items-center gap-1">
+                      <Badge variant="secondary" className="text-xs gap-1">
                         <User size={11} />{selected.assigned.full_name}
-                      </span>
+                      </Badge>
                     )}
                     <SlaChip deadline={selected.sla_deadline} status={selected.status} />
                   </div>
@@ -954,9 +1010,9 @@ export default function AdminChamadosPage() {
                         </div>
                       ))}
                     </div>
-                    <div className="flex gap-2 px-4 py-2 border-t bg-gray-50">
-                      <input
-                        className="flex-1 text-sm border rounded px-2 py-1.5"
+                    <div className="flex gap-2 px-4 py-2 border-t bg-muted/30">
+                      <Input
+                        className="flex-1 h-8 text-sm"
                         placeholder="Adicionar tarefa..."
                         value={newChecklistText}
                         onChange={e => setNewChecklistText(e.target.value)}
@@ -1005,21 +1061,27 @@ export default function AdminChamadosPage() {
                           )}
                         </div>
                       </div>
-                      <textarea
-                        className="w-full border rounded-lg px-3 py-2 text-sm resize-none"
+                      <Textarea
                         rows={3}
                         placeholder="Resposta ao solicitante ou nota interna..."
                         value={comment}
                         onChange={e => setComment(e.target.value)}
+                        className="resize-none"
                       />
                       <div className="flex items-center justify-between mt-2">
-                        <label className="flex items-center gap-2 text-sm text-amber-700 cursor-pointer">
-                          <input type="checkbox" checked={isInternal}
-                            onChange={e => setIsInternal(e.target.checked)} className="rounded" />
-                          Nota interna
-                        </label>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="is_internal"
+                            checked={isInternal}
+                            onCheckedChange={v => setIsInternal(v === true)}
+                            className="border-amber-600 data-[state=checked]:bg-amber-600"
+                          />
+                          <Label htmlFor="is_internal" className="text-sm text-amber-700 cursor-pointer">
+                            Nota interna
+                          </Label>
+                        </div>
                         <Button size="sm" onClick={submitComment} disabled={submittingComment || !comment.trim()}>
-                          {submittingComment ? "Enviando..." : "Enviar"}
+                          {submittingComment ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Enviar"}
                         </Button>
                       </div>
                     </div>
@@ -1045,40 +1107,41 @@ export default function AdminChamadosPage() {
               <p className="text-sm text-muted-foreground">Preencha os campos obrigatórios antes de marcar como resolvido.</p>
 
               {/* Atribuição — obrigatória se não atribuído */}
-              <div>
-                <label className="text-sm font-medium flex items-center gap-1">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1">
                   <UserCheck size={14} /> Responsável *
-                </label>
-                <select
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  value={resolveAssignTo}
-                  onChange={e => setResolveAssignTo(e.target.value)}
-                >
-                  <option value="">Selecionar responsável...</option>
-                  {(resolveModal.team ? agents.filter(a => a.role === "admin" || a.role === resolveModal.team) : agents).map(a => (
-                    <option key={a.id} value={a.id}>{a.full_name}</option>
-                  ))}
-                </select>
+                </Label>
+                <Select value={resolveAssignTo || "__none__"} onValueChange={v => setResolveAssignTo(v === "__none__" ? "" : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar responsável..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Selecionar responsável...</SelectItem>
+                    {(resolveModal.team ? agents.filter(a => a.role === "admin" || a.role === resolveModal.team) : agents).map(a => (
+                      <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {!resolveAssignTo && !resolveModal.assigned && (
-                  <p className="text-xs text-red-500 mt-1">Obrigatório para resolver</p>
+                  <p className="text-xs text-destructive">Obrigatório para resolver</p>
                 )}
               </div>
 
               {/* Solução — obrigatória */}
-              <div>
-                <label className="text-sm font-medium flex items-center gap-1">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1">
                   <CheckCircle2 size={14} /> Solução aplicada *
-                </label>
-                <textarea
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none"
+                </Label>
+                <Textarea
                   rows={4}
                   placeholder="Descreva o que foi feito para resolver o chamado..."
                   value={resolveSolution}
                   onChange={e => setResolveSolution(e.target.value)}
                   autoFocus
+                  className="resize-none"
                 />
                 {!resolveSolution.trim() && (
-                  <p className="text-xs text-red-500 mt-1">Obrigatório para resolver</p>
+                  <p className="text-xs text-destructive">Obrigatório para resolver</p>
                 )}
               </div>
 
@@ -1108,60 +1171,64 @@ export default function AdminChamadosPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Nome *</label>
-              <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                placeholder="Ex: Suporte a Sistemas" value={catForm.name} onChange={fc("name")} />
+            <div className="space-y-1.5">
+              <Label>Nome *</Label>
+              <Input placeholder="Ex: Suporte a Sistemas" value={catForm.name} onChange={fc("name")} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Equipe</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  value={catForm.team} onChange={fc("team")}>
-                  <option value="ti">TI</option>
-                  <option value="manutencao">Manutenção</option>
-                  <option value="marketing">Marketing (MKT)</option>
-                </select>
+              <div className="space-y-1.5">
+                <Label>Equipe</Label>
+                <Select value={catForm.team} onValueChange={v => setCatForm(p => ({ ...p, team: v }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ti">TI</SelectItem>
+                    <SelectItem value="manutencao">Manutenção</SelectItem>
+                    <SelectItem value="marketing">Marketing (MKT)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <label className="text-sm font-medium">Cor</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <input type="color" className="h-9 w-12 rounded border cursor-pointer p-0.5"
-                    value={catForm.color} onChange={fc("color")} />
+              <div className="space-y-1.5">
+                <Label>Cor</Label>
+                <div className="flex items-center gap-2">
+                  <Input type="color" className="h-9 w-12 p-0.5 cursor-pointer" value={catForm.color} onChange={fc("color")} />
                   <span className="text-xs font-mono text-muted-foreground">{catForm.color}</span>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">SLA (horas)</label>
-                <input type="number" min="1" step="1"
-                  className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  placeholder="24" value={catForm.sla_hours} onChange={fc("sla_hours")} />
-                <p className="text-[10px] text-muted-foreground mt-1">Prazo máximo de atendimento</p>
+              <div className="space-y-1.5">
+                <Label>SLA (horas)</Label>
+                <Input type="number" min="1" step="1" placeholder="24" value={catForm.sla_hours} onChange={fc("sla_hours")} />
+                <p className="text-[10px] text-muted-foreground">Prazo máximo de atendimento</p>
               </div>
-              <div>
-                <label className="text-sm font-medium">Prioridade Padrão</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  value={catForm.default_priority} onChange={fc("default_priority")}>
-                  <option value="">Nenhuma (manual)</option>
-                  <option value="low">Baixa</option>
-                  <option value="medium">Média</option>
-                  <option value="high">Alta</option>
-                  <option value="critical">Crítica</option>
-                </select>
-                <p className="text-[10px] text-muted-foreground mt-1">Pré-preenche ao abrir chamado</p>
+              <div className="space-y-1.5">
+                <Label>Prioridade Padrão</Label>
+                <Select value={catForm.default_priority || "__none__"} onValueChange={v => setCatForm(p => ({ ...p, default_priority: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhuma (manual)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhuma (manual)</SelectItem>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="critical">Crítica</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Pré-preenche ao abrir chamado</p>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <DialogFooter>
               <Button variant="outline" onClick={() => setShowCatForm(false)}>Cancelar</Button>
               <Button onClick={saveCat} disabled={!catForm.name.trim() || savingCat}>
-                {savingCat ? "Salvando..." : editingCatId ? "Salvar" : "Criar Categoria"}
+                {savingCat ? <><Loader2 size={13} className="animate-spin" /> Salvando...</> : editingCatId ? "Salvar" : "Criar Categoria"}
               </Button>
-            </div>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>
@@ -1171,20 +1238,18 @@ export default function AdminChamadosPage() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Novo Template</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div>
-              <label className="text-sm font-medium">Nome</label>
-              <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                placeholder="Ex: Aguardando peça" value={newTplName} onChange={e => setNewTplName(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label>Nome</Label>
+              <Input placeholder="Ex: Aguardando peça" value={newTplName} onChange={e => setNewTplName(e.target.value)} />
             </div>
-            <div>
-              <label className="text-sm font-medium">Conteúdo</label>
-              <textarea className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none" rows={4}
-                placeholder="Texto da resposta padrão..." value={newTplContent} onChange={e => setNewTplContent(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label>Conteúdo</Label>
+              <Textarea rows={4} placeholder="Texto da resposta padrão..." value={newTplContent} onChange={e => setNewTplContent(e.target.value)} className="resize-none" />
             </div>
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button variant="outline" onClick={() => setShowNewTemplate(false)}>Cancelar</Button>
               <Button onClick={saveTemplate} disabled={!newTplName.trim() || !newTplContent.trim()}>Salvar</Button>
-            </div>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>

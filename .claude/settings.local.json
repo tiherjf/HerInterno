@@ -4,7 +4,23 @@
       "PowerShell(vercel --version 2>&1)",
       "PowerShell(vercel whoami 2>&1)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mateus.oliveira\\\\Documents\\\\GitHub\\\\HerInterno\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(xargs grep -l \"POST.*categorias\\\\|PUT.*categorias\\\\|PATCH.*categorias\\\\|DELETE.*categorias\")",
+      "PowerShell(Get-ChildItem 'C:\\\\Users\\\\mateus.oliveira\\\\Documents\\\\GitHub\\\\HerInterno\\\\app\\\\admin' -Recurse -Directory | Where-Object { $_.Name -match 'categoria|categor' })",
+      "Bash(mkdir -p \"c:\\\\Users\\\\mateus.oliveira\\\\Documents\\\\GitHub\\\\HerInterno\\\\app\\\\api\\\\procedimentos\\\\[id]\")",
+      "Bash(npx tsc *)",
+      "PowerShell(cd \"C:\\\\Users\\\\mateus.oliveira\\\\Documents\\\\GitHub\\\\HerInterno\"; git add lib/api/error.ts app/api/ app/intranet/ app/admin/page.tsx; git status --short | Where-Object { $_ -notmatch \"settings\" })",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\mateus.oliveira\\\\Documents\\\\GitHub\\\\HerInterno\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(grep \"\\\\.tsx$\")",
+      "Bash(npx shadcn@latest add alert checkbox separator skeleton tooltip --yes)",
+      "Bash(npx shadcn@4.11.0 add alert checkbox separator skeleton tooltip --yes)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\mateus.oliveira\\Documents\\GitHub\\HerInterno\\app\\api\\procedimentos"
     ]
   }
 }

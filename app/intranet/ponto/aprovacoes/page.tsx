@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, XCircle, Loader2, Clock, Paperclip, AlertCircle, CheckSquare, Square } from "lucide-react";
 
 interface Justification {
@@ -151,13 +153,10 @@ export default function AprovacoesPage() {
           </p>
         </div>
         {justifications.length > 0 && (
-          <button
-            onClick={toggleAll}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={toggleAll}>
             {allChecked ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
             Selecionar todas
-          </button>
+          </Button>
         )}
       </div>
 
@@ -178,21 +177,18 @@ export default function AprovacoesPage() {
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
                   {/* Checkbox */}
-                  <button onClick={() => toggleCheck(j.id)} className="mt-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="mt-1 shrink-0 w-6 h-6 p-0"
+                    onClick={() => toggleCheck(j.id)}>
                     {checked.has(j.id)
                       ? <CheckSquare size={18} className="text-blue-600" />
                       : <Square size={18} className="text-gray-400" />}
-                  </button>
+                  </Button>
 
                   <div className="flex-1 min-w-0 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold">{j.profiles?.full_name}</span>
-                      <span className="text-xs text-muted-foreground bg-gray-100 px-2 py-0.5 rounded-full">
-                        {j.profiles?.sector}
-                      </span>
-                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                        {j.justification_types?.name}
-                      </span>
+                      <Badge variant="secondary" className="text-xs">{j.profiles?.sector}</Badge>
+                      <Badge className="text-xs bg-blue-50 text-blue-700 border-0">{j.justification_types?.name}</Badge>
                     </div>
                     <div className="text-sm text-muted-foreground">
                       Ocorrência: <strong className="text-foreground">{fmt(j.occurrence_date)}</strong>
@@ -249,9 +245,10 @@ export default function AprovacoesPage() {
             onClick={() => { setBatchAction("reject"); setBatchObs(""); setBatchError(""); }}>
             <XCircle size={14} /> Recusar em lote
           </Button>
-          <button onClick={() => setChecked(new Set())} className="text-gray-400 hover:text-white text-xs ml-1">
+          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white text-xs ml-1 h-6 px-2"
+            onClick={() => setChecked(new Set())}>
             ✕ Limpar
-          </button>
+          </Button>
         </div>
       )}
 
@@ -278,9 +275,9 @@ export default function AprovacoesPage() {
               />
             </div>
             {error && (
-              <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 p-3 rounded-lg">
-                <AlertCircle size={14} /> {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
           </div>
           <DialogFooter>
@@ -312,9 +309,9 @@ export default function AprovacoesPage() {
               />
             </div>
             {batchError && (
-              <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 p-3 rounded-lg">
-                <AlertCircle size={14} /> {batchError}
-              </div>
+              <Alert variant="destructive">
+                <AlertDescription>{batchError}</AlertDescription>
+              </Alert>
             )}
           </div>
           <DialogFooter>

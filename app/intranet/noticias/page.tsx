@@ -12,12 +12,12 @@ import { Plus, Newspaper } from "lucide-react";
 
 const CATEGORIES = ["Todos", "Institucional", "RH", "Qualidade", "TI", "Eventos"];
 
-const categoryColors: Record<string, string> = {
-  Institucional: "bg-blue-100 text-blue-800",
-  RH: "bg-green-100 text-green-800",
-  Qualidade: "bg-purple-100 text-purple-800",
-  TI: "bg-yellow-100 text-yellow-800",
-  Eventos: "bg-pink-100 text-pink-800",
+const categoryVariants: Record<string, "default" | "secondary" | "outline"> = {
+  Institucional: "default",
+  RH: "secondary",
+  Qualidade: "secondary",
+  TI: "outline",
+  Eventos: "secondary",
 };
 
 export default async function NoticiasPage({
@@ -71,6 +71,8 @@ export default async function NoticiasPage({
     );
   }
 
+  const activeCategory = searchParams.categoria || "Todos";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -79,31 +81,28 @@ export default async function NoticiasPage({
           <p className="text-muted-foreground">Fique por dentro das novidades do hospital</p>
         </div>
         {canCreate && (
-          <Link href="/intranet/noticias/nova">
-            <Button>
+          <Button asChild>
+            <Link href="/intranet/noticias/nova">
               <Plus size={16} /> Nova Notícia
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         )}
       </div>
 
       {/* Filtro de categorias */}
       <div className="flex flex-wrap gap-2">
         {CATEGORIES.map((cat) => (
-          <Link
+          <Button
             key={cat}
-            href={cat === "Todos" ? "/intranet/noticias" : `/intranet/noticias?categoria=${cat}`}
+            size="sm"
+            variant={activeCategory === cat ? "default" : "outline"}
+            className="rounded-full"
+            asChild
           >
-            <button
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                (searchParams.categoria || "Todos") === cat
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
+            <Link href={cat === "Todos" ? "/intranet/noticias" : `/intranet/noticias?categoria=${cat}`}>
               {cat}
-            </button>
-          </Link>
+            </Link>
+          </Button>
         ))}
       </div>
 
@@ -114,9 +113,12 @@ export default async function NoticiasPage({
             <Link key={item.id} href={`/intranet/noticias/${item.id}`}>
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full relative">
                 {isNovo(item) && (
-                  <span className="absolute top-3 right-3 z-10 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow animate-pulse">
+                  <Badge
+                    variant="destructive"
+                    className="absolute top-3 right-3 z-10 animate-pulse text-[10px]"
+                  >
                     NOVO
-                  </span>
+                  </Badge>
                 )}
                 {item.cover_url && (
                   <img
@@ -127,13 +129,9 @@ export default async function NoticiasPage({
                 )}
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        categoryColors[item.category] || "bg-gray-100 text-gray-800"
-                      }`}
-                    >
+                    <Badge variant={categoryVariants[item.category] ?? "secondary"} className="text-xs">
                       {item.category}
-                    </span>
+                    </Badge>
                     <span className="text-xs text-muted-foreground">
                       {item.published_at ? formatDate(item.published_at) : ""}
                     </span>
@@ -152,11 +150,9 @@ export default async function NoticiasPage({
           <Newspaper size={48} className="mb-3 opacity-30" />
           <p className="text-lg">Nenhuma notícia encontrada.</p>
           {canCreate && (
-            <Link href="/intranet/noticias/nova" className="mt-2">
-              <Button variant="outline" size="sm">
-                Publicar primeira notícia
-              </Button>
-            </Link>
+            <Button variant="outline" size="sm" className="mt-2" asChild>
+              <Link href="/intranet/noticias/nova">Publicar primeira notícia</Link>
+            </Button>
           )}
         </div>
       )}
@@ -165,22 +161,20 @@ export default async function NoticiasPage({
       {totalPages > 1 && (
         <div className="flex justify-center gap-2 pt-4">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <Link
+            <Button
               key={p}
-              href={`/intranet/noticias?pagina=${p}${
-                searchParams.categoria ? `&categoria=${searchParams.categoria}` : ""
-              }`}
+              size="sm"
+              variant={p === page ? "default" : "outline"}
+              asChild
             >
-              <button
-                className={`px-3 py-1 rounded text-sm ${
-                  p === page
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-gray-100 hover:bg-gray-200"
+              <Link
+                href={`/intranet/noticias?pagina=${p}${
+                  searchParams.categoria ? `&categoria=${searchParams.categoria}` : ""
                 }`}
               >
                 {p}
-              </button>
-            </Link>
+              </Link>
+            </Button>
           ))}
         </div>
       )}

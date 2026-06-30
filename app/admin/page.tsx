@@ -2,6 +2,8 @@ export const revalidate = 60;
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/staff";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import {
   Users,
   Newspaper,
@@ -134,14 +136,17 @@ export default async function AdminDashboard() {
         ].map((link) => {
           const Icon = link.icon;
           return (
-            <a
+            <Button
               key={link.href}
-              href={link.href}
-              className="flex flex-col items-center gap-2 p-4 bg-white border rounded-xl hover:shadow-md transition-shadow text-center"
+              variant="outline"
+              className="flex flex-col items-center gap-2 h-auto py-4 rounded-xl"
+              asChild
             >
-              <Icon size={24} className="text-primary" />
-              <span className="text-sm font-medium">{link.label}</span>
-            </a>
+              <Link href={link.href}>
+                <Icon size={24} className="text-primary" />
+                <span className="text-sm font-medium">{link.label}</span>
+              </Link>
+            </Button>
           );
         })}
       </div>

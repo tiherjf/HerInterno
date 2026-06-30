@@ -3,13 +3,19 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search, AlertTriangle, Clock, CalendarDays, Stethoscope,
-  ChevronDown, ChevronUp, Plus, Pencil, Trash2, X,
+  ChevronDown, ChevronUp, Plus, Pencil, Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 
 const UNIDADES = [
@@ -221,28 +227,32 @@ export default function CorpoClinicoPage() {
 
         {/* Chips de unidade no cabeçalho */}
         <div className="flex flex-wrap gap-2 mt-4">
-          <button
+          <Button
+            size="sm"
             onClick={() => setUnidadeAtiva(null)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+            className={`rounded-full text-xs h-7 px-3 ${
               unidadeAtiva === null
-                ? "bg-white text-[#1e40af] border-white"
-                : "bg-white/20 text-white border-white/40 hover:bg-white/30"
+                ? "bg-white text-[#1e40af] hover:bg-white/90 border-white"
+                : "bg-white/20 text-white hover:bg-white/30 border-white/40"
             }`}
+            variant="outline"
           >
             Todas as unidades
-          </button>
+          </Button>
           {UNIDADES.map(u => (
-            <button
+            <Button
               key={u.key}
+              size="sm"
               onClick={() => setUnidadeAtiva(unidadeAtiva === u.key ? null : u.key)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+              className={`rounded-full text-xs h-7 px-3 ${
                 unidadeAtiva === u.key
-                  ? "bg-white text-[#1e40af] border-white"
-                  : "bg-white/20 text-white border-white/40 hover:bg-white/30"
+                  ? "bg-white text-[#1e40af] hover:bg-white/90 border-white"
+                  : "bg-white/20 text-white hover:bg-white/30 border-white/40"
               }`}
+              variant="outline"
             >
               {u.emoji} {u.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -262,35 +272,31 @@ export default function CorpoClinicoPage() {
 
       {/* Chips de especialidade */}
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
+          size="sm"
+          variant={grupoAtivo === null ? "default" : "outline"}
           onClick={() => setGrupoAtivo(null)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-            grupoAtivo === null
-              ? "bg-[#1e40af] text-white border-[#1e40af]"
-              : "bg-white text-gray-600 border-gray-300 hover:border-[#1e40af] hover:text-[#1e40af]"
-          }`}
+          className="rounded-full text-xs h-7"
         >
           Todas ({grupos.length})
-        </button>
+        </Button>
         {grupos.map(g => (
-          <button
+          <Button
             key={g.nome}
+            size="sm"
+            variant={grupoAtivo === g.nome ? "default" : "outline"}
             onClick={() => setGrupoAtivo(grupoAtivo === g.nome ? null : g.nome)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-              grupoAtivo === g.nome
-                ? "bg-[#1e40af] text-white border-[#1e40af]"
-                : "bg-white text-gray-600 border-gray-300 hover:border-[#1e40af] hover:text-[#1e40af]"
-            }`}
+            className="rounded-full text-xs h-7"
           >
             {g.nome} ({g.profissionais.length})
-          </button>
+          </Button>
         ))}
       </div>
 
       {/* Loading */}
       {loading && (
         <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-16 bg-gray-100 animate-pulse rounded-xl" />)}
+          {[1,2,3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
         </div>
       )}
 
@@ -307,8 +313,9 @@ export default function CorpoClinicoPage() {
         <div className="space-y-4">
           {gruposFiltrados.map(g => (
             <Card key={g.nome} className="overflow-hidden">
-              <button
-                className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 hover:bg-blue-100 transition-colors text-left"
+              <Button
+                variant="ghost"
+                className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 hover:bg-blue-100 transition-colors text-left h-auto rounded-none"
                 onClick={() => toggleExpandido(g.nome)}
               >
                 <div className="flex items-center gap-3">
@@ -327,7 +334,7 @@ export default function CorpoClinicoPage() {
                   ? <ChevronUp size={18} className="text-gray-400 shrink-0" />
                   : <ChevronDown size={18} className="text-gray-400 shrink-0" />
                 }
-              </button>
+              </Button>
 
               {expandidos.has(g.nome) && (
                 <div className="overflow-x-auto">
@@ -413,17 +420,19 @@ export default function CorpoClinicoPage() {
                       {podeEditar && (
                         <tr className="border-t bg-gray-50">
                           <td colSpan={podeEditar ? 7 : 6} className="px-5 py-2">
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
                               onClick={() => {
                                 setEditingId(null);
                                 setForm({ ...EMPTY_FORM, grupo: g.nome });
                                 setFormError("");
                                 setShowForm(true);
                               }}
-                              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
                             >
                               <Plus size={12} /> Adicionar em {g.nome}
-                            </button>
+                            </Button>
                           </td>
                         </tr>
                       )}
@@ -449,98 +458,98 @@ export default function CorpoClinicoPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Nome completo *</label>
-              <Input className="mt-1" placeholder="Ex: João da Silva" value={form.nome} onChange={f("nome")} />
+            <div className="space-y-1.5">
+              <Label>Nome completo *</Label>
+              <Input placeholder="Ex: João da Silva" value={form.nome} onChange={f("nome")} />
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Especialidade *</label>
-              <Input className="mt-1" placeholder="Ex: Pediatra, Otorrinolaringologista" value={form.especialidade} onChange={f("especialidade")} />
+            <div className="space-y-1.5">
+              <Label>Especialidade *</Label>
+              <Input placeholder="Ex: Pediatra, Otorrinolaringologista" value={form.especialidade} onChange={f("especialidade")} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               {/* Grupo */}
-              <div>
-                <label className="text-sm font-medium">Grupo / Área *</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.grupo} onChange={f("grupo")}>
-                  <option value="">Selecione...</option>
-                  {nomesGrupos.map(n => <option key={n} value={n}>{n}</option>)}
-                  <option value="__novo__">+ Criar novo grupo</option>
-                </select>
+              <div className="space-y-1.5">
+                <Label>Grupo / Área *</Label>
+                <Select value={form.grupo} onValueChange={v => setForm(prev => ({ ...prev, grupo: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    {nomesGrupos.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    <SelectItem value="__novo__">+ Criar novo grupo</SelectItem>
+                  </SelectContent>
+                </Select>
                 {form.grupo === "__novo__" && (
                   <Input className="mt-2" placeholder="Nome do novo grupo" value={form.grupo_novo} onChange={f("grupo_novo")} />
                 )}
                 {grupoFinalLabel && (
-                  <p className="text-xs text-muted-foreground mt-1">Grupo: <strong>{grupoFinalLabel}</strong></p>
+                  <p className="text-xs text-muted-foreground">Grupo: <strong>{grupoFinalLabel}</strong></p>
                 )}
               </div>
 
               {/* Unidade */}
-              <div>
-                <label className="text-sm font-medium">Unidade</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" value={form.unidade} onChange={f("unidade")}>
-                  {UNIDADES.map(u => (
-                    <option key={u.key} value={u.key}>{u.emoji} {u.label}</option>
-                  ))}
-                </select>
+              <div className="space-y-1.5">
+                <Label>Unidade</Label>
+                <Select value={form.unidade} onValueChange={v => setForm(prev => ({ ...prev, unidade: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {UNIDADES.map(u => (
+                      <SelectItem key={u.key} value={u.key}>{u.emoji} {u.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="rounded"
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="sem_agenda"
                 checked={form.sem_agenda}
-                onChange={e => setForm(prev => ({ ...prev, sem_agenda: e.target.checked }))}
+                onCheckedChange={v => setForm(prev => ({ ...prev, sem_agenda: v === true }))}
+                className="border-amber-600 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
               />
-              <span className="text-amber-700 font-medium">Profissional ainda não liberou horário</span>
-            </label>
+              <Label htmlFor="sem_agenda" className="text-amber-700 font-medium cursor-pointer">
+                Profissional ainda não liberou horário
+              </Label>
+            </div>
 
             {!form.sem_agenda && (
               <>
-                <div>
-                  <label className="text-sm font-medium">
-                    <CalendarDays size={13} className="inline mr-1" />
-                    Dias de atendimento
-                  </label>
-                  <Input className="mt-1" placeholder="Ex: Segunda e Quarta / Sexta-feira" value={form.dias} onChange={f("dias")} />
-                  <p className="text-xs text-muted-foreground mt-0.5">Use &quot; / &quot; para separar diferentes turnos</p>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1"><CalendarDays size={13} /> Dias de atendimento</Label>
+                  <Input placeholder="Ex: Segunda e Quarta / Sexta-feira" value={form.dias} onChange={f("dias")} />
+                  <p className="text-xs text-muted-foreground">Use &quot; / &quot; para separar diferentes turnos</p>
                 </div>
-                <div>
-                  <label className="text-sm font-medium">
-                    <Clock size={13} className="inline mr-1" />
-                    Horários
-                  </label>
-                  <Input className="mt-1" placeholder="Ex: 09:00 às 13:00 / 14:00 às 17:00" value={form.horarios} onChange={f("horarios")} />
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1"><Clock size={13} /> Horários</Label>
+                  <Input placeholder="Ex: 09:00 às 13:00 / 14:00 às 17:00" value={form.horarios} onChange={f("horarios")} />
                 </div>
               </>
             )}
 
-            <div>
-              <label className="text-sm font-medium">Observações</label>
-              <textarea
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none"
+            <div className="space-y-1.5">
+              <Label>Observações</Label>
+              <Textarea
                 rows={2}
                 placeholder="Informações adicionais, restrições de agenda..."
                 value={form.observacoes}
                 onChange={f("observacoes")}
+                className="resize-none"
               />
             </div>
 
             {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                <X size={14} /> {formError}
-              </div>
+              <Alert variant="destructive">
+                <AlertDescription>{formError}</AlertDescription>
+              </Alert>
             )}
-
-            <div className="flex justify-end gap-3 pt-1">
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? "Salvando..." : editingId ? "Salvar Alterações" : "Cadastrar"}
-              </Button>
-            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? "Salvando..." : editingId ? "Salvar Alterações" : "Cadastrar"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

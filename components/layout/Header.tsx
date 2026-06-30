@@ -3,6 +3,7 @@
 import { Bell, LogOut, Menu } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ROLE_LABELS, ROLE_COLORS } from "@/lib/utils";
 import { StaffProfile } from "@/lib/auth/staff";
 import { createClient } from "@/lib/supabase/client";
@@ -36,13 +37,15 @@ export function Header({ profile }: HeaderProps) {
     <header className="h-16 border-b bg-white/95 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 shadow-sm">
       {/* Marca */}
       <div className="flex items-center gap-3">
-        <button
-          className="lg:hidden p-2 -ml-1 rounded-md hover:bg-gray-100 transition-colors"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden -ml-1 text-gray-600"
           onClick={toggle}
           aria-label="Abrir menu"
         >
-          <Menu size={22} className="text-gray-600" />
-        </button>
+          <Menu size={22} />
+        </Button>
         <div className="w-8 h-8 brand-gradient rounded-lg flex items-center justify-center shrink-0">
           <span className="text-white font-bold text-sm leading-none">HER</span>
         </div>
@@ -71,13 +74,9 @@ export function Header({ profile }: HeaderProps) {
           </Link>
           <div className="hidden md:block">
             <p className="text-sm font-medium text-gray-800 leading-tight">{profile.full_name.split(" ")[0]}</p>
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                ROLE_COLORS[profile.role]
-              }`}
-            >
+            <Badge className={`text-[10px] border-0 px-1.5 py-0.5 ${ROLE_COLORS[profile.role]}`}>
               {ROLE_LABELS[profile.role]}
-            </span>
+            </Badge>
           </div>
         </div>
 

@@ -103,17 +103,15 @@ export default function DocumentosPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {["Todos", ...CATEGORIES].map((cat) => (
-            <button
+            <Button
               key={cat}
+              size="sm"
+              variant={category === cat ? "default" : "outline"}
               onClick={() => setCategory(cat)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                category === cat
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
+              className="rounded-full"
             >
               {cat}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -152,9 +150,7 @@ export default function DocumentosPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                        {doc.category}
-                      </span>
+                      <Badge variant="secondary" className="text-xs">{doc.category}</Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {doc.sector || "—"}
@@ -162,12 +158,7 @@ export default function DocumentosPage() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {(doc.tags || []).slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
-                          >
-                            {tag}
-                          </span>
+                          <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                         ))}
                       </div>
                     </TableCell>

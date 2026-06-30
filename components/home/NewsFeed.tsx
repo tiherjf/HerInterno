@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Heart, ArrowRight, Newspaper } from "lucide-react";
-import { formatDate } from "@/lib/utils";
-import { ROLE_LABELS } from "@/lib/utils";
+import { formatDate, ROLE_LABELS } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface NewsItem {
   id: string;
@@ -157,13 +158,9 @@ export function NewsFeed() {
           <div className="p-4 flex flex-col flex-1">
             {/* Meta */}
             <div className="flex items-center justify-between gap-2 mb-3">
-              <span
-                className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${
-                  CATEGORY_COLORS[item.category] ?? "bg-gray-100 text-gray-700"
-                }`}
-              >
+              <Badge className={`text-[11px] border-0 ${CATEGORY_COLORS[item.category] ?? "bg-gray-100 text-gray-700"}`}>
                 {item.category}
-              </span>
+              </Badge>
               <span className="text-xs text-gray-400 shrink-0">
                 {item.published_at ? formatDate(item.published_at) : ""}
               </span>
@@ -192,22 +189,17 @@ export function NewsFeed() {
 
             {/* Footer */}
             <div className="flex items-center justify-between mt-4 pt-3 border-t">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => toggleReaction(item.id)}
-                className={`flex items-center gap-1.5 text-sm transition-colors ${
-                  item.user_reacted
-                    ? "text-red-500"
-                    : "text-gray-400 hover:text-red-400"
-                }`}
+                className={`gap-1.5 px-2 h-7 ${item.user_reacted ? "text-red-500 hover:text-red-600" : "text-gray-400 hover:text-red-400"}`}
               >
-                <Heart
-                  size={16}
-                  className={item.user_reacted ? "fill-red-500" : ""}
-                />
+                <Heart size={16} className={item.user_reacted ? "fill-red-500" : ""} />
                 <span className="text-xs font-medium">
                   {item.reactions_count > 0 ? item.reactions_count : "Curtir"}
                 </span>
-              </button>
+              </Button>
 
               <Link
                 href={`/intranet/noticias/${item.id}`}

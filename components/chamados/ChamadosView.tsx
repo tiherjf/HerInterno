@@ -2,8 +2,30 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw, RotateCcw, Monitor, Wrench, Megaphone, Lock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle,
+  RefreshCw, RotateCcw, Monitor, Wrench, Megaphone, Lock, Loader2,
+} from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 interface Category { id: string; name: string; color: string; sla_hours: number; team: string }
@@ -54,7 +76,11 @@ function SlaIndicator({ deadline, status }: { deadline: string | null; status: s
   const now = Date.now();
   const end = new Date(deadline).getTime();
   const diff = end - now;
-  if (diff <= 0) return <span className="text-xs text-red-600 font-medium flex items-center gap-1"><AlertTriangle size={11} /> SLA vencido</span>;
+  if (diff <= 0) return (
+    <span className="text-xs text-red-600 font-medium flex items-center gap-1">
+      <AlertTriangle size={11} /> SLA vencido
+    </span>
+  );
   const hours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
   const color = diff < 3600000 ? "text-red-500" : diff < 7200000 ? "text-yellow-500" : "text-green-600";
@@ -69,7 +95,10 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   return (
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map(n => (
-        <button key={n} onClick={() => onChange(n)}
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
           className={`text-2xl leading-none transition-colors ${n <= value ? "text-yellow-400" : "text-gray-300 hover:text-yellow-300"}`}
         >★</button>
       ))}
@@ -111,6 +140,8 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
     team: (defaultTeam ?? "ti") as TeamKey,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -207,24 +238,26 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   };
 
   const cancelTicket = async () => {
-    if (!selected || !confirm("Cancelar este chamado?")) return;
+    if (!selected) return;
     await fetch(`/api/chamados/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "cancel" }),
     });
+    setCancelDialogOpen(false);
     setSelected(null);
     setDetail(null);
     fetchTickets();
   };
 
   const reopenTicket = async () => {
-    if (!selected || !confirm("Reabrir este chamado?")) return;
+    if (!selected) return;
     await fetch(`/api/chamados/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reopen" }),
     });
+    setReopenDialogOpen(false);
     fetchTickets();
     const res = await fetch(`/api/chamados/${selected.id}`);
     const json = await res.json();
@@ -254,23 +287,27 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
         {FILTERS.map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              filter === f.key ? "bg-blue-600 text-white" : "bg-white text-gray-600 border hover:bg-gray-50"
-            }`}
+          <Button
+            key={f.key}
+            size="sm"
+            variant={filter === f.key ? "default" : "outline"}
+            onClick={() => setFilter(f.key)}
+            className="rounded-full"
           >
             {f.label}
             {f.key === "" && (
-              <span className="ml-1.5 bg-blue-100 text-blue-700 rounded-full px-1.5 text-xs">{tickets.length}</span>
+              <Badge variant="secondary" className="ml-1.5 h-4 px-1.5 text-xs">
+                {tickets.length}
+              </Badge>
             )}
-          </button>
+          </Button>
         ))}
       </div>
 
       {/* Lista */}
       {loading ? (
         <div className="grid gap-3">
-          {[1, 2, 3].map(i => <div key={i} className="h-24 bg-white rounded-xl border animate-pulse" />)}
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
@@ -284,27 +321,33 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
             const prio = PRIORITY_LABELS[ticket.priority];
             const stat = STATUS_LABELS[ticket.status];
             return (
-              <button key={ticket.id} onClick={() => openDetail(ticket)}
+              <button
+                key={ticket.id}
+                onClick={() => openDetail(ticket)}
                 className="w-full text-left bg-white rounded-xl border p-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-xs font-mono text-muted-foreground">
                         #{String(ticket.number).padStart(4, "0")}
                       </span>
                       {!defaultTeam && TEAM_LABELS[ticket.team] && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                        <Badge variant="secondary" className="text-xs">
                           {TEAM_LABELS[ticket.team]}
-                        </span>
+                        </Badge>
                       )}
                       {ticket.ticket_categories && (
-                        <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
-                          style={{ backgroundColor: ticket.ticket_categories.color }}>
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
+                          style={{ backgroundColor: ticket.ticket_categories.color }}
+                        >
                           {ticket.ticket_categories.name}
                         </span>
                       )}
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${prio.color}`}>{prio.label}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${prio.color}`}>
+                        {prio.label}
+                      </span>
                     </div>
                     <p className="font-medium text-gray-900 truncate">{ticket.title}</p>
                     <p className="text-xs text-muted-foreground mt-1">{formatDate(ticket.created_at)}</p>
@@ -315,7 +358,9 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                     </span>
                     <SlaIndicator deadline={ticket.sla_deadline} status={ticket.status} />
                     {ticket.rating && (
-                      <span className="text-xs text-yellow-500">{"★".repeat(ticket.rating)}{"☆".repeat(5 - ticket.rating)}</span>
+                      <span className="text-xs text-yellow-500">
+                        {"★".repeat(ticket.rating)}{"☆".repeat(5 - ticket.rating)}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -333,14 +378,16 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
           </DialogHeader>
           <form onSubmit={submitNew} className="space-y-4">
             {!defaultTeam ? (
-              <div>
-                <label className="text-sm font-medium">Para onde vai essa solicitação? *</label>
-                <div className="grid grid-cols-3 gap-2 mt-2">
+              <div className="space-y-2">
+                <Label>Para onde vai essa solicitação? *</Label>
+                <div className="grid grid-cols-3 gap-2">
                   {TEAM_OPTIONS.map(t => {
                     const Icon = t.icon;
                     const isActive = form.team === t.key;
                     return (
-                      <button key={t.key} type="button"
+                      <button
+                        key={t.key}
+                        type="button"
                         onClick={() => setForm(p => ({ ...p, team: t.key, category_id: "" }))}
                         className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${
                           isActive ? t.color + " shadow-sm" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
@@ -365,62 +412,96 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
               </div>
             )}
 
-            <div>
-              <label className="text-sm font-medium">Título *</label>
-              <input className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
+            <div className="space-y-2">
+              <Label htmlFor="ticket-title">Título *</Label>
+              <Input
+                id="ticket-title"
                 placeholder="Descreva brevemente o problema ou pedido"
-                value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} required />
+                value={form.title}
+                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                required
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium">Categoria</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  value={form.category_id} onChange={e => setForm(p => ({ ...p, category_id: e.target.value }))}>
-                  <option value="">Selecione...</option>
-                  {catsForTeam.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  {catsForTeam.length === 0 && <option disabled>Nenhuma categoria cadastrada</option>}
-                </select>
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select
+                  value={form.category_id || "__none__"}
+                  onValueChange={v => setForm(p => ({ ...p, category_id: v === "__none__" ? "" : v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Selecione...</SelectItem>
+                    {catsForTeam.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                    {catsForTeam.length === 0 && (
+                      <SelectItem value="__empty__" disabled>Nenhuma categoria cadastrada</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <label className="text-sm font-medium">Prioridade</label>
-                <select className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                  value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}>
-                  <option value="low">Baixa</option>
-                  <option value="medium">Média</option>
-                  <option value="high">Alta</option>
-                  <option value="critical">Crítica</option>
-                </select>
+              <div className="space-y-2">
+                <Label>Prioridade</Label>
+                <Select
+                  value={form.priority}
+                  onValueChange={v => setForm(p => ({ ...p, priority: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="critical">Crítica</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Descrição detalhada *</label>
-              <textarea className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none" rows={4}
+            <div className="space-y-2">
+              <Label htmlFor="ticket-desc">Descrição detalhada *</Label>
+              <Textarea
+                id="ticket-desc"
+                rows={4}
                 placeholder={
                   form.team === "ti" ? "O que aconteceu? Quando? Qual equipamento ou sistema está envolvido?"
                   : form.team === "manutencao" ? "O que precisa ser feito? Onde está o problema? Qual a urgência?"
                   : "O que você precisa? Tamanho, formato, prazo, referências..."
                 }
-                value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} required />
+                value={form.description}
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                required
+                className="resize-none"
+              />
             </div>
 
             {form.category_id && (() => {
               const cat = catsForTeam.find(c => c.id === form.category_id);
               return cat ? (
-                <p className="text-xs text-muted-foreground">SLA desta categoria: <strong>{cat.sla_hours}h</strong> a partir da abertura</p>
+                <p className="text-xs text-muted-foreground">
+                  SLA desta categoria: <strong>{cat.sla_hours}h</strong> a partir da abertura
+                </p>
               ) : null;
             })()}
 
-            <div className="flex items-center justify-between gap-2 pt-2">
+            <DialogFooter className="flex-row items-center justify-between gap-2 pt-2">
               <span className={`text-xs px-2 py-1 rounded-full border font-medium ${selectedTeamInfo.color}`}>
                 Enviando para: {selectedTeamInfo.label}
               </span>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setOpenNew(false)}>Cancelar</Button>
-                <Button type="submit" disabled={submitting}>{submitting ? "Enviando..." : "Abrir Chamado"}</Button>
+                <Button type="button" variant="outline" onClick={() => setOpenNew(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? <><Loader2 size={14} className="animate-spin" /> Enviando...</> : "Abrir Chamado"}
+                </Button>
               </div>
-            </div>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -440,18 +521,22 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
               </DialogHeader>
 
               {loadingDetail ? (
-                <div className="py-8 text-center text-muted-foreground text-sm">Carregando...</div>
+                <div className="space-y-3 py-4">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-24" />
+                  <Skeleton className="h-16" />
+                </div>
               ) : detail ? (
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-2">
                     {TEAM_LABELS[selected.team] && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 font-medium">
-                        {TEAM_LABELS[selected.team]}
-                      </span>
+                      <Badge variant="secondary">{TEAM_LABELS[selected.team]}</Badge>
                     )}
                     {selected.ticket_categories && (
-                      <span className="text-xs px-2 py-1 rounded-full text-white"
-                        style={{ backgroundColor: selected.ticket_categories.color }}>
+                      <span
+                        className="text-xs px-2 py-1 rounded-full text-white font-medium"
+                        style={{ backgroundColor: selected.ticket_categories.color }}
+                      >
                         {selected.ticket_categories.name}
                       </span>
                     )}
@@ -464,7 +549,9 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                     <SlaIndicator deadline={selected.sla_deadline} status={selected.status} />
                   </div>
 
-                  <div className="bg-gray-50 rounded-lg p-4 text-sm whitespace-pre-wrap">{detail.ticket.description}</div>
+                  <div className="bg-muted/50 rounded-lg p-4 text-sm whitespace-pre-wrap">
+                    {detail.ticket.description}
+                  </div>
 
                   {(() => {
                     const timeline: TimelineItem[] = [
@@ -488,7 +575,8 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                             <div key={item.id} className="flex items-center gap-2 text-xs text-muted-foreground py-1">
                               <div className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
                               <span>
-                                {item.action === "status_changed" ? `Status atualizado: ${item.old_value} → ${item.new_value}`
+                                {item.action === "status_changed"
+                                  ? `Status atualizado: ${item.old_value} → ${item.new_value}`
                                   : item.action === "reopened" ? "Chamado reaberto" : item.action}
                               </span>
                               <span className="ml-auto">{formatDate(item.created_at)}</span>
@@ -500,14 +588,23 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                   })()}
 
                   {!["closed", "cancelled"].includes(selected.status) && (
-                    <div>
-                      <label className="text-sm font-medium">Adicionar resposta</label>
-                      <textarea className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none" rows={3}
+                    <div className="space-y-2">
+                      <Label htmlFor="ticket-comment">Adicionar resposta</Label>
+                      <Textarea
+                        id="ticket-comment"
+                        rows={3}
                         placeholder="Informação adicional, atualização do problema..."
-                        value={comment} onChange={e => setComment(e.target.value)} />
-                      <div className="flex justify-end mt-2">
-                        <Button size="sm" onClick={submitComment} disabled={submittingComment || !comment.trim()}>
-                          {submittingComment ? "Enviando..." : "Enviar"}
+                        value={comment}
+                        onChange={e => setComment(e.target.value)}
+                        className="resize-none"
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          onClick={submitComment}
+                          disabled={submittingComment || !comment.trim()}
+                        >
+                          {submittingComment ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Enviar"}
                         </Button>
                       </div>
                     </div>
@@ -519,11 +616,15 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                       <StarRating value={rating} onChange={setRating} />
                       {rating > 0 && (
                         <>
-                          <textarea className="w-full mt-2 border rounded-lg px-3 py-2 text-sm resize-none" rows={2}
-                            placeholder="Comentário (opcional)" value={ratingComment}
-                            onChange={e => setRatingComment(e.target.value)} />
+                          <Textarea
+                            className="mt-2 resize-none"
+                            rows={2}
+                            placeholder="Comentário (opcional)"
+                            value={ratingComment}
+                            onChange={e => setRatingComment(e.target.value)}
+                          />
                           <Button size="sm" className="mt-2" onClick={submitRating} disabled={submittingRating}>
-                            {submittingRating ? "Enviando..." : "Avaliar Atendimento"}
+                            {submittingRating ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Avaliar Atendimento"}
                           </Button>
                         </>
                       )}
@@ -541,14 +642,21 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-2 pt-2 border-t">
+                  <Separator />
+
+                  <div className="flex justify-end gap-2">
                     {selected.status === "open" && (
-                      <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={cancelTicket}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/5"
+                        onClick={() => setCancelDialogOpen(true)}
+                      >
                         <XCircle size={14} /> Cancelar chamado
                       </Button>
                     )}
                     {selected.status === "resolved" && (
-                      <Button variant="outline" size="sm" onClick={reopenTicket}>
+                      <Button variant="outline" size="sm" onClick={() => setReopenDialogOpen(true)}>
                         <RotateCcw size={14} /> Reabrir chamado
                       </Button>
                     )}
@@ -557,6 +665,34 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
               ) : null}
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmação cancelar */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Cancelar chamado?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita facilmente.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Voltar</Button>
+            <Button variant="destructive" onClick={cancelTicket}>Confirmar cancelamento</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmação reabrir */}
+      <Dialog open={reopenDialogOpen} onOpenChange={setReopenDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reabrir chamado?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">O chamado voltará ao status "Aberto".</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReopenDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={reopenTicket}>Confirmar reabertura</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

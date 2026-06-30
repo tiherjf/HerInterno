@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Lock, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface DayJustification {
@@ -127,7 +129,7 @@ export default function CalendarioPage() {
 
       {/* Calendário */}
       {loading ? (
-        <div className="h-96 bg-white rounded-xl border animate-pulse" />
+        <Skeleton className="h-96 rounded-xl" />
       ) : (
         <div className="bg-white rounded-xl border overflow-hidden">
           {/* Cabeçalho dias da semana */}
@@ -174,13 +176,13 @@ export default function CalendarioPage() {
                   {day.justifications.map(j => {
                     const cfg = STATUS_CONFIG[j.status] ?? STATUS_CONFIG.pending;
                     return (
-                      <span
+                      <Badge
                         key={j.id}
-                        className={`text-[10px] leading-tight px-1.5 py-0.5 rounded font-medium truncate ${cfg.bg} ${cfg.text}`}
+                        className={`text-[10px] leading-tight px-1.5 py-0 rounded font-medium truncate border-0 ${cfg.bg} ${cfg.text}`}
                         title={`${j.type_name} — ${cfg.label}`}
                       >
                         {j.type_name}
-                      </span>
+                      </Badge>
                     );
                   })}
                 </div>
@@ -210,9 +212,9 @@ export default function CalendarioPage() {
                     <div key={j.id} className={`rounded-lg p-4 ${cfg.bg}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className={`font-semibold text-sm ${cfg.text}`}>{j.type_name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.bg} ${cfg.text} border`}>
+                        <Badge className={`text-xs border ${cfg.bg} ${cfg.text}`}>
                           {cfg.label}
-                        </span>
+                        </Badge>
                       </div>
                       {j.is_full_day ? (
                         <p className="text-xs text-gray-600">Dia todo</p>

@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   CheckCircle2, XCircle, Loader2, Plus, Pencil, Download,
   AlertCircle, Paperclip, Clock, TrendingUp, TrendingDown, Search,
@@ -143,11 +145,11 @@ function ApprovacoesRH() {
           {items.length === 0 ? "Nenhuma aguardando." : `${items.length} aguardando aprovação do RH.`}
         </p>
         {items.length > 0 && (
-          <button onClick={() => setChecked(allChecked ? new Set() : new Set(items.map(i => i.id)))}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground"
+            onClick={() => setChecked(allChecked ? new Set() : new Set(items.map(i => i.id)))}>
             {allChecked ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
             Selecionar todas
-          </button>
+          </Button>
         )}
       </div>
 
@@ -163,14 +165,15 @@ function ApprovacoesRH() {
             <Card key={j.id} className={checked.has(j.id) ? "ring-2 ring-blue-400" : ""}>
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
-                  <button onClick={() => toggleCheck(j.id)} className="mt-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="mt-1 shrink-0 w-6 h-6 p-0"
+                    onClick={() => toggleCheck(j.id)}>
                     {checked.has(j.id) ? <CheckSquare size={18} className="text-blue-600" /> : <Square size={18} className="text-gray-400" />}
-                  </button>
+                  </Button>
                   <div className="flex-1 space-y-2 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold">{j.profiles?.full_name}</span>
-                      <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">{j.profiles?.sector}</span>
-                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{j.justification_types?.name}</span>
+                      <Badge variant="secondary" className="text-xs">{j.profiles?.sector}</Badge>
+                      <Badge className="text-xs bg-blue-50 text-blue-700 border-0">{j.justification_types?.name}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Ocorrência: <strong className="text-foreground">{fmt(j.occurrence_date)}</strong>
@@ -223,7 +226,7 @@ function ApprovacoesRH() {
             onClick={() => { setBatchAction("reject"); setBatchObs(""); setBatchError(""); }}>
             <XCircle size={14} /> Recusar em lote
           </Button>
-          <button onClick={() => setChecked(new Set())} className="text-gray-400 hover:text-white text-xs">✕</button>
+          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white w-6 h-6 p-0" onClick={() => setChecked(new Set())}>✕</Button>
         </div>
       )}
 
@@ -386,9 +389,9 @@ function TiposTab() {
                   <TableCell>{t.requires_document ? "Sim" : "Não"}</TableCell>
                   <TableCell>{t.allows_partial_day ? "Sim" : "Não"}</TableCell>
                   <TableCell>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}>
+                    <Badge variant={t.active ? "success" : "secondary"} className="text-xs">
                       {t.active ? "Ativo" : "Inativo"}
-                    </span>
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -411,12 +414,16 @@ function TiposTab() {
             <div className="space-y-1"><Label>Nome *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex: Consulta Médica" /></div>
             <div className="space-y-1"><Label>Descrição</Label><Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Opcional" /></div>
             <div className="flex gap-6">
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input type="checkbox" checked={form.requires_document} onChange={e => setForm({ ...form, requires_document: e.target.checked })} />Exige comprovante
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input type="checkbox" checked={form.allows_partial_day} onChange={e => setForm({ ...form, allows_partial_day: e.target.checked })} />Permite horário específico
-              </label>
+              <div className="flex items-center gap-2">
+                <Checkbox id="req_doc" checked={form.requires_document}
+                  onCheckedChange={v => setForm({ ...form, requires_document: v === true })} />
+                <Label htmlFor="req_doc" className="cursor-pointer">Exige comprovante</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="partial_day" checked={form.allows_partial_day}
+                  onCheckedChange={v => setForm({ ...form, allows_partial_day: v === true })} />
+                <Label htmlFor="partial_day" className="cursor-pointer">Permite horário específico</Label>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -520,9 +527,17 @@ function BancoHorasTab() {
             <div className="space-y-1"><Label>Mês de Referência *</Label><Input type="month" value={form.reference_month} onChange={e => setForm({ ...form, reference_month: e.target.value })} /></div>
             <div className="space-y-2">
               <Label>Saldo</Label>
-              <div className="flex gap-3 items-center">
-                <label className="flex items-center gap-2 cursor-pointer text-sm"><input type="radio" checked={!isNegative} onChange={() => setIsNegative(false)} /><span className="text-green-700 font-medium">+ Crédito</span></label>
-                <label className="flex items-center gap-2 cursor-pointer text-sm"><input type="radio" checked={isNegative} onChange={() => setIsNegative(true)} /><span className="text-red-700 font-medium">- Débito</span></label>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant={!isNegative ? "default" : "outline"}
+                  className={!isNegative ? "bg-green-600 hover:bg-green-700 border-green-600" : "text-green-700 border-green-200"}
+                  onClick={() => setIsNegative(false)}>
+                  <TrendingUp size={14} /> + Crédito
+                </Button>
+                <Button type="button" size="sm" variant={isNegative ? "default" : "outline"}
+                  className={isNegative ? "bg-red-600 hover:bg-red-700 border-red-600" : "text-red-700 border-red-200"}
+                  onClick={() => setIsNegative(true)}>
+                  <TrendingDown size={14} /> - Débito
+                </Button>
               </div>
               <div className="flex gap-2 items-center">
                 <Input type="number" min="0" value={form.hours} onChange={e => setForm({ ...form, hours: e.target.value })} className="w-24" /><span className="text-sm text-muted-foreground">h</span>
@@ -748,9 +763,9 @@ function RelatoriosTab() {
                   <TableCell className="text-sm">{j.justification_types?.name}</TableCell>
                   <TableCell className="text-sm">{fmt(j.occurrence_date)}</TableCell>
                   <TableCell>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${j.status === "approved" ? "bg-green-100 text-green-800" : j.status.includes("rejected") ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>
+                    <Badge className={`text-xs border-0 ${j.status === "approved" ? "bg-green-100 text-green-800" : j.status.includes("rejected") ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>
                       {statusLabel[j.status] || j.status}
-                    </span>
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{fmt(j.created_at)}</TableCell>
                 </TableRow>

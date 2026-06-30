@@ -153,9 +153,7 @@ export default function MinhasJustificativasPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${info.color}`}>
-                        {info.label}
-                      </span>
+                      <Badge className={`text-xs border-0 ${info.color}`}>{info.label}</Badge>
                       {isExpired && (
                         <span className="text-xs text-red-500">Prazo expirou</span>
                       )}
@@ -206,9 +204,9 @@ export default function MinhasJustificativasPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_INFO[selected.status]?.color}`}>
+                  <Badge className={`text-xs border-0 ${STATUS_INFO[selected.status]?.color}`}>
                     {STATUS_INFO[selected.status]?.label}
-                  </span>
+                  </Badge>
                 </div>
               </div>
               <div>

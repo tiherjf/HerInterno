@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, Bold, Italic, List, ListOrdered, Save, Eye } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const CATEGORIES = ["Institucional", "RH", "Qualidade", "TI", "Eventos"];
 
@@ -130,7 +131,9 @@ export function NewsForm({ authorId, initialData }: NewsFormProps) {
   return (
     <div className="bg-white rounded-xl border shadow-sm p-6 space-y-6">
       {error && (
-        <div className="text-destructive text-sm bg-red-50 p-3 rounded-md">{error}</div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -190,46 +193,31 @@ export function NewsForm({ authorId, initialData }: NewsFormProps) {
         <div className="border border-input rounded-md overflow-hidden">
           {/* Toolbar */}
           <div className="flex items-center gap-1 p-2 border-b bg-gray-50">
-            <button
-              type="button"
-              onClick={() => editor?.chain().focus().toggleBold().run()}
-              className={`p-1.5 rounded hover:bg-gray-200 ${editor?.isActive("bold") ? "bg-gray-200" : ""}`}
-              title="Negrito"
-            >
+            <Button type="button" size="icon" variant={editor?.isActive("bold") ? "secondary" : "ghost"}
+              className="w-7 h-7" title="Negrito"
+              onClick={() => editor?.chain().focus().toggleBold().run()}>
               <Bold size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => editor?.chain().focus().toggleItalic().run()}
-              className={`p-1.5 rounded hover:bg-gray-200 ${editor?.isActive("italic") ? "bg-gray-200" : ""}`}
-              title="Itálico"
-            >
+            </Button>
+            <Button type="button" size="icon" variant={editor?.isActive("italic") ? "secondary" : "ghost"}
+              className="w-7 h-7" title="Itálico"
+              onClick={() => editor?.chain().focus().toggleItalic().run()}>
               <Italic size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-              className={`p-1.5 rounded hover:bg-gray-200 text-xs font-bold ${editor?.isActive("heading", { level: 2 }) ? "bg-gray-200" : ""}`}
-              title="Título H2"
-            >
+            </Button>
+            <Button type="button" size="icon" variant={editor?.isActive("heading", { level: 2 }) ? "secondary" : "ghost"}
+              className="w-7 h-7 text-xs font-bold" title="Título H2"
+              onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>
               H2
-            </button>
-            <button
-              type="button"
-              onClick={() => editor?.chain().focus().toggleBulletList().run()}
-              className={`p-1.5 rounded hover:bg-gray-200 ${editor?.isActive("bulletList") ? "bg-gray-200" : ""}`}
-              title="Lista"
-            >
+            </Button>
+            <Button type="button" size="icon" variant={editor?.isActive("bulletList") ? "secondary" : "ghost"}
+              className="w-7 h-7" title="Lista"
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}>
               <List size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-              className={`p-1.5 rounded hover:bg-gray-200 ${editor?.isActive("orderedList") ? "bg-gray-200" : ""}`}
-              title="Lista numerada"
-            >
+            </Button>
+            <Button type="button" size="icon" variant={editor?.isActive("orderedList") ? "secondary" : "ghost"}
+              className="w-7 h-7" title="Lista numerada"
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}>
               <ListOrdered size={16} />
-            </button>
+            </Button>
           </div>
           <EditorContent editor={editor} />
         </div>

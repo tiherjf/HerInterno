@@ -70,9 +70,7 @@ export default async function TreinamentosPage() {
                       <div className="p-2 bg-purple-100 rounded-lg">
                         <GraduationCap className="text-purple-600" size={20} />
                       </div>
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-medium">
-                        Pendente
-                      </span>
+                      <Badge variant="warning" className="text-xs">Pendente</Badge>
                     </div>
                     <h4 className="font-semibold mb-1 line-clamp-2">{t.title}</h4>
                     {t.description && (
@@ -108,9 +106,7 @@ export default async function TreinamentosPage() {
                       <div className="p-2 bg-green-100 rounded-lg">
                         <CheckCircle className="text-green-600" size={20} />
                       </div>
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
-                        Concluído
-                      </span>
+                      <Badge variant="success" className="text-xs">Concluído</Badge>
                     </div>
                     <h4 className="font-semibold mb-1">{t.title}</h4>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
@@ -120,15 +116,21 @@ export default async function TreinamentosPage() {
                       </span>
                     </div>
                     {completion.certificate_url && (
-                      <a
-                        href={completion.certificate_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline font-medium"
-                        onClick={(e) => e.stopPropagation()}
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-xs"
+                        asChild
                       >
-                        Baixar Certificado →
-                      </a>
+                        <a
+                          href={completion.certificate_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Baixar Certificado →
+                        </a>
+                      </Button>
                     )}
                   </CardContent>
                 </Card>
