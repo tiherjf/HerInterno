@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, Edit } from "lucide-react";
 import { MarcarLida } from "@/components/news/MarcarLida";
+import { ImageLightbox } from "@/components/news/ImageLightbox";
 
 interface NewsArticle {
   id: string;
@@ -88,7 +89,7 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
         )}
 
         {news.cover_url && (
-          <img
+          <ImageLightbox
             src={news.cover_url}
             alt={news.title}
             className="w-full h-64 object-cover rounded-lg mb-6"
