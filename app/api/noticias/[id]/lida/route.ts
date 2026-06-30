@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient } from "@/lib/supabase/server";
-import { apiError } from "@/lib/api/error";
 
 type Params = { params: { id: string } };
 

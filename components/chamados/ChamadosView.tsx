@@ -688,7 +688,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
           <DialogHeader>
             <DialogTitle>Reabrir chamado?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">O chamado voltará ao status "Aberto".</p>
+          <p className="text-sm text-muted-foreground">O chamado voltará ao status &quot;Aberto&quot;.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReopenDialogOpen(false)}>Cancelar</Button>
             <Button onClick={reopenTicket}>Confirmar reabertura</Button>
