@@ -78,6 +78,7 @@ const TEAM_TABS = [
   { key: "",           label: "Todas" },
   { key: "ti",         label: "TI" },
   { key: "manutencao", label: "Manutenção" },
+  { key: "marketing",  label: "MKT" },
 ];
 
 // ── SLA chip com alerta visual ──────────────────────────────────────────────
@@ -182,7 +183,7 @@ export default function AdminChamadosPage() {
     fetch("/api/admin/users")
       .then(r => r.json())
       .then(j => setAgents((j.users ?? []).filter((u: { active: boolean; role: string }) =>
-        u.active && ["admin", "ti", "manutencao"].includes(u.role)
+        u.active && ["admin", "ti", "manutencao", "marketing"].includes(u.role)
       )));
     fetch("/api/chamados/templates")
       .then(r => r.json())
@@ -647,6 +648,7 @@ export default function AdminChamadosPage() {
                     <td className="px-4 py-3">
                       {t.team === "manutencao" ? <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Manutenção</span>
                         : t.team === "ti" ? <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">TI</span>
+                        : t.team === "marketing" ? <span className="text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-700">MKT</span>
                         : "—"}
                     </td>
                     <td className="px-4 py-3">
@@ -1119,6 +1121,7 @@ export default function AdminChamadosPage() {
                   value={catForm.team} onChange={fc("team")}>
                   <option value="ti">TI</option>
                   <option value="manutencao">Manutenção</option>
+                  <option value="marketing">Marketing (MKT)</option>
                 </select>
               </div>
               <div>

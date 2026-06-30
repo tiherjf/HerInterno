@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw, RotateCcw } from "lucide-react";
+import { Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw, RotateCcw, Monitor, Wrench, Megaphone } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
-interface Category { id: string; name: string; color: string; sla_hours: number }
+interface Category { id: string; name: string; color: string; sla_hours: number; team: string }
 
 interface Ticket {
   id: string; number: number; title: string; priority: string; status: string;
   requester_name: string; requester_sector: string | null;
   created_at: string; sla_deadline: string | null; resolved_at: string | null; rating: number | null;
   ticket_categories: { id: string; name: string; color: string } | null;
+  team: string;
 }
 interface HistoryEntry { id: string; user_name: string; action: string; old_value: string | null; new_value: string | null; created_at: string }
 type TimelineItem =
@@ -32,6 +33,20 @@ const STATUS_LABELS: Record<string, { label: string; icon: React.ReactNode; colo
   resolved:    { label: "Resolvido",      icon: <CheckCircle2 size={12} />, color: "bg-green-100 text-green-700" },
   closed:      { label: "Encerrado",      icon: <CheckCircle2 size={12} />, color: "bg-green-100 text-green-700" },
   cancelled:   { label: "Cancelado",      icon: <XCircle size={12} />,      color: "bg-red-100 text-red-700" },
+};
+
+const TEAM_OPTIONS = [
+  { key: "ti",         label: "Suporte TI",      icon: Monitor,    desc: "Sistemas, redes, equipamentos",     color: "border-blue-500 bg-blue-50 text-blue-700" },
+  { key: "manutencao", label: "Manutenção",       icon: Wrench,     desc: "Instalações, elétrica, hidráulica", color: "border-orange-500 bg-orange-50 text-orange-700" },
+  { key: "marketing",  label: "Solicitações MKT", icon: Megaphone,  desc: "Artes, comunicação, materiais",     color: "border-pink-500 bg-pink-50 text-pink-700" },
+] as const;
+
+type TeamKey = typeof TEAM_OPTIONS[number]["key"];
+
+const TEAM_LABELS: Record<string, string> = {
+  ti: "TI",
+  manutencao: "Manutenção",
+  marketing: "MKT",
 };
 
 function SlaIndicator({ deadline, status }: { deadline: string | null; status: string }) {
@@ -67,11 +82,11 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 }
 
 const FILTERS = [
-  { key: "",              label: "Todos" },
-  { key: "open",          label: "Abertos" },
-  { key: "in_progress",   label: "Em Atendimento" },
+  { key: "",               label: "Todos" },
+  { key: "open",           label: "Abertos" },
+  { key: "in_progress",    label: "Em Atendimento" },
   { key: "resolved,closed", label: "Resolvidos" },
-  { key: "cancelled",     label: "Cancelados" },
+  { key: "cancelled",      label: "Cancelados" },
 ];
 
 export default function ChamadosPage() {
@@ -95,7 +110,9 @@ export default function ChamadosPage() {
   const [rating, setRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [submittingRating, setSubmittingRating] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", category_id: "", priority: "medium" });
+  const [form, setForm] = useState({
+    title: "", description: "", category_id: "", priority: "medium", team: "ti" as TeamKey,
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const fetchTickets = useCallback(async () => {
@@ -113,6 +130,15 @@ export default function ChamadosPage() {
   useEffect(() => {
     fetch("/api/chamados/categorias").then(r => r.json()).then(j => setCategories(j.categories ?? []));
   }, []);
+
+  const categoriasByTeam = useMemo(() => {
+    const map: Record<string, Category[]> = { ti: [], manutencao: [], marketing: [] };
+    for (const c of categories) {
+      if (map[c.team]) map[c.team].push(c);
+      else map[c.team] = [c];
+    }
+    return map;
+  }, [categories]);
 
   const openDetail = async (ticket: Ticket) => {
     setSelected(ticket);
@@ -135,12 +161,18 @@ export default function ChamadosPage() {
       const res = await fetch("/api/chamados", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          category_id: form.category_id || undefined,
+          priority: form.priority,
+          team: form.team,
+        }),
       });
       const json = await res.json();
       if (!res.ok) { alert(json.error); return; }
       setOpenNew(false);
-      setForm({ title: "", description: "", category_id: "", priority: "medium" });
+      setForm({ title: "", description: "", category_id: "", priority: "medium", team: "ti" });
       fetchTickets();
     } finally {
       setSubmitting(false);
@@ -204,9 +236,10 @@ export default function ChamadosPage() {
     if (json.ticket) setSelected(json.ticket);
   };
 
-  const filtered = tickets.filter(t =>
-    !filter || filter.split(",").includes(t.status)
-  );
+  const filtered = tickets.filter(t => !filter || filter.split(",").includes(t.status));
+
+  const catsForTeam = categoriasByTeam[form.team] ?? [];
+  const selectedTeamInfo = TEAM_OPTIONS.find(t => t.key === form.team)!;
 
   return (
     <div className="space-y-6">
@@ -256,6 +289,7 @@ export default function ChamadosPage() {
           {filtered.map(ticket => {
             const prio = PRIORITY_LABELS[ticket.priority];
             const stat = STATUS_LABELS[ticket.status];
+            const teamLabel = TEAM_LABELS[ticket.team];
             return (
               <button
                 key={ticket.id}
@@ -268,6 +302,11 @@ export default function ChamadosPage() {
                       <span className="text-xs font-mono text-muted-foreground">
                         #{String(ticket.number).padStart(4, "0")}
                       </span>
+                      {teamLabel && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                          {teamLabel}
+                        </span>
+                      )}
                       {ticket.ticket_categories && (
                         <span
                           className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
@@ -308,16 +347,44 @@ export default function ChamadosPage() {
             <DialogTitle>Abrir Chamado</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitNew} className="space-y-4">
+            {/* Seletor de destino */}
+            <div>
+              <label className="text-sm font-medium">Para onde vai essa solicitação? *</label>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {TEAM_OPTIONS.map(t => {
+                  const Icon = t.icon;
+                  const isActive = form.team === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, team: t.key, category_id: "" }))}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${
+                        isActive
+                          ? t.color + " shadow-sm"
+                          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      <Icon size={20} />
+                      <span className="text-xs font-semibold leading-tight">{t.label}</span>
+                      <span className="text-xs opacity-70 leading-tight hidden sm:block">{t.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div>
               <label className="text-sm font-medium">Título *</label>
               <input
                 className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-                placeholder="Descreva brevemente o problema"
+                placeholder="Descreva brevemente o problema ou pedido"
                 value={form.title}
                 onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
                 required
               />
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium">Categoria</label>
@@ -327,9 +394,12 @@ export default function ChamadosPage() {
                   onChange={e => setForm(p => ({ ...p, category_id: e.target.value }))}
                 >
                   <option value="">Selecione...</option>
-                  {categories.map(c => (
+                  {catsForTeam.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
+                  {catsForTeam.length === 0 && (
+                    <option disabled>Nenhuma categoria cadastrada</option>
+                  )}
                 </select>
               </div>
               <div>
@@ -346,30 +416,45 @@ export default function ChamadosPage() {
                 </select>
               </div>
             </div>
+
             <div>
               <label className="text-sm font-medium">Descrição detalhada *</label>
               <textarea
                 className="w-full mt-1 border rounded-lg px-3 py-2 text-sm resize-none"
                 rows={4}
-                placeholder="O que aconteceu? Quando? Qual equipamento ou sistema está envolvido?"
+                placeholder={
+                  form.team === "ti"
+                    ? "O que aconteceu? Quando? Qual equipamento ou sistema está envolvido?"
+                    : form.team === "manutencao"
+                    ? "O que precisa ser feito? Onde está o problema? Qual a urgência?"
+                    : "O que você precisa? Tamanho, formato, prazo, referências..."
+                }
                 value={form.description}
                 onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                 required
               />
             </div>
+
             {form.category_id && (() => {
-              const cat = categories.find(c => c.id === form.category_id);
+              const cat = catsForTeam.find(c => c.id === form.category_id);
               return cat ? (
                 <p className="text-xs text-muted-foreground">
                   SLA desta categoria: <strong>{cat.sla_hours}h</strong> a partir da abertura
                 </p>
               ) : null;
             })()}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpenNew(false)}>Cancelar</Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Enviando..." : "Abrir Chamado"}
-              </Button>
+
+            {/* Rodapé com destino */}
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <span className={`text-xs px-2 py-1 rounded-full border font-medium ${selectedTeamInfo.color}`}>
+                Enviando para: {selectedTeamInfo.label}
+              </span>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setOpenNew(false)}>Cancelar</Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? "Enviando..." : "Abrir Chamado"}
+                </Button>
+              </div>
             </div>
           </form>
         </DialogContent>
@@ -394,6 +479,11 @@ export default function ChamadosPage() {
               ) : detail ? (
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-2">
+                    {TEAM_LABELS[selected.team] && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 font-medium">
+                        {TEAM_LABELS[selected.team]}
+                      </span>
+                    )}
                     {selected.ticket_categories && (
                       <span
                         className="text-xs px-2 py-1 rounded-full text-white"

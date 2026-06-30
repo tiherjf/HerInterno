@@ -351,17 +351,9 @@ export default function RamaisPage() {
                       <p className="text-sm font-medium text-gray-800 leading-tight">{r.descricao}</p>
                     </div>
 
-                    {/* Botões de ação — sempre visíveis */}
+                    {/* Botão copiar */}
                     {!semRamal && (
-                      <div className="shrink-0 flex gap-1 no-print">
-                        <a
-                          href={`tel:${r.ramal}`}
-                          title="Ligar"
-                          aria-label={`Ligar para ${r.descricao}`}
-                          className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition-colors border border-green-200"
-                        >
-                          <Phone size={14} />
-                        </a>
+                      <div className="shrink-0 no-print">
                         <button
                           onClick={() => copiar(r.ramal)}
                           title="Copiar ramal"

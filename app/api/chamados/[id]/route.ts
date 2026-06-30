@@ -4,7 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 type Params = { params: { id: string } };
 
-const IS_AGENT = ["admin", "ti", "rh", "manutencao"];
+const IS_AGENT = ["admin", "ti", "rh", "manutencao", "marketing"];
 
 const STATUS_PT: Record<string, string> = {
   open: "Aberto", in_progress: "Em Atendimento", resolved: "Resolvido",

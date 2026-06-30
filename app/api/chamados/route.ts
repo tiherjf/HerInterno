@@ -2,18 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
-// Determina a equipe do agente (ti ou manutencao)
+// Determina a equipe do agente (ti, manutencao ou marketing)
 function agentTeam(role: string): string | null {
-  if (["admin"].includes(role)) return null; // admin vê tudo
+  if (role === "admin") return null; // admin vê tudo
   if (role === "ti") return "ti";
   if (role === "manutencao") return "manutencao";
+  if (role === "marketing") return "marketing";
   return null;
 }
 
 export async function GET(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    const isAgent = ["admin", "ti", "rh", "manutencao"].includes(profile.role);
     const view = req.nextUrl.searchParams.get("view") ?? "own";
     const status = req.nextUrl.searchParams.get("status") ?? "";
     const priority = req.nextUrl.searchParams.get("priority") ?? "";
@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     const sector = req.nextUrl.searchParams.get("sector") ?? "";
     const responsible = req.nextUrl.searchParams.get("responsible") ?? "";
 
+    const isAgent = ["admin", "ti", "rh", "manutencao", "marketing"].includes(profile.role);
     const supabase = isAgent ? createServiceClient() : createClient();
 
     let query = supabase
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    const { title, description, category_id, priority = "medium" } = await req.json();
+    const { title, description, category_id, priority = "medium", team: requestedTeam } = await req.json();
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json({ error: "Título e descrição são obrigatórios" }, { status: 400 });
@@ -86,8 +87,9 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient();
 
+    const VALID_TEAMS = ["ti", "manutencao", "marketing"];
     let sla_deadline: string | null = null;
-    let ticketTeam = "ti";
+    let ticketTeam = VALID_TEAMS.includes(requestedTeam) ? requestedTeam : "ti";
 
     let resolvedPriority = priority;
     if (category_id) {

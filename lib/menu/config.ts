@@ -124,7 +124,7 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
   },
   {
     key: "ponto-calendario",
-    label: "Calendário",
+    label: "Calendário de Ponto",
     href: "/intranet/ponto/calendario",
     icon: "CalendarDays",
     category: "Ponto & RH",
