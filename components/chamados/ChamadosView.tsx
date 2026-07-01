@@ -9,26 +9,22 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle,
   RefreshCw, RotateCcw, Monitor, Wrench, Megaphone, Lock, Loader2,
+  Pencil, Sparkles, CalendarClock, User, FileText,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
-interface Category { id: string; name: string; color: string; sla_hours: number; team: string }
+interface Category {
+  id: string; name: string; color: string;
+  sla_hours: number; alteracao_sla_hours: number | null; team: string;
+}
 
 interface Ticket {
   id: string; number: number; title: string; priority: string; status: string;
@@ -36,11 +32,21 @@ interface Ticket {
   created_at: string; sla_deadline: string | null; resolved_at: string | null; rating: number | null;
   ticket_categories: { id: string; name: string; color: string } | null;
   team: string;
+  mkt_protocolo: string | null;
+  mkt_is_alteracao: boolean | null;
+  mkt_prazo_desejado: string | null;
 }
-interface HistoryEntry { id: string; user_name: string; action: string; old_value: string | null; new_value: string | null; created_at: string }
+
+interface HistoryEntry {
+  id: string; user_name: string; action: string;
+  old_value: string | null; new_value: string | null; created_at: string;
+}
+
 type TimelineItem =
   | ({ kind: "comment" } & { id: string; author_name: string; content: string; is_internal: boolean; created_at: string })
   | ({ kind: "history" } & HistoryEntry);
+
+interface MyProfile { full_name: string; sector: string; phone_ext: string; }
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
   low:      { label: "Baixa",   color: "bg-blue-100 text-blue-700" },
@@ -65,17 +71,11 @@ const TEAM_OPTIONS = [
 
 type TeamKey = typeof TEAM_OPTIONS[number]["key"];
 
-const TEAM_LABELS: Record<string, string> = {
-  ti: "TI",
-  manutencao: "Manutenção",
-  marketing: "MKT",
-};
+const TEAM_LABELS: Record<string, string> = { ti: "TI", manutencao: "Manutenção", marketing: "MKT" };
 
 function SlaIndicator({ deadline, status }: { deadline: string | null; status: string }) {
   if (!deadline || ["resolved", "closed", "cancelled"].includes(status)) return null;
-  const now = Date.now();
-  const end = new Date(deadline).getTime();
-  const diff = end - now;
+  const diff = new Date(deadline).getTime() - Date.now();
   if (diff <= 0) return (
     <span className="text-xs text-red-600 font-medium flex items-center gap-1">
       <AlertTriangle size={11} /> SLA vencido
@@ -95,10 +95,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   return (
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map(n => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
+        <button key={n} type="button" onClick={() => onChange(n)}
           className={`text-2xl leading-none transition-colors ${n <= value ? "text-yellow-400" : "text-gray-300 hover:text-yellow-300"}`}
         >★</button>
       ))}
@@ -115,8 +112,11 @@ const FILTERS = [
 ];
 
 export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
+  const isMkt = defaultTeam === "marketing";
+
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
@@ -135,13 +135,18 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const [rating, setRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [submittingRating, setSubmittingRating] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form
   const [form, setForm] = useState({
     title: "", description: "", category_id: "", priority: "medium",
     team: (defaultTeam ?? "ti") as TeamKey,
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [mktIsAlteracao, setMktIsAlteracao] = useState(false);
+  const [mktPrazo, setMktPrazo] = useState("");
+  const [lastProtocolo, setLastProtocolo] = useState<string | null>(null);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -156,9 +161,18 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   }, [defaultTeam]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
   useEffect(() => {
     fetch("/api/chamados/categorias").then(r => r.json()).then(j => setCategories(j.categories ?? []));
   }, []);
+
+  useEffect(() => {
+    if (isMkt) {
+      fetch("/api/perfil").then(r => r.json()).then(data => {
+        if (data.full_name) setMyProfile(data as MyProfile);
+      }).catch(() => {});
+    }
+  }, [isMkt]);
 
   const categoriasByTeam = useMemo(() => {
     const map: Record<string, Category[]> = { ti: [], manutencao: [], marketing: [] };
@@ -181,6 +195,13 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
     setLoadingDetail(false);
   };
 
+  const resetForm = () => {
+    setForm({ title: "", description: "", category_id: "", priority: "medium", team: (defaultTeam ?? "ti") as TeamKey });
+    setMktIsAlteracao(false);
+    setMktPrazo("");
+    setLastProtocolo(null);
+  };
+
   const submitNew = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.description.trim()) return;
@@ -195,12 +216,14 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
           category_id: form.category_id || undefined,
           priority: form.priority,
           team: form.team,
+          mkt_is_alteracao: isMkt ? mktIsAlteracao : undefined,
+          mkt_prazo_desejado: isMkt && mktPrazo ? mktPrazo : undefined,
         }),
       });
       const json = await res.json();
       if (!res.ok) { alert(json.error); return; }
-      setOpenNew(false);
-      setForm({ title: "", description: "", category_id: "", priority: "medium", team: (defaultTeam ?? "ti") as TeamKey });
+      if (json.mkt_protocolo) setLastProtocolo(json.mkt_protocolo);
+      resetForm();
       fetchTickets();
     } finally {
       setSubmitting(false);
@@ -211,8 +234,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
     if (!comment.trim() || !selected) return;
     setSubmittingComment(true);
     await fetch(`/api/chamados/${selected.id}/comentarios`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: comment }),
     });
     setComment("");
@@ -225,8 +247,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
     if (!rating || !selected) return;
     setSubmittingRating(true);
     await fetch(`/api/chamados/${selected.id}/avaliar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rating, rating_comment: ratingComment }),
     });
     setSubmittingRating(false);
@@ -240,8 +261,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const cancelTicket = async () => {
     if (!selected) return;
     await fetch(`/api/chamados/${selected.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "cancel" }),
     });
     setCancelDialogOpen(false);
@@ -253,8 +273,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const reopenTicket = async () => {
     if (!selected) return;
     await fetch(`/api/chamados/${selected.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "reopen" }),
     });
     setReopenDialogOpen(false);
@@ -269,36 +288,39 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const catsForTeam = categoriasByTeam[form.team] ?? [];
   const selectedTeamInfo = TEAM_OPTIONS.find(t => t.key === form.team) ?? TEAM_OPTIONS[0];
   const teamTitle = defaultTeam ? TEAM_OPTIONS.find(t => t.key === defaultTeam)?.label : undefined;
+  const selectedMktCat = isMkt ? catsForTeam.find(c => c.id === form.category_id) ?? null : null;
+  const slaPreview = selectedMktCat
+    ? (mktIsAlteracao && selectedMktCat.alteracao_sla_hours
+        ? selectedMktCat.alteracao_sla_hours
+        : selectedMktCat.sla_hours)
+    : null;
 
   return (
     <div className="space-y-6">
+      {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {teamTitle ? `Meus Chamados — ${teamTitle}` : "Meus Chamados"}
+            {teamTitle ? `${isMkt ? "Solicitações " : "Meus Chamados — "}${teamTitle}` : "Meus Chamados"}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Acompanhe e abra solicitações de suporte</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {isMkt ? "Solicite materiais e comunicações ao setor de Marketing" : "Acompanhe e abra solicitações de suporte"}
+          </p>
         </div>
-        <Button onClick={() => setOpenNew(true)}>
-          <Plus size={16} /> Abrir Chamado
+        <Button onClick={() => { setLastProtocolo(null); setOpenNew(true); }}
+          className={isMkt ? "bg-pink-600 hover:bg-pink-700" : ""}>
+          <Plus size={16} /> {isMkt ? "Nova Solicitação" : "Abrir Chamado"}
         </Button>
       </div>
 
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
         {FILTERS.map(f => (
-          <Button
-            key={f.key}
-            size="sm"
-            variant={filter === f.key ? "default" : "outline"}
-            onClick={() => setFilter(f.key)}
-            className="rounded-full"
-          >
+          <Button key={f.key} size="sm" variant={filter === f.key ? "default" : "outline"}
+            onClick={() => setFilter(f.key)} className="rounded-full">
             {f.label}
             {f.key === "" && (
-              <Badge variant="secondary" className="ml-1.5 h-4 px-1.5 text-xs">
-                {tickets.length}
-              </Badge>
+              <Badge variant="secondary" className="ml-1.5 h-4 px-1.5 text-xs">{tickets.length}</Badge>
             )}
           </Button>
         ))}
@@ -312,8 +334,10 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <TicketCheck size={40} className="mx-auto mb-3 opacity-30" />
-          <p>Nenhum chamado encontrado</p>
-          <Button className="mt-4" onClick={() => setOpenNew(true)}>Abrir primeiro chamado</Button>
+          <p>{isMkt ? "Nenhuma solicitação encontrada" : "Nenhum chamado encontrado"}</p>
+          <Button className="mt-4" onClick={() => setOpenNew(true)}>
+            {isMkt ? "Abrir primeira solicitação" : "Abrir primeiro chamado"}
+          </Button>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -321,36 +345,46 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
             const prio = PRIORITY_LABELS[ticket.priority];
             const stat = STATUS_LABELS[ticket.status];
             return (
-              <button
-                key={ticket.id}
-                onClick={() => openDetail(ticket)}
-                className="w-full text-left bg-white rounded-xl border p-4 hover:shadow-md transition-shadow"
-              >
+              <button key={ticket.id} onClick={() => openDetail(ticket)}
+                className="w-full text-left bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs font-mono text-muted-foreground">
-                        #{String(ticket.number).padStart(4, "0")}
-                      </span>
+                      {ticket.mkt_protocolo ? (
+                        <span className="text-xs font-mono font-bold text-pink-700 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-200">
+                          {ticket.mkt_protocolo}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-mono text-muted-foreground">
+                          #{String(ticket.number).padStart(4, "0")}
+                        </span>
+                      )}
+                      {ticket.mkt_is_alteracao && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex items-center gap-0.5">
+                          <Pencil size={9} /> Alteração
+                        </span>
+                      )}
                       {!defaultTeam && TEAM_LABELS[ticket.team] && (
-                        <Badge variant="secondary" className="text-xs">
-                          {TEAM_LABELS[ticket.team]}
-                        </Badge>
+                        <Badge variant="secondary" className="text-xs">{TEAM_LABELS[ticket.team]}</Badge>
                       )}
                       {ticket.ticket_categories && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
-                          style={{ backgroundColor: ticket.ticket_categories.color }}
-                        >
+                        <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
+                          style={{ backgroundColor: ticket.ticket_categories.color }}>
                           {ticket.ticket_categories.name}
                         </span>
                       )}
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${prio.color}`}>
-                        {prio.label}
-                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${prio.color}`}>{prio.label}</span>
                     </div>
                     <p className="font-medium text-gray-900 truncate">{ticket.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{formatDate(ticket.created_at)}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-xs text-muted-foreground">{formatDate(ticket.created_at)}</p>
+                      {ticket.mkt_prazo_desejado && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <CalendarClock size={11} />
+                          Prazo: {new Date(ticket.mkt_prazo_desejado + "T12:00:00").toLocaleDateString("pt-BR")}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${stat.color}`}>
@@ -370,153 +404,273 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
         </div>
       )}
 
-      {/* Modal: novo chamado */}
-      <Dialog open={openNew} onOpenChange={setOpenNew}>
-        <DialogContent className="max-w-lg">
+      {/* ──── Modal: nova solicitação ──── */}
+      <Dialog open={openNew} onOpenChange={v => { if (!v) { resetForm(); } setOpenNew(v); }}>
+        <DialogContent className={`${isMkt ? "max-w-xl" : "max-w-lg"} max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
-            <DialogTitle>Abrir Chamado</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {isMkt ? <><Megaphone size={18} className="text-pink-600" /> Nova Solicitação de Comunicação</> : "Abrir Chamado"}
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={submitNew} className="space-y-4">
-            {!defaultTeam ? (
-              <div className="space-y-2">
-                <Label>Para onde vai essa solicitação? *</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {TEAM_OPTIONS.map(t => {
-                    const Icon = t.icon;
-                    const isActive = form.team === t.key;
-                    return (
-                      <button
-                        key={t.key}
-                        type="button"
-                        onClick={() => setForm(p => ({ ...p, team: t.key, category_id: "" }))}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${
-                          isActive ? t.color + " shadow-sm" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
-                        }`}
-                      >
-                        <Icon size={20} />
-                        <span className="text-xs font-semibold leading-tight">{t.label}</span>
-                        <span className="text-xs opacity-70 leading-tight hidden sm:block">{t.desc}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 ${selectedTeamInfo.color}`}>
-                {(() => { const Icon = selectedTeamInfo.icon; return <Icon size={16} />; })()}
-                <div>
-                  <p className="text-sm font-semibold">{selectedTeamInfo.label}</p>
-                  <p className="text-xs opacity-75">{selectedTeamInfo.desc}</p>
-                </div>
-                <Lock size={13} className="ml-auto opacity-50" />
-              </div>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="ticket-title">Título *</Label>
-              <Input
-                id="ticket-title"
-                placeholder="Descreva brevemente o problema ou pedido"
-                value={form.title}
-                onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                required
-              />
+          {/* ── Protocolo gerado (após envio bem-sucedido) ── */}
+          {lastProtocolo && (
+            <div className="bg-green-50 border border-green-300 rounded-lg p-4 text-center">
+              <p className="text-sm text-green-700 font-medium">Solicitação registrada com sucesso!</p>
+              <p className="text-2xl font-bold text-green-800 font-mono mt-1">{lastProtocolo}</p>
+              <p className="text-xs text-green-600 mt-1">Guarde este protocolo para acompanhar o andamento</p>
+              <Button className="mt-3" size="sm" onClick={() => setLastProtocolo(null)}>
+                <Plus size={14} /> Nova solicitação
+              </Button>
             </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select
-                  value={form.category_id || "__none__"}
-                  onValueChange={v => setForm(p => ({ ...p, category_id: v === "__none__" ? "" : v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Selecione...</SelectItem>
-                    {catsForTeam.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                    {catsForTeam.length === 0 && (
-                      <SelectItem value="__empty__" disabled>Nenhuma categoria cadastrada</SelectItem>
+          {!lastProtocolo && (
+            <form onSubmit={submitNew} className="space-y-4">
+              {/* Team selector ou badge fixo */}
+              {!defaultTeam ? (
+                <div className="space-y-2">
+                  <Label>Para onde vai essa solicitação? *</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {TEAM_OPTIONS.map(t => {
+                      const Icon = t.icon;
+                      const isActive = form.team === t.key;
+                      return (
+                        <button key={t.key} type="button"
+                          onClick={() => setForm(p => ({ ...p, team: t.key, category_id: "" }))}
+                          className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${
+                            isActive ? t.color + " shadow-sm" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                          }`}>
+                          <Icon size={20} />
+                          <span className="text-xs font-semibold leading-tight">{t.label}</span>
+                          <span className="text-xs opacity-70 leading-tight hidden sm:block">{t.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 ${selectedTeamInfo.color}`}>
+                  {(() => { const Icon = selectedTeamInfo.icon; return <Icon size={16} />; })()}
+                  <div>
+                    <p className="text-sm font-semibold">{selectedTeamInfo.label}</p>
+                    <p className="text-xs opacity-75">{selectedTeamInfo.desc}</p>
+                  </div>
+                  <Lock size={13} className="ml-auto opacity-50" />
+                </div>
+              )}
+
+              {/* ──── Campos exclusivos MKT ──── */}
+              {(form.team === "marketing" || isMkt) && (
+                <>
+                  {/* Solicitante (pré-preenchido) */}
+                  <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
+                    <p className="text-xs font-semibold text-pink-700 mb-1.5 flex items-center gap-1">
+                      <User size={12} /> Solicitante
+                    </p>
+                    {myProfile ? (
+                      <p className="text-sm font-medium text-gray-800">
+                        {myProfile.full_name}
+                        {myProfile.sector && <span className="text-muted-foreground font-normal"> — {myProfile.sector}</span>}
+                      </p>
+                    ) : (
+                      <Skeleton className="h-4 w-48" />
                     )}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <p className="text-xs text-muted-foreground mt-1">Preenchido com seus dados de perfil</p>
+                  </div>
+
+                  {/* Tipo de material */}
+                  <div className="space-y-2">
+                    <Label>Tipo de material *</Label>
+                    <Select value={form.category_id || "__none__"}
+                      onValueChange={v => setForm(p => ({ ...p, category_id: v === "__none__" ? "" : v }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo de demanda..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Selecione...</SelectItem>
+                        {(categoriasByTeam["marketing"] ?? []).map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Nova criação vs Alteração */}
+                  <div className="space-y-2">
+                    <Label>Tipo de solicitação *</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setMktIsAlteracao(false)}
+                        className={`flex items-center gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
+                          !mktIsAlteracao
+                            ? "border-pink-500 bg-pink-50 text-pink-700"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}>
+                        <Sparkles size={18} className="shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold">Nova criação</p>
+                          {selectedMktCat && !mktIsAlteracao && (
+                            <p className="text-xs opacity-70">SLA: {selectedMktCat.sla_hours}h</p>
+                          )}
+                        </div>
+                      </button>
+                      <button type="button" onClick={() => setMktIsAlteracao(true)}
+                        className={`flex items-center gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
+                          mktIsAlteracao
+                            ? "border-amber-500 bg-amber-50 text-amber-700"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}>
+                        <Pencil size={18} className="shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold">Alteração</p>
+                          {selectedMktCat && mktIsAlteracao && (
+                            <p className="text-xs opacity-70">
+                              {selectedMktCat.alteracao_sla_hours ? `SLA: ${selectedMktCat.alteracao_sla_hours}h` : "SLA igual"}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SLA preview */}
+                  {slaPreview !== null && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center gap-2 text-sm">
+                      <Clock size={14} className="text-blue-600 shrink-0" />
+                      <span className="text-blue-700">
+                        Prazo conforme <strong>POL HER 003</strong>: <strong>{slaPreview}h</strong> a partir da abertura
+                        {mktIsAlteracao && !selectedMktCat?.alteracao_sla_hours && " (sem prazo reduzido para alteração neste tipo)"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Data limite desejada */}
+                  <div className="space-y-2">
+                    <Label htmlFor="mkt-prazo">Data limite desejada</Label>
+                    <Input id="mkt-prazo" type="date" value={mktPrazo}
+                      onChange={e => setMktPrazo(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]} />
+                    <p className="text-xs text-muted-foreground">Informativo — o prazo real segue a POL HER 003</p>
+                  </div>
+                </>
+              )}
+
+              {/* Título */}
               <div className="space-y-2">
-                <Label>Prioridade</Label>
-                <Select
-                  value={form.priority}
-                  onValueChange={v => setForm(p => ({ ...p, priority: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="critical">Crítica</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="ticket-title">
+                  {isMkt ? "Título / Assunto da solicitação *" : "Título *"}
+                </Label>
+                <Input id="ticket-title" required value={form.title}
+                  onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                  placeholder={
+                    isMkt ? "Ex.: Banner Dia dos Médicos, Comunicado Férias, Card Aniversariante..."
+                    : "Descreva brevemente o problema ou pedido"
+                  }
+                />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="ticket-desc">Descrição detalhada *</Label>
-              <Textarea
-                id="ticket-desc"
-                rows={4}
-                placeholder={
-                  form.team === "ti" ? "O que aconteceu? Quando? Qual equipamento ou sistema está envolvido?"
-                  : form.team === "manutencao" ? "O que precisa ser feito? Onde está o problema? Qual a urgência?"
-                  : "O que você precisa? Tamanho, formato, prazo, referências..."
-                }
-                value={form.description}
-                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-                required
-                className="resize-none"
-              />
-            </div>
+              {/* Campos não-MKT: categoria + prioridade */}
+              {form.team !== "marketing" && !isMkt && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Categoria</Label>
+                    <Select value={form.category_id || "__none__"}
+                      onValueChange={v => setForm(p => ({ ...p, category_id: v === "__none__" ? "" : v }))}>
+                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Selecione...</SelectItem>
+                        {catsForTeam.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Prioridade</Label>
+                    <Select value={form.priority} onValueChange={v => setForm(p => ({ ...p, priority: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Baixa</SelectItem>
+                        <SelectItem value="medium">Média</SelectItem>
+                        <SelectItem value="high">Alta</SelectItem>
+                        <SelectItem value="critical">Crítica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
 
-            {form.category_id && (() => {
-              const cat = catsForTeam.find(c => c.id === form.category_id);
-              return cat ? (
-                <p className="text-xs text-muted-foreground">
-                  SLA desta categoria: <strong>{cat.sla_hours}h</strong> a partir da abertura
-                </p>
-              ) : null;
-            })()}
-
-            <DialogFooter className="flex-row items-center justify-between gap-2 pt-2">
-              <span className={`text-xs px-2 py-1 rounded-full border font-medium ${selectedTeamInfo.color}`}>
-                Enviando para: {selectedTeamInfo.label}
-              </span>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setOpenNew(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? <><Loader2 size={14} className="animate-spin" /> Enviando...</> : "Abrir Chamado"}
-                </Button>
+              {/* Descrição */}
+              <div className="space-y-2">
+                <Label htmlFor="ticket-desc">
+                  {isMkt ? "Descrição da demanda *" : "Descrição detalhada *"}
+                </Label>
+                <Textarea id="ticket-desc" required rows={isMkt ? 5 : 4}
+                  placeholder={
+                    isMkt
+                      ? "Descreva o objetivo do material, público-alvo, tom de comunicação, informações que devem constar, referências visuais (links/anexos) e qualquer detalhe relevante para a execução."
+                      : form.team === "ti" ? "O que aconteceu? Quando? Qual equipamento ou sistema está envolvido?"
+                      : "O que precisa ser feito? Onde está o problema? Qual a urgência?"
+                  }
+                  value={form.description}
+                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                  className="resize-none"
+                />
               </div>
-            </DialogFooter>
-          </form>
+
+              {/* Info de SLA para chamados não-MKT */}
+              {!isMkt && form.category_id && (() => {
+                const cat = catsForTeam.find(c => c.id === form.category_id);
+                return cat ? (
+                  <p className="text-xs text-muted-foreground">SLA desta categoria: <strong>{cat.sla_hours}h</strong></p>
+                ) : null;
+              })()}
+
+              <DialogFooter className="flex-row items-center justify-between gap-2 pt-2">
+                {isMkt ? (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <FileText size={11} /> Protocolo COM- gerado automaticamente
+                  </p>
+                ) : (
+                  <span className={`text-xs px-2 py-1 rounded-full border font-medium ${selectedTeamInfo.color}`}>
+                    Enviando para: {selectedTeamInfo.label}
+                  </span>
+                )}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => { resetForm(); setOpenNew(false); }}>Cancelar</Button>
+                  <Button type="submit" disabled={submitting}
+                    className={isMkt ? "bg-pink-600 hover:bg-pink-700" : ""}>
+                    {submitting
+                      ? <><Loader2 size={14} className="animate-spin" /> Enviando...</>
+                      : isMkt ? "Enviar Solicitação" : "Abrir Chamado"}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* Modal: detalhe */}
+      {/* ──── Modal: detalhe ──── */}
       <Dialog open={!!selected} onOpenChange={v => { if (!v) { setSelected(null); setDetail(null); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <span className="font-mono text-sm text-muted-foreground">
-                    #{String(selected.number).padStart(4, "0")}
-                  </span>
-                  {selected.title}
+                <DialogTitle className="flex items-center gap-2 flex-wrap">
+                  {selected.mkt_protocolo ? (
+                    <span className="font-mono text-sm font-bold text-pink-700 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-200">
+                      {selected.mkt_protocolo}
+                    </span>
+                  ) : (
+                    <span className="font-mono text-sm text-muted-foreground">
+                      #{String(selected.number).padStart(4, "0")}
+                    </span>
+                  )}
+                  {selected.mkt_is_alteracao && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex items-center gap-1">
+                      <Pencil size={10} /> Alteração
+                    </span>
+                  )}
+                  <span className="text-base font-semibold">{selected.title}</span>
                 </DialogTitle>
               </DialogHeader>
 
@@ -529,14 +683,10 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
               ) : detail ? (
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-2">
-                    {TEAM_LABELS[selected.team] && (
-                      <Badge variant="secondary">{TEAM_LABELS[selected.team]}</Badge>
-                    )}
+                    {TEAM_LABELS[selected.team] && <Badge variant="secondary">{TEAM_LABELS[selected.team]}</Badge>}
                     {selected.ticket_categories && (
-                      <span
-                        className="text-xs px-2 py-1 rounded-full text-white font-medium"
-                        style={{ backgroundColor: selected.ticket_categories.color }}
-                      >
+                      <span className="text-xs px-2 py-1 rounded-full text-white font-medium"
+                        style={{ backgroundColor: selected.ticket_categories.color }}>
                         {selected.ticket_categories.name}
                       </span>
                     )}
@@ -549,10 +699,22 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                     <SlaIndicator deadline={selected.sla_deadline} status={selected.status} />
                   </div>
 
+                  {/* Prazo desejado MKT */}
+                  {selected.mkt_prazo_desejado && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+                      <CalendarClock size={14} className="shrink-0" />
+                      Prazo desejado pelo solicitante:{" "}
+                      <strong className="text-foreground">
+                        {new Date(selected.mkt_prazo_desejado + "T12:00:00").toLocaleDateString("pt-BR")}
+                      </strong>
+                    </div>
+                  )}
+
                   <div className="bg-muted/50 rounded-lg p-4 text-sm whitespace-pre-wrap">
                     {detail.ticket.description}
                   </div>
 
+                  {/* Timeline */}
                   {(() => {
                     const timeline: TimelineItem[] = [
                       ...(detail.ticket.ticket_comments ?? []).map(c => ({ kind: "comment" as const, ...c })),
@@ -576,7 +738,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                               <div className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
                               <span>
                                 {item.action === "status_changed"
-                                  ? `Status atualizado: ${item.old_value} → ${item.new_value}`
+                                  ? `Status: ${item.old_value} → ${item.new_value}`
                                   : item.action === "reopened" ? "Chamado reaberto" : item.action}
                               </span>
                               <span className="ml-auto">{formatDate(item.created_at)}</span>
@@ -587,44 +749,36 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                     );
                   })()}
 
+                  {/* Comentário */}
                   {!["closed", "cancelled"].includes(selected.status) && (
                     <div className="space-y-2">
-                      <Label htmlFor="ticket-comment">Adicionar resposta</Label>
-                      <Textarea
-                        id="ticket-comment"
-                        rows={3}
-                        placeholder="Informação adicional, atualização do problema..."
-                        value={comment}
-                        onChange={e => setComment(e.target.value)}
-                        className="resize-none"
-                      />
+                      <Label htmlFor="ticket-comment">
+                        {isMkt ? "Adicionar informação / referência" : "Adicionar resposta"}
+                      </Label>
+                      <Textarea id="ticket-comment" rows={3} className="resize-none"
+                        placeholder={isMkt ? "Texto complementar, links de referência, observações..." : "Informação adicional..."}
+                        value={comment} onChange={e => setComment(e.target.value)} />
                       <div className="flex justify-end">
-                        <Button
-                          size="sm"
-                          onClick={submitComment}
-                          disabled={submittingComment || !comment.trim()}
-                        >
+                        <Button size="sm" onClick={submitComment} disabled={submittingComment || !comment.trim()}>
                           {submittingComment ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Enviar"}
                         </Button>
                       </div>
                     </div>
                   )}
 
+                  {/* Avaliação */}
                   {["resolved", "closed"].includes(selected.status) && !selected.rating && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <p className="text-sm font-medium mb-2">Como foi o atendimento?</p>
+                      <p className="text-sm font-medium mb-2">
+                        {isMkt ? "Como foi o atendimento do Marketing?" : "Como foi o atendimento?"}
+                      </p>
                       <StarRating value={rating} onChange={setRating} />
                       {rating > 0 && (
                         <>
-                          <Textarea
-                            className="mt-2 resize-none"
-                            rows={2}
-                            placeholder="Comentário (opcional)"
-                            value={ratingComment}
-                            onChange={e => setRatingComment(e.target.value)}
-                          />
+                          <Textarea className="mt-2 resize-none" rows={2} placeholder="Comentário (opcional)"
+                            value={ratingComment} onChange={e => setRatingComment(e.target.value)} />
                           <Button size="sm" className="mt-2" onClick={submitRating} disabled={submittingRating}>
-                            {submittingRating ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Avaliar Atendimento"}
+                            {submittingRating ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Avaliar"}
                           </Button>
                         </>
                       )}
@@ -633,9 +787,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
                   {selected.rating && (
                     <div className="bg-green-50 rounded-lg p-3 text-sm">
-                      <p className="font-medium">
-                        Avaliado: {"★".repeat(selected.rating)}{"☆".repeat(5 - selected.rating)}
-                      </p>
+                      <p className="font-medium">Avaliado: {"★".repeat(selected.rating)}{"☆".repeat(5 - selected.rating)}</p>
                       {detail.ticket.rating_comment && (
                         <p className="text-muted-foreground mt-1">{detail.ticket.rating_comment}</p>
                       )}
@@ -643,21 +795,17 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                   )}
 
                   <Separator />
-
                   <div className="flex justify-end gap-2">
                     {selected.status === "open" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
+                      <Button variant="outline" size="sm"
                         className="text-destructive border-destructive/30 hover:bg-destructive/5"
-                        onClick={() => setCancelDialogOpen(true)}
-                      >
-                        <XCircle size={14} /> Cancelar chamado
+                        onClick={() => setCancelDialogOpen(true)}>
+                        <XCircle size={14} /> {isMkt ? "Cancelar solicitação" : "Cancelar chamado"}
                       </Button>
                     )}
                     {selected.status === "resolved" && (
                       <Button variant="outline" size="sm" onClick={() => setReopenDialogOpen(true)}>
-                        <RotateCcw size={14} /> Reabrir chamado
+                        <RotateCcw size={14} /> Reabrir
                       </Button>
                     )}
                   </div>
@@ -668,11 +816,11 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmação cancelar */}
+      {/* Confirmar cancelar */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Cancelar chamado?</DialogTitle>
+            <DialogTitle>{isMkt ? "Cancelar solicitação?" : "Cancelar chamado?"}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita facilmente.</p>
           <DialogFooter>
@@ -682,13 +830,15 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* Confirmação reabrir */}
+      {/* Confirmar reabrir */}
       <Dialog open={reopenDialogOpen} onOpenChange={setReopenDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Reabrir chamado?</DialogTitle>
+            <DialogTitle>Reabrir?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">O chamado voltará ao status &quot;Aberto&quot;.</p>
+          <p className="text-sm text-muted-foreground">
+            {isMkt ? "A solicitação voltará ao status Aberto." : "O chamado voltará ao status &quot;Aberto&quot;."}
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReopenDialogOpen(false)}>Cancelar</Button>
             <Button onClick={reopenTicket}>Confirmar reabertura</Button>

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const profile = await requireStaff();
     const supabase = createClient();
     const all = req.nextUrl.searchParams.get("all") === "true";
-    const canManage = ["admin", "ti", "manutencao"].includes(profile.role);
+    const canManage = ["admin", "ti", "manutencao", "marketing"].includes(profile.role);
 
     let query = supabase
       .from("ticket_categories")
@@ -19,9 +19,10 @@ export async function GET(req: NextRequest) {
     // Gestores podem ver inativas ao solicitar ?all=true
     if (!all || !canManage) query = query.eq("active", true);
 
-    // Agentes só veem suas próprias categorias
+    // Cada papel só vê as categorias da sua equipe
     if (profile.role === "ti") query = query.eq("team", "ti");
     else if (profile.role === "manutencao") query = query.eq("team", "manutencao");
+    else if (profile.role === "marketing") query = query.eq("team", "marketing");
 
     const { data } = await query;
     return NextResponse.json({ categories: data ?? [] });

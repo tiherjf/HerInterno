@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, number, title, priority, status, requester_name, requester_sector,
         created_at, updated_at, sla_deadline, first_response_at, resolved_at,
-        rating, team,
+        rating, team, mkt_protocolo, mkt_is_alteracao, mkt_prazo_desejado,
         ticket_categories(id, name, color, sla_hours, team),
         assigned:profiles!assigned_to(id, full_name)
       `)
@@ -81,35 +81,60 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    const { title, description, category_id, priority = "medium", team: requestedTeam } = await req.json();
+    const {
+      title, description, category_id, priority = "medium", team: requestedTeam,
+      mkt_is_alteracao, mkt_prazo_desejado,
+    } = await req.json();
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json({ error: "Título e descrição são obrigatórios" }, { status: 400 });
     }
 
     const supabase = createClient();
+    const svc = createServiceClient();
 
     const VALID_TEAMS = ["ti", "manutencao", "marketing"];
     let sla_deadline: string | null = null;
     let ticketTeam = VALID_TEAMS.includes(requestedTeam) ? requestedTeam : "ti";
-
     let resolvedPriority = priority;
+
     if (category_id) {
       const { data: cat } = await supabase
         .from("ticket_categories")
-        .select("sla_hours, team, default_priority")
+        .select("sla_hours, alteracao_sla_hours, team, default_priority")
         .eq("id", category_id)
         .single();
-      if (cat?.sla_hours) {
+
+      if (cat?.team) ticketTeam = cat.team;
+      if (cat?.default_priority && priority === "medium") resolvedPriority = cat.default_priority;
+
+      // Para MKT: usa SLA de alteração se aplicável
+      const slaHours = (ticketTeam === "marketing" && mkt_is_alteracao === true && cat?.alteracao_sla_hours)
+        ? cat.alteracao_sla_hours
+        : cat?.sla_hours;
+
+      if (slaHours) {
         const deadline = new Date();
-        deadline.setHours(deadline.getHours() + cat.sla_hours);
+        deadline.setHours(deadline.getHours() + slaHours);
         sla_deadline = deadline.toISOString();
       }
-      if (cat?.team) ticketTeam = cat.team;
-      // Aplica prioridade padrão da categoria se não foi explicitamente definida
-      if (cat?.default_priority && priority === "medium") {
-        resolvedPriority = cat.default_priority;
-      }
+    }
+
+    // Gera protocolo COM-AAAA-XXXX para solicitações MKT
+    let mktProtocolo: string | null = null;
+    if (ticketTeam === "marketing") {
+      const year = new Date().getFullYear();
+      const { data: lastMkt } = await svc
+        .from("tickets")
+        .select("mkt_protocolo")
+        .like("mkt_protocolo", `COM-${year}-%`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const lastNum = lastMkt?.mkt_protocolo
+        ? parseInt(lastMkt.mkt_protocolo.split("-").pop() ?? "0", 10)
+        : 0;
+      mktProtocolo = `COM-${year}-${String(lastNum + 1).padStart(4, "0")}`;
     }
 
     const { data, error } = await supabase
@@ -124,13 +149,16 @@ export async function POST(req: NextRequest) {
         requester_name: profile.full_name,
         requester_sector: profile.sector || null,
         sla_deadline,
+        mkt_protocolo: mktProtocolo,
+        mkt_is_alteracao: ticketTeam === "marketing" ? (mkt_is_alteracao === true) : false,
+        mkt_prazo_desejado: ticketTeam === "marketing" && mkt_prazo_desejado ? mkt_prazo_desejado : null,
       })
-      .select("id, number")
+      .select("id, number, mkt_protocolo")
       .single();
 
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, id: data.id, number: data.number }, { status: 201 });
+    return NextResponse.json({ ok: true, id: data.id, number: data.number, mkt_protocolo: data.mkt_protocolo }, { status: 201 });
   } catch (err) {
     return apiError(err);
   }
