@@ -32,7 +32,7 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
 
 export const CATEGORY_ORDER = [
   "Comunicação",
-  "Clínica",
+  "Corpo Clínico e Procedimentos",
   "Capacitação",
   "Suporte",
   "Ponto & RH",
