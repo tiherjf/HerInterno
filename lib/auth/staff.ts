@@ -62,7 +62,11 @@ export async function requireAdmin() {
 }
 
 export function canCreateNews(role: StaffRole): boolean {
-  return ["admin", "ti", "marketing"].includes(role);
+  return ["admin", "ti", "marketing", "rh"].includes(role);
+}
+
+export function canDeleteNews(role: StaffRole): boolean {
+  return ["admin", "ti"].includes(role);
 }
 
 export function canManageTrainings(role: StaffRole): boolean {
