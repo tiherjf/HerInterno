@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, Edit, Trash2, Eye, Calendar } from "lucide-react";
+import { ArrowLeft, Edit, Eye, Calendar } from "lucide-react";
 import { MarcarLida } from "@/components/news/MarcarLida";
 import { ImageLightbox } from "@/components/news/ImageLightbox";
 import { NewsInteractions } from "@/components/news/NewsInteractions";

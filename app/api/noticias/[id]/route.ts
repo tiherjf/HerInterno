@@ -2,23 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff, canCreateNews, canDeleteNews } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import type { StaffRole } from "@/lib/auth/staff";
 
 type Params = { params: { id: string } };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    if (!canCreateNews(profile.role)) {
-      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
-    }
-    const supabase = createServiceClient();
-    const { data, error } = await supabase
+    const canEdit = canCreateNews(profile.role as StaffRole);
+    const supabase = canEdit ? createServiceClient() : createClient();
+
+    let query = supabase
       .from("news")
-      .select("id, title, summary, body, category, status, cover_url, author_id, published_at, scheduled_for")
-      .eq("id", params.id)
-      .single();
+      .select(`
+        id, title, summary, body, category, status,
+        cover_url, author_id, published_at, scheduled_for,
+        profiles!author_id(full_name)
+      `)
+      .eq("id", params.id);
+
+    if (!canEdit) query = query.eq("status", "published");
+
+    const { data, error } = await query.single();
     if (error || !data) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-    return NextResponse.json({ news: data });
+
+    const profiles = data.profiles as unknown as { full_name: string } | null;
+    const news = {
+      ...data,
+      author_name: profiles?.full_name ?? null,
+    };
+
+    return NextResponse.json({ news });
   } catch (err) {
     return apiError(err);
   }
@@ -27,13 +41,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    if (!canCreateNews(profile.role)) {
+    if (!canCreateNews(profile.role as StaffRole)) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
     const svc = createServiceClient();
-
-    // Verifica se o usuário pode editar (admin/ti = qualquer; outros = apenas próprios)
     const { data: existing } = await svc
       .from("news").select("author_id").eq("id", params.id).single();
     if (!existing) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
@@ -82,7 +94,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    if (!canDeleteNews(profile.role)) {
+    if (!canDeleteNews(profile.role as StaffRole)) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
     const svc = createServiceClient();
