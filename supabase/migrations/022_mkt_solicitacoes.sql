@@ -3,6 +3,14 @@
 -- Baseado em POL HER 003 – Política de Comunicação
 -- ─────────────────────────────────────────────────────────────
 
+-- Expande check constraint de team para incluir marketing
+ALTER TABLE public.ticket_categories
+  DROP CONSTRAINT IF EXISTS ticket_categories_team_check;
+
+ALTER TABLE public.ticket_categories
+  ADD CONSTRAINT ticket_categories_team_check
+  CHECK (team IN ('ti', 'manutencao', 'marketing'));
+
 -- Campos MKT na tabela tickets
 ALTER TABLE public.tickets
   ADD COLUMN IF NOT EXISTS mkt_protocolo      TEXT,
