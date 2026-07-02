@@ -155,4 +155,15 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
     can_edit: ["admin", "ti", "rh"],
     active: true,
   },
+  {
+    key: "ponto-aprovacoes",
+    label: "Aprovação de Pontos",
+    href: "/intranet/ponto/aprovacoes",
+    icon: "CheckSquare",
+    category: "Ponto & RH",
+    order_num: 11,
+    can_view: ["admin", "ti", "rh"],
+    can_edit: ["admin", "ti", "rh"],
+    active: true,
+  },
 ];
