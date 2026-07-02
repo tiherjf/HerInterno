@@ -1,0 +1,44 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireStaff, canManageExtensions } from "@/lib/auth/staff";
+import { createServiceClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api/error";
+import type { StaffRole } from "@/lib/auth/staff";
+
+type Params = { params: { id: string } };
+
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    const profile = await requireStaff();
+    if (!canManageExtensions(profile.role as StaffRole)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+    const body = await req.json();
+    const updates: Record<string, unknown> = {};
+    if (body.numero !== undefined) updates.numero = body.numero.trim();
+    if (body.descricao !== undefined) updates.descricao = body.descricao.trim();
+    if (body.order_index !== undefined) updates.order_index = body.order_index;
+    if (body.setor_id !== undefined) updates.setor_id = body.setor_id;
+
+    const svc = createServiceClient();
+    const { error } = await svc.from("ramais").update(updates).eq("id", params.id);
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return apiError(err);
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  try {
+    const profile = await requireStaff();
+    if (!canManageExtensions(profile.role as StaffRole)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+    const svc = createServiceClient();
+    const { error } = await svc.from("ramais").update({ active: false }).eq("id", params.id);
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return apiError(err);
+  }
+}
