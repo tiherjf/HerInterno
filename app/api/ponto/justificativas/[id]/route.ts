@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { sendEmail } from "@/lib/email/resend";
+import { pontoStatusEmail } from "@/lib/email/templates/ponto-status";
 
 type Params = { params: { id: string } };
 
@@ -26,7 +28,6 @@ export async function GET(_: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
-    // Histórico de alterações
     const { data: history } = await supabase
       .from("justification_history")
       .select("id, actor_name, action, previous_status, new_status, observation, created_at")
@@ -47,7 +48,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { data: current } = await supabase
       .from("justifications")
-      .select("id, status, user_id")
+      .select(`
+        id, status, user_id, occurrence_date,
+        profiles!user_id(full_name),
+        justification_types!type_id(name)
+      `)
       .eq("id", params.id)
       .single();
 
@@ -97,7 +102,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { error } = await supabase.from("justifications").update(update).eq("id", params.id);
     if (error) throw error;
 
-    // Registra histórico
     await supabase.from("justification_history").insert({
       justification_id: params.id,
       actor_id: profile.id,
@@ -107,6 +111,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       new_status: newStatus,
       observation: observation?.trim() || null,
     });
+
+    // Notificação por e-mail ao colaborador (falha silenciosa)
+    const userRecord = await supabase.auth.admin.getUserById(current.user_id);
+    const userEmail = userRecord.data.user?.email;
+    if (userEmail) {
+      const userName = (current.profiles as unknown as { full_name: string } | null)?.full_name ?? "Colaborador";
+      const typeName = (current.justification_types as unknown as { name: string } | null)?.name ?? "Justificativa";
+      const { subject, html } = pontoStatusEmail({
+        userName,
+        typeName,
+        occurrenceDate: current.occurrence_date,
+        newStatus,
+        observation: observation?.trim() || null,
+      });
+      await sendEmail({ to: userEmail, subject, html });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

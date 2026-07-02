@@ -678,6 +678,132 @@ function FechamentosTab() {
 // ─────────────────────────────────────────────
 // TAB: RELATÓRIOS
 // ─────────────────────────────────────────────
+// TAB: FERIADOS
+// ─────────────────────────────────────────────
+interface Feriado { id: string; date: string; name: string; type: string }
+const TIPO_LABELS: Record<string, string> = {
+  nacional: "Nacional", estadual: "Estadual", municipal: "Municipal", hospital: "Hospital",
+};
+const TIPO_COLORS: Record<string, string> = {
+  nacional: "bg-blue-100 text-blue-700",
+  estadual: "bg-purple-100 text-purple-700",
+  municipal: "bg-green-100 text-green-700",
+  hospital: "bg-rose-100 text-rose-700",
+};
+
+function FeriadosTab() {
+  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const [items, setItems] = useState<Feriado[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ date: "", name: "", type: "nacional" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/ponto/feriados?year=${year}`);
+      const d = await r.json();
+      setItems(d.feriados || []);
+    } finally { setLoading(false); }
+  }, [year]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function save() {
+    if (!form.date || !form.name.trim()) { setError("Data e nome são obrigatórios"); return; }
+    setSaving(true); setError("");
+    const r = await fetch("/api/ponto/feriados", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const d = await r.json();
+    if (!r.ok) { setError(d.error || "Erro ao salvar"); setSaving(false); return; }
+    setShowForm(false); setForm({ date: "", name: "", type: "nacional" }); load();
+    setSaving(false);
+  }
+
+  async function remove(id: string) {
+    setDeleting(id);
+    await fetch(`/api/ponto/feriados/${id}`, { method: "DELETE" });
+    setDeleting(null); load();
+  }
+
+  const years = [String(new Date().getFullYear() - 1), String(new Date().getFullYear()), String(new Date().getFullYear() + 1)];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm">Ano:</Label>
+          <Select value={year} onValueChange={setYear}>
+            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" onClick={() => setShowForm(v => !v)}>
+          <Plus size={14} /> Adicionar feriado
+        </Button>
+      </div>
+
+      {showForm && (
+        <Card><CardContent className="pt-4 space-y-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1"><Label className="text-xs">Data</Label><Input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
+            <div className="space-y-1"><Label className="text-xs">Nome</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex: Feriado Municipal" /></div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo</Label>
+              <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TIPO_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2 size={14} className="animate-spin" /> : "Salvar"}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancelar</Button>
+          </div>
+        </CardContent></Card>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+      ) : items.length === 0 ? (
+        <p className="text-center text-muted-foreground py-8 text-sm">Nenhum feriado cadastrado para {year}.</p>
+      ) : (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow><TableHead>Data</TableHead><TableHead>Feriado</TableHead><TableHead>Tipo</TableHead><TableHead className="w-16"></TableHead></TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map(f => (
+                <TableRow key={f.id}>
+                  <TableCell className="text-sm font-medium">{fmt(f.date)}</TableCell>
+                  <TableCell className="text-sm">{f.name}</TableCell>
+                  <TableCell><Badge className={`text-xs border-0 ${TIPO_COLORS[f.type] ?? "bg-gray-100 text-gray-700"}`}>{TIPO_LABELS[f.type] ?? f.type}</Badge></TableCell>
+                  <TableCell>
+                    <button onClick={() => remove(f.id)} disabled={deleting === f.id} className="text-red-400 hover:text-red-600 transition-colors disabled:opacity-50">
+                      {deleting === f.id ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 function RelatoriosTab() {
   const [filters, setFilters] = useState({ status: "all", from: "", to: "", search: "" });
   const [items, setItems] = useState<Justification[]>([]);
@@ -789,17 +915,19 @@ export default function AdminPontoPage() {
         <p className="text-muted-foreground">Aprovações, fechamentos, banco de horas e relatórios</p>
       </div>
       <Tabs defaultValue="aprovacoes">
-        <TabsList className="grid grid-cols-5 max-w-2xl">
+        <TabsList className="grid grid-cols-6 max-w-3xl">
           <TabsTrigger value="aprovacoes">Aprovações</TabsTrigger>
           <TabsTrigger value="fechamentos">Fechamentos</TabsTrigger>
           <TabsTrigger value="tipos">Tipos</TabsTrigger>
           <TabsTrigger value="banco">Banco de Horas</TabsTrigger>
+          <TabsTrigger value="feriados">Feriados</TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
         </TabsList>
         <TabsContent value="aprovacoes" className="mt-6"><Suspense><ApprovacoesRH /></Suspense></TabsContent>
         <TabsContent value="fechamentos" className="mt-6"><Suspense><FechamentosTab /></Suspense></TabsContent>
         <TabsContent value="tipos" className="mt-6"><Suspense><TiposTab /></Suspense></TabsContent>
         <TabsContent value="banco" className="mt-6"><Suspense><BancoHorasTab /></Suspense></TabsContent>
+        <TabsContent value="feriados" className="mt-6"><Suspense><FeriadosTab /></Suspense></TabsContent>
         <TabsContent value="relatorios" className="mt-6"><Suspense><RelatoriosTab /></Suspense></TabsContent>
       </Tabs>
     </div>

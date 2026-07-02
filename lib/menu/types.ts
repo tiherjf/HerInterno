@@ -36,6 +36,7 @@ export const CATEGORY_ORDER = [
   "Capacitação",
   "Suporte",
   "Ponto & RH",
+  "Qualidade",
 ] as const;
 
 export interface MenuItemConfig {

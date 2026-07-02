@@ -3,13 +3,28 @@ import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 
-function addBusinessDays(date: Date, days: number): Date {
+async function getHolidays(supabase: ReturnType<typeof createServiceClient>, year: number): Promise<Set<string>> {
+  const { data } = await supabase
+    .from("ponto_feriados")
+    .select("date")
+    .gte("date", `${year}-01-01`)
+    .lte("date", `${year}-12-31`);
+  return new Set((data ?? []).map((f: { date: string }) => f.date));
+}
+
+async function addBusinessDays(
+  supabase: ReturnType<typeof createServiceClient>,
+  date: Date,
+  days: number
+): Promise<Date> {
+  const holidays = await getHolidays(supabase, date.getFullYear());
   const result = new Date(date);
   let added = 0;
   while (added < days) {
     result.setDate(result.getDate() + 1);
-    const d = result.getDay();
-    if (d !== 0 && d !== 6) added++;
+    const dow = result.getDay();
+    const iso = result.toISOString().split("T")[0];
+    if (dow !== 0 && dow !== 6 && !holidays.has(iso)) added++;
   }
   return result;
 }
@@ -111,7 +126,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `O período ${month} está fechado pelo RH. Não é possível criar justificativas.` }, { status: 400 });
     }
 
-    const deadline = addBusinessDays(occDate, 3);
+    const deadline = await addBusinessDays(supabase, occDate, 3);
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     if (deadline < now) {
