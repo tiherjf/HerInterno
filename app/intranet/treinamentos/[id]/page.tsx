@@ -50,7 +50,7 @@ export default function ModuloPage() {
     ]);
     const [mData, pData] = await Promise.all([mRes.json(), pRes.json()]);
     if (mData.module) { setModule(mData.module); setVideos(mData.videos ?? []); }
-    setProfile(pData.profile);
+    setProfile(pData);
     setLoading(false);
   }, [id]);
 

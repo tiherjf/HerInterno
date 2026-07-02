@@ -106,7 +106,7 @@ export default function EventosPage() {
   }, [tab, category, calendarMonth]);
 
   useEffect(() => {
-    fetch("/api/perfil").then(r => r.json()).then(d => setProfile(d.profile));
+    fetch("/api/perfil").then(r => r.json()).then(d => setProfile(d));
   }, []);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);

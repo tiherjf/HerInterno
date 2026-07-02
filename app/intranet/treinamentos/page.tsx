@@ -38,7 +38,7 @@ export default function TreinamentosPage() {
     ]);
     const [mData, pData] = await Promise.all([mRes.json(), pRes.json()]);
     setModules(mData.modules ?? []);
-    setProfile(pData.profile);
+    setProfile(pData);
     setLoading(false);
   }, []);
 
