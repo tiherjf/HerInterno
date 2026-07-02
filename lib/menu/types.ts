@@ -48,6 +48,8 @@ export interface MenuItemConfig {
   can_view: StaffRole[];
   can_edit: StaffRole[];
   active: boolean;
+  updated_at?: string | null;
+  updated_by_name?: string | null;
 }
 
 export interface UserMenuPermission {
