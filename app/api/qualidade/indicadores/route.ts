@@ -7,7 +7,9 @@ export async function GET(req: NextRequest) {
   try {
     await requireStaff();
     const svc = createServiceClient();
-    const activeOnly = new URL(req.url).searchParams.get("active") !== "false";
+    const url = new URL(req.url);
+    const activeOnly = url.searchParams.get("active") !== "false";
+    const sector = url.searchParams.get("sector");
 
     let query = svc
       .from("quality_indicators")
@@ -19,6 +21,7 @@ export async function GET(req: NextRequest) {
       .order("name");
 
     if (activeOnly) query = query.eq("active", true);
+    if (sector) query = query.eq("sector", sector);
 
     const { data: indicators, error } = await query;
     if (error) throw error;
