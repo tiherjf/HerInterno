@@ -51,11 +51,11 @@ export default async function IntranetHome() {
           style={{backgroundImage: "radial-gradient(circle at 80% 50%, #fff 0%, transparent 60%)"}}
         />
         <div className="relative">
-          <p className="text-blue-200 text-sm mb-1">Hospital Evandro Ribeiro · Juiz de Fora, MG</p>
+          <p className="text-primary-foreground/70 text-sm mb-1">Hospital Evandro Ribeiro · Juiz de Fora, MG</p>
           <h2 className="text-2xl font-bold">
             Olá, {profile.full_name.split(" ")[0]}
           </h2>
-          <p className="text-blue-100 mt-1 text-sm">
+          <p className="text-primary-foreground/80 mt-1 text-sm">
             Bem-vindo à intranet. Use o menu lateral para navegar.
           </p>
         </div>

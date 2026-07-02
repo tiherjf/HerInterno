@@ -167,7 +167,7 @@ export default function CalendarioPage() {
                 >
                   {/* Número do dia */}
                   <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full ${
-                    isToday ? "bg-blue-600 text-white" : day.weekend ? "text-gray-400" : "text-gray-700"
+                    isToday ? "bg-primary text-primary-foreground" : day.weekend ? "text-gray-400" : "text-gray-700"
                   }`}>
                     {day.day}
                   </span>

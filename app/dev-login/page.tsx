@@ -142,7 +142,7 @@ export default function DevLoginPage() {
         {/* Colaboradores */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#1e40af] inline-block" />
+            <span className="w-3 h-3 rounded-full bg-primary inline-block" />
             Portal dos Colaboradores
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

@@ -7,8 +7,8 @@ export default async function PacientesHome() {
 
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-        <Hospital size={32} className="text-[#1e40af]" />
+      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+        <Hospital size={32} className="text-primary" />
       </div>
       <h2 className="text-xl font-bold text-gray-800">
         Olá, {patient.name.split(" ")[0]}!

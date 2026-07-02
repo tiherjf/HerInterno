@@ -151,7 +151,7 @@ export function MenuPermissionsEditor({ items }: Props) {
       {grouped.map(({ category, items: catItems }) => (
         <div key={category}>
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#1e40af] inline-block" />
+            <span className="w-3 h-3 rounded-full bg-primary inline-block" />
             {category}
           </h3>
 

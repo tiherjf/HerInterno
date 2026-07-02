@@ -155,8 +155,8 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
         className={cn(
           "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
           isActive
-            ? "bg-white text-[#1e40af] font-medium"
-            : "text-blue-100 hover:bg-blue-600 hover:text-white"
+            ? "bg-primary-foreground text-primary font-medium"
+            : "text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground"
         )}
         title={collapsed ? label : undefined}
       >
@@ -179,7 +179,7 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
       )}
       <aside
         className={cn(
-          "flex flex-col bg-[#1e40af] text-white transition-all duration-300",
+          "flex flex-col bg-primary text-primary-foreground transition-all duration-300",
           // Mobile: overlay fixo
           "fixed inset-y-0 left-0 z-50",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
@@ -189,7 +189,7 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
         )}
       >
       {/* Logo */}
-      <div className="flex items-center justify-between p-4 border-b border-blue-600">
+      <div className="flex items-center justify-between p-4 border-b border-primary-foreground/15">
         {!collapsed && (
           <div className="flex flex-col">
             <span className="font-bold text-sm leading-tight">Hospital Evandro</span>
@@ -198,7 +198,7 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1 rounded hover:bg-blue-600 transition-colors ml-auto"
+          className="p-1 rounded hover:bg-primary-foreground/10 transition-colors ml-auto"
           title={collapsed ? "Expandir menu" : "Recolher menu"}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -216,11 +216,11 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
         {allGroups.map(({ category, items }) => (
           <div key={category} className="mb-2">
             {!collapsed && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-blue-300 uppercase tracking-wider">
+              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-primary-foreground/50 uppercase tracking-wider">
                 {category}
               </p>
             )}
-            {collapsed && <div className="border-t border-blue-600 my-1 mx-2" />}
+            {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
             <div className="px-2 space-y-0.5">
               {items.map((item) => {
                 const Icon = ICON_MAP[item.icon] ?? FileText;
@@ -253,11 +253,11 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
         {canConfig && (
           <div className="mb-2">
             {!collapsed && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-blue-300 uppercase tracking-wider">
+              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-primary-foreground/50 uppercase tracking-wider">
                 Configurações
               </p>
             )}
-            {collapsed && <div className="border-t border-blue-600 my-1 mx-2" />}
+            {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
             <div className="px-2">
               <NavLink
                 href="/intranet/configuracoes/menu"
@@ -272,11 +272,11 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
         {isAdmin && adminGroups.map((group) => (
           <div key={group.label} className="mb-2">
             {!collapsed && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-blue-300 uppercase tracking-wider">
+              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-primary-foreground/50 uppercase tracking-wider">
                 {group.label}
               </p>
             )}
-            {collapsed && <div className="border-t border-blue-600 my-1 mx-2" />}
+            {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
             <div className="px-2 space-y-0.5">
               {group.items.map((item) => (
                 <NavLink

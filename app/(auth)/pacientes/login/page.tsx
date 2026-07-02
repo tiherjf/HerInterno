@@ -51,8 +51,8 @@ export default function PatientLoginPage() {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-[#1e40af] rounded-2xl shadow-lg mb-4">
-            <HeartPulse size={40} className="text-white" />
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-2xl shadow-lg mb-4">
+            <HeartPulse size={40} className="text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold text-gray-800">Hospital Evandro Ribeiro</h1>
           <p className="text-gray-500 text-sm mt-1">Portal do Paciente — Acesso aos seus exames</p>

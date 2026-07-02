@@ -14,9 +14,9 @@ export default async function MenuConfigPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-[#1e40af] to-[#3b82f6] rounded-xl p-6 text-white">
+      <div className="bg-primary rounded-xl p-6 text-primary-foreground">
         <h2 className="text-2xl font-bold">Permissões de Menu</h2>
-        <p className="text-blue-100 text-sm mt-1">
+        <p className="text-primary-foreground/70 text-sm mt-1">
           Defina quem pode visualizar e editar cada seção da intranet.
           Admin e TI são sempre incluídos automaticamente.
         </p>

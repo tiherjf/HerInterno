@@ -173,11 +173,11 @@ export default function UsuariosPage() {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="brand-gradient rounded-xl p-6 text-white">
+      <div className="bg-primary rounded-xl p-6 text-primary-foreground">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Usuários Colaboradores</h2>
-            <p className="text-blue-100 text-sm">
+            <p className="text-primary-foreground/70 text-sm">
               {users.filter((u) => u.active).length} ativos ·{" "}
               {activeManagers.length} gestores
             </p>

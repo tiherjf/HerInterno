@@ -239,7 +239,7 @@ export default function RamaisPage() {
             </div>
             <div>
               <h2 className="text-xl font-bold">Lista de Ramais</h2>
-              <p className="text-blue-100 text-sm">
+              <p className="text-primary-foreground/70 text-sm">
                 {SETORES.length} setores · {TOTAL} ramais cadastrados
               </p>
             </div>

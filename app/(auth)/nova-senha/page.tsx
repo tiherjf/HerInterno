@@ -54,14 +54,14 @@ export default function NovaSenhaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1e3a8a] to-[#1e40af] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-zinc-900 to-zinc-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4">
-            <Hospital size={40} className="text-[#1e40af]" />
+            <Hospital size={40} className="text-primary" />
           </div>
           <h1 className="text-2xl font-bold text-white">Hospital Evandro Ribeiro</h1>
-          <p className="text-blue-200 text-sm mt-1">Redefinição de senha</p>
+          <p className="text-zinc-400 text-sm mt-1">Redefinição de senha</p>
         </div>
 
         <Card className="shadow-2xl">

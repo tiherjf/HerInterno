@@ -205,21 +205,21 @@ export default function CorpoClinicoPage() {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="bg-linear-to-r from-[#1e40af] to-[#3b82f6] rounded-xl p-5 text-white">
+      <div className="bg-primary rounded-xl p-5 text-primary-foreground">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Stethoscope size={26} />
             <div>
               <h2 className="text-xl font-bold">Corpo Clínico</h2>
               {!loading && (
-                <p className="text-blue-100 text-sm">
+                <p className="text-primary-foreground/70 text-sm">
                   {grupos.length} especialidades · {totalProfissionais} profissionais
                 </p>
               )}
             </div>
           </div>
           {podeEditar && (
-            <Button onClick={openCreate} className="bg-white text-[#1e40af] hover:bg-blue-50 gap-2 shrink-0">
+            <Button onClick={openCreate} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2 shrink-0">
               <Plus size={15} /> Novo Profissional
             </Button>
           )}
@@ -232,8 +232,8 @@ export default function CorpoClinicoPage() {
             onClick={() => setUnidadeAtiva(null)}
             className={`rounded-full text-xs h-7 px-3 ${
               unidadeAtiva === null
-                ? "bg-white text-[#1e40af] hover:bg-white/90 border-white"
-                : "bg-white/20 text-white hover:bg-white/30 border-white/40"
+                ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90 border-primary-foreground"
+                : "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-primary-foreground/40"
             }`}
             variant="outline"
           >
@@ -246,8 +246,8 @@ export default function CorpoClinicoPage() {
               onClick={() => setUnidadeAtiva(unidadeAtiva === u.key ? null : u.key)}
               className={`rounded-full text-xs h-7 px-3 ${
                 unidadeAtiva === u.key
-                  ? "bg-white text-[#1e40af] hover:bg-white/90 border-white"
-                  : "bg-white/20 text-white hover:bg-white/30 border-white/40"
+                  ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90 border-primary-foreground"
+                  : "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-primary-foreground/40"
               }`}
               variant="outline"
             >
@@ -315,11 +315,11 @@ export default function CorpoClinicoPage() {
             <Card key={g.nome} className="overflow-hidden">
               <Button
                 variant="ghost"
-                className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 hover:bg-blue-100 transition-colors text-left h-auto rounded-none"
+                className="w-full flex items-center justify-between px-5 py-4 bg-muted hover:bg-muted/80 transition-colors text-left h-auto rounded-none"
                 onClick={() => toggleExpandido(g.nome)}
               >
                 <div className="flex items-center gap-3">
-                  <span className="font-semibold text-[#1e40af] text-base">{g.nome}</span>
+                  <span className="font-semibold text-foreground text-base">{g.nome}</span>
                   <Badge variant="secondary" className="text-xs">
                     {g.profissionais.length} profissional{g.profissionais.length !== 1 ? "is" : ""}
                   </Badge>
