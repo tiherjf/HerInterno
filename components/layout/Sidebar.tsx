@@ -70,12 +70,6 @@ const adminGroups = [
     ],
   },
   {
-    label: "Clínica",
-    items: [
-      { href: "/admin/pacientes", label: "Pacientes", icon: Stethoscope },
-    ],
-  },
-  {
     label: "Capacitação",
     items: [
       { href: "/admin/chatbot", label: "Base de Conhecimento", icon: MessageSquare },
