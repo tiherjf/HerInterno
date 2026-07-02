@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
         id, number, title, priority, status, requester_name, requester_sector,
         created_at, updated_at, sla_deadline, first_response_at, resolved_at,
         rating, team, mkt_protocolo, mkt_is_alteracao, mkt_prazo_desejado,
+        location, urgency, equipment_description, equipment_patrimonio,
         ticket_categories(id, name, color, sla_hours, team),
         assigned:profiles!assigned_to(id, full_name)
       `)
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
     const {
       title, description, category_id, priority = "medium", team: requestedTeam,
       mkt_is_alteracao, mkt_prazo_desejado,
+      location, urgency, equipment_description, equipment_patrimonio,
     } = await req.json();
 
     if (!title?.trim() || !description?.trim()) {
@@ -96,6 +98,10 @@ export async function POST(req: NextRequest) {
     const VALID_TEAMS = ["ti", "manutencao", "marketing"];
     let sla_deadline: string | null = null;
     let ticketTeam = VALID_TEAMS.includes(requestedTeam) ? requestedTeam : "ti";
+
+    if (ticketTeam === "manutencao" && !location?.trim()) {
+      return NextResponse.json({ error: "Localização é obrigatória para chamados de manutenção" }, { status: 400 });
+    }
     let resolvedPriority = priority;
 
     if (category_id) {
@@ -152,6 +158,10 @@ export async function POST(req: NextRequest) {
         mkt_protocolo: mktProtocolo,
         mkt_is_alteracao: ticketTeam === "marketing" ? (mkt_is_alteracao === true) : false,
         mkt_prazo_desejado: ticketTeam === "marketing" && mkt_prazo_desejado ? mkt_prazo_desejado : null,
+        location: ticketTeam === "manutencao" ? (location?.trim() ?? null) : null,
+        urgency: ticketTeam === "manutencao" ? (urgency ?? null) : null,
+        equipment_description: ticketTeam === "manutencao" && equipment_description?.trim() ? equipment_description.trim() : null,
+        equipment_patrimonio: ticketTeam === "manutencao" && equipment_patrimonio?.trim() ? equipment_patrimonio.trim() : null,
       })
       .select("id, number, mkt_protocolo")
       .single();
