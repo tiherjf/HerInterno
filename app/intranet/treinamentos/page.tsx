@@ -1,151 +1,166 @@
-export const revalidate = 60;
-import { createClient } from "@/lib/supabase/server";
-import { requireStaff } from "@/lib/auth/staff";
-import { canEditMenuItem } from "@/lib/menu/server";
-import type { StaffRole } from "@/lib/menu/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { GraduationCap, Plus, Clock, CheckCircle, Lock } from "lucide-react";
+import { GraduationCap, Plus, Play, Edit2, Trash2, Loader2, BookOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import ModuloDialog from "@/components/treinamentos/ModuloDialog";
+import { youTubeThumbnail } from "@/lib/youtube";
 
-export default async function TreinamentosPage() {
-  const profile = await requireStaff();
-  const canManage = await canEditMenuItem("treinamentos", profile.role as StaffRole);
+interface Module {
+  id: string;
+  name: string;
+  description: string | null;
+  cover_url: string | null;
+  order_index: number;
+  video_count: number;
+  watched_count: number;
+}
 
-  let trainings: { id: string; title: string; description: string; workload_hours: number; passing_score: number }[] = [];
-  let completionMap = new Map<string, { training_id: string; score: number; completed_at: string; certificate_url: string }>();
+interface Profile {
+  role: string;
+}
 
-  try {
-    const supabase = createClient();
+function canManage(role: string) {
+  return ["admin", "ti", "rh"].includes(role);
+}
 
-    const { data: trainingsData } = await supabase
-      .from("trainings")
-      .select("id, title, description, workload_hours, passing_score")
-      .eq("active", true)
-      .order("created_at", { ascending: false });
+export default function TreinamentosPage() {
+  const [modules, setModules] = useState<Module[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [dialog, setDialog] = useState<{ open: boolean; initial?: Partial<Module> }>({ open: false });
 
-    const { data: completions } = await supabase
-      .from("training_completions")
-      .select("training_id, score, completed_at, certificate_url")
-      .eq("user_id", profile.id);
+  const load = useCallback(async () => {
+    const [mRes, pRes] = await Promise.all([
+      fetch("/api/treinamentos/modulos"),
+      fetch("/api/perfil"),
+    ]);
+    const [mData, pData] = await Promise.all([mRes.json(), pRes.json()]);
+    setModules(mData.modules ?? []);
+    setProfile(pData.profile);
+    setLoading(false);
+  }, []);
 
-    trainings = trainingsData || [];
-    completionMap = new Map((completions || []).map((c: { training_id: string; score: number; completed_at: string; certificate_url: string }) => [c.training_id, c]));
-  } catch {
-    // Supabase não configurado
+  useEffect(() => { load(); }, [load]);
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Desativar o módulo "${name}"?`)) return;
+    await fetch(`/api/treinamentos/modulos/${id}`, { method: "DELETE" });
+    load();
   }
 
-  const completed = trainings.filter((t) => completionMap.has(t.id));
-  const pending = trainings.filter((t) => !completionMap.has(t.id));
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="animate-spin text-primary" size={36} />
+      </div>
+    );
+  }
+
+  const isAdmin = profile && canManage(profile.role);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-bold">Treinamentos</h2>
-          <p className="text-muted-foreground">
-            {completed.length} concluído(s) · {pending.length} pendente(s)
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">Biblioteca de vídeos por módulo</p>
         </div>
-        {canManage && (
-          <Link href="/admin/treinamentos/novo">
-            <Button>
-              <Plus size={16} /> Novo Treinamento
-            </Button>
-          </Link>
+        {isAdmin && (
+          <Button size="sm" onClick={() => setDialog({ open: true })}>
+            <Plus size={15} className="mr-1.5" /> Novo Módulo
+          </Button>
         )}
       </div>
 
-      {/* Pendentes */}
-      {pending.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="font-semibold text-lg">Pendentes</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pending.map((t) => (
-              <Link key={t.id} href={`/intranet/treinamentos/${t.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <GraduationCap className="text-purple-600" size={20} />
-                      </div>
-                      <Badge variant="warning" className="text-xs">Pendente</Badge>
-                    </div>
-                    <h4 className="font-semibold mb-1 line-clamp-2">{t.title}</h4>
-                    {t.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                        {t.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} /> {t.workload_hours}h
-                      </span>
-                      <span>Mínimo: {t.passing_score}%</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Concluídos */}
-      {completed.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="font-semibold text-lg">Concluídos</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {completed.map((t) => {
-              const completion = completionMap.get(t.id)!;
-              return (
-                <Card key={t.id} className="border-green-200 bg-green-50">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <CheckCircle className="text-green-600" size={20} />
-                      </div>
-                      <Badge variant="success" className="text-xs">Concluído</Badge>
-                    </div>
-                    <h4 className="font-semibold mb-1">{t.title}</h4>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                      <span>Nota: {completion.score}%</span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} /> {t.workload_hours}h
-                      </span>
-                    </div>
-                    {completion.certificate_url && (
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-xs"
-                        asChild
-                      >
-                        <a
-                          href={completion.certificate_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Baixar Certificado →
-                        </a>
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {trainings.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
+      {modules.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground">
           <GraduationCap size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="text-lg">Nenhum treinamento disponível.</p>
+          <p className="text-lg font-medium">Nenhum módulo disponível.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {modules.map(m => {
+            const pct = m.video_count > 0 ? Math.round((m.watched_count / m.video_count) * 100) : 0;
+            const done = m.watched_count === m.video_count && m.video_count > 0;
+
+            return (
+              <div key={m.id} className="group relative rounded-xl border overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                {/* Cover / placeholder */}
+                <Link href={`/intranet/treinamentos/${m.id}`} className="block">
+                  <div className="aspect-video bg-linear-to-br from-primary/20 to-primary/5 relative overflow-hidden">
+                    {m.cover_url ? (
+                      <img src={m.cover_url} alt={m.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <BookOpen size={48} className="text-primary/30" />
+                      </div>
+                    )}
+                    {done && (
+                      <div className="absolute inset-0 bg-green-900/40 flex items-center justify-center">
+                        <span className="text-white font-bold text-sm bg-green-600 px-3 py-1 rounded-full">
+                          Concluído ✓
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+
+                {/* Admin actions */}
+                {isAdmin && (
+                  <div className="absolute top-2 right-2 hidden group-hover:flex gap-1">
+                    <button
+                      onClick={() => setDialog({ open: true, initial: m })}
+                      className="bg-white rounded-md p-1.5 shadow text-muted-foreground hover:text-foreground"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(m.id, m.name)}
+                      className="bg-white rounded-md p-1.5 shadow text-muted-foreground hover:text-red-600"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )}
+
+                <div className="p-4 flex flex-col gap-2 flex-1">
+                  <Link href={`/intranet/treinamentos/${m.id}`}>
+                    <h3 className="font-semibold text-base hover:underline leading-snug">{m.name}</h3>
+                  </Link>
+                  {m.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">{m.description}</p>
+                  )}
+
+                  <div className="mt-auto space-y-2 pt-2">
+                    {/* Barra de progresso */}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Play size={11} /> {m.video_count} vídeo{m.video_count !== 1 ? "s" : ""}
+                      </span>
+                      <span>{m.watched_count}/{m.video_count} assistidos</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${done ? "bg-green-500" : "bg-primary"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
+
+      <ModuloDialog
+        open={dialog.open}
+        initial={dialog.initial}
+        onClose={() => setDialog({ open: false })}
+        onSaved={load}
+      />
     </div>
   );
 }
