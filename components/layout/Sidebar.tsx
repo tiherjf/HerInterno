@@ -76,7 +76,6 @@ const adminGroups = [
   {
     label: "Capacitação",
     items: [
-      { href: "/admin/treinamentos", label: "Treinamentos", icon: ClipboardList },
       { href: "/admin/chatbot", label: "Base de Conhecimento", icon: MessageSquare },
     ],
   },
