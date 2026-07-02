@@ -1,0 +1,19 @@
+import { requireStaff, canManageEvents } from "@/lib/auth/staff";
+import { redirect } from "next/navigation";
+import EventForm from "@/components/eventos/EventForm";
+import type { StaffRole } from "@/lib/auth/staff";
+
+export default async function NovoEventoPage() {
+  const profile = await requireStaff();
+  if (!canManageEvents(profile.role as StaffRole)) redirect("/intranet/eventos");
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Novo Evento</h2>
+        <p className="text-muted-foreground text-sm mt-1">Preencha as informações do evento</p>
+      </div>
+      <EventForm />
+    </div>
+  );
+}
