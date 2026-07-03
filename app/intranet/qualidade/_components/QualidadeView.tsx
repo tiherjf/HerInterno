@@ -6,21 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShieldCheck, LayoutDashboard, AlertTriangle, BarChart2, FileText, ClipboardList, Settings2, Plus, Loader2 } from "lucide-react";
+import { ShieldCheck, LayoutDashboard, AlertTriangle, BarChart2, FileText, ClipboardList, Settings2, Plus, Loader2, ShieldAlert, Brain, Network } from "lucide-react";
 import { PainelTab } from "./PainelTab";
 import { NCsTab } from "./NCsTab";
 import { IndicadoresTab } from "./IndicadoresTab";
 import { DocumentosTab } from "./DocumentosTab";
 import { AuditoriasTab } from "./AuditoriasTab";
+import { RiscosTab } from "./RiscosTab";
+import { AnalisesTab } from "./AnalisesTab";
+import { ProcessosTab } from "./ProcessosTab";
 
 export interface Setor { id: string; name: string; color: string; description: string | null; active: boolean }
 
 const TABS = [
-  { id: "painel",      label: "Painel",          icon: LayoutDashboard },
-  { id: "ncs",         label: "Não-Conformidades",icon: AlertTriangle },
-  { id: "indicadores", label: "Indicadores",      icon: BarChart2 },
-  { id: "documentos",  label: "Documentos",       icon: FileText },
-  { id: "auditorias",  label: "Auditorias",        icon: ClipboardList },
+  { id: "painel",      label: "Painel",             icon: LayoutDashboard },
+  { id: "ncs",         label: "Não-Conformidades",  icon: AlertTriangle },
+  { id: "indicadores", label: "Indicadores",         icon: BarChart2 },
+  { id: "documentos",  label: "Documentos",          icon: FileText },
+  { id: "auditorias",  label: "Auditorias",          icon: ClipboardList },
+  { id: "riscos",      label: "Riscos",              icon: ShieldAlert },
+  { id: "analises",    label: "Análises Críticas",   icon: Brain },
+  { id: "processos",   label: "Processos",           icon: Network },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -148,6 +154,9 @@ export function QualidadeView({ isAdmin, setores: initialSetores }: Props) {
         {activeTab === "indicadores" && <IndicadoresTab {...tabProps} />}
         {activeTab === "documentos"  && <DocumentosTab  {...tabProps} />}
         {activeTab === "auditorias"  && <AuditoriasTab  {...tabProps} />}
+        {activeTab === "riscos"      && <RiscosTab      {...tabProps} />}
+        {activeTab === "analises"    && <AnalisesTab    {...tabProps} />}
+        {activeTab === "processos"   && <ProcessosTab   {...tabProps} />}
       </div>
 
       {/* Setores management dialog */}
