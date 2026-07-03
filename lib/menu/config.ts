@@ -166,4 +166,15 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
     can_edit: ["admin", "ti", "rh"],
     active: true,
   },
+  {
+    key: "qualidade",
+    label: "Qualidade",
+    href: "/intranet/qualidade",
+    icon: "ShieldCheck",
+    category: "Qualidade",
+    order_num: 1,
+    can_view: ALL,
+    can_edit: ["admin", "ti", "rh"],
+    active: true,
+  },
 ];
