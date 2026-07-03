@@ -10,7 +10,7 @@ import type { StaffRole } from "@/lib/auth/staff";
 const CATEGORIES = ["Todos", "Institucional", "RH", "Qualidade", "TI", "Eventos"];
 
 type NewsItem = {
-  id: string; title: string; summary: string | null;
+  id: string; title: string; summary: string | null; body: string | null;
   category: string; published_at: string | null;
   cover_url: string | null; status: string; scheduled_for: string | null;
   author_name: string | null;
@@ -45,7 +45,7 @@ export default async function NoticiasPage({
     let pubQuery = svc
       .from("news")
       .select(`
-        id, title, summary, category, published_at, cover_url, status, scheduled_for,
+        id, title, summary, body, category, published_at, cover_url, status, scheduled_for,
         profiles!author_id(full_name)
       `, { count: "exact" })
       .eq("status", "published")
