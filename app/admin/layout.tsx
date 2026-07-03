@@ -25,7 +25,6 @@ export default async function AdminLayout({
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar
           role={profile.role}
-          isManager={profile.is_manager}
           menuItems={menuItems}
         />
         <div className="flex-1 flex flex-col overflow-hidden">

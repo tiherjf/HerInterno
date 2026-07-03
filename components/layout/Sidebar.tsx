@@ -92,18 +92,16 @@ const adminGroups = [
 
 interface SidebarProps {
   role: StaffRole;
-  isManager?: boolean;
+
   menuItems: MenuItemConfig[];
 }
 
-export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
+export function Sidebar({ role, menuItems }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { isOpen: mobileOpen, close } = useMobileSidebar();
   const isAdmin = ["admin", "ti"].includes(role);
   const canConfig = ["admin", "ti", "marketing"].includes(role);
-  const isRH = ["admin", "ti", "rh"].includes(role);
-  const canApprove = isManager || isRH;
 
   // Agrupar itens por categoria na ordem definida
   const grouped = CATEGORY_ORDER.map((cat) => ({
@@ -232,17 +230,6 @@ export function Sidebar({ role, isManager, menuItems }: SidebarProps) {
             </div>
           </div>
         ))}
-
-        {/* Aprovações de Ponto (gestores) — sempre em Ponto */}
-        {canApprove && (
-          <div className="px-2">
-            <NavLink
-              href="/intranet/ponto/aprovacoes"
-              label="Aprovações Ponto"
-              icon={ShieldCheck}
-            />
-          </div>
-        )}
 
         {/* Configurações (ti + marketing + admin) */}
         {canConfig && (
