@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FileText, Plus, Loader2, ExternalLink, CheckCircle2, Clock, BookOpen } from "lucide-react";
+import { FileText, Plus, Loader2, ExternalLink, CheckCircle2, Clock, BookOpen, Users, ChevronDown } from "lucide-react";
 import type { Setor } from "./QualidadeView";
 
 interface Props { sector: string | null; isAdmin: boolean; setores: Setor[] }
@@ -54,6 +54,9 @@ export function DocumentosTab({ sector, isAdmin, setores }: Props) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [confirmingRead, setConfirmingRead] = useState<string|null>(null);
+  const [readers, setReaders] = useState<{user_id:string;read_at:string;profiles:{full_name:string;sector:string|null}|null}[]>([]);
+  const [showReaders, setShowReaders] = useState(false);
+  const [loadingReaders, setLoadingReaders] = useState(false);
 
   const [form, setForm] = useState({
     code:"", title:"", doc_type:"pop", category: sector ?? "",
@@ -101,6 +104,15 @@ export function DocumentosTab({ sector, isAdmin, setores }: Props) {
     });
     load();
     if (selected?.id === docId) setSelected(prev => prev ? {...prev, status} : null);
+  }
+
+  async function loadReaders(docId: string) {
+    setLoadingReaders(true);
+    const r = await fetch(`/api/qualidade/documentos/${docId}/read`);
+    const d = await r.json();
+    setReaders(d.reads ?? []);
+    setShowReaders(true);
+    setLoadingReaders(false);
   }
 
   async function confirmRead(docId: string) {
@@ -260,6 +272,41 @@ export function DocumentosTab({ sector, isAdmin, setores }: Props) {
                     )}
                   </div>
                 )}
+                {isAdmin && selected.requires_reading && (
+                  <div>
+                    <button
+                      onClick={() => showReaders ? setShowReaders(false) : loadReaders(selected.id)}
+                      className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 hover:text-gray-700 transition-colors">
+                      <Users size={13} /> Confirmações de leitura ({readers.length})
+                      {loadingReaders ? <Loader2 size={11} className="animate-spin" /> : <ChevronDown size={11} className={showReaders ? "rotate-180 transition-transform" : "transition-transform"} />}
+                    </button>
+                    {showReaders && (
+                      <div className="rounded-lg border overflow-hidden mb-3">
+                        {readers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">Nenhuma confirmação ainda.</p>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50"><tr>
+                              <th className="py-2 px-3 text-left text-xs text-muted-foreground font-medium">Colaborador</th>
+                              <th className="py-2 px-3 text-left text-xs text-muted-foreground font-medium">Setor</th>
+                              <th className="py-2 px-3 text-left text-xs text-muted-foreground font-medium">Data</th>
+                            </tr></thead>
+                            <tbody>
+                              {readers.map((r, i) => (
+                                <tr key={i} className="border-t">
+                                  <td className="py-2 px-3 font-medium">{(r.profiles as {full_name:string}|null)?.full_name ?? "—"}</td>
+                                  <td className="py-2 px-3 text-muted-foreground">{(r.profiles as {sector:string|null}|null)?.sector ?? "—"}</td>
+                                  <td className="py-2 px-3 text-muted-foreground">{fmt(r.read_at)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {isAdmin && (
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Alterar status</p>

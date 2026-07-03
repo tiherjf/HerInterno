@@ -18,6 +18,7 @@ interface NC {
   sector: string | null; severity: string; status: string; occurrence_date: string | null;
   deadline: string | null; description: string | null; root_cause: string | null;
   immediate_action: string | null; effectiveness_check: string | null; conclusion: string | null;
+  cinco_porques: string[] | null;
   created_at: string; responsible: { full_name: string } | null; creator: { full_name: string } | null;
 }
 interface ActionPlan {
@@ -65,6 +66,8 @@ export function NCsTab({ sector, setores }: Props) {
   const [planForm, setPlanForm] = useState({ what: "", why: "", where_loc: "", when_date: "", how: "", how_much: "" });
   const [addingPlan, setAddingPlan] = useState(false);
   const [planSaving, setPlanSaving] = useState(false);
+  const [cincoState, setCincoState] = useState<string[]>(["","","","",""]);
+  const [cincoSaving, setCincoSaving] = useState(false);
 
   const [form, setForm] = useState({
     title: "", description: "", category: "processo", origin: "observacao",
@@ -93,7 +96,18 @@ export function NCsTab({ sector, setores }: Props) {
     const r = await fetch(`/api/qualidade/ncs/${id}`);
     const d = await r.json();
     setSelected({ nc: d.nc, plans: d.plans || [], history: d.history || [] });
+    const saved = d.nc?.cinco_porques ?? [];
+    setCincoState([saved[0]??"", saved[1]??"", saved[2]??"", saved[3]??"", saved[4]??""]);
   };
+
+  async function saveCinco(ncId: string) {
+    setCincoSaving(true);
+    await fetch(`/api/qualidade/ncs/${ncId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cinco_porques: cincoState }),
+    });
+    setCincoSaving(false);
+  }
 
   async function createNC() {
     if (!form.title.trim()) { setFormError("Título é obrigatório"); return; }
@@ -291,6 +305,30 @@ export function NCsTab({ sector, setores }: Props) {
                 </div>
                 {selected.nc.description && <div><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Descrição</p><p className="text-sm bg-gray-50 rounded-lg p-3">{selected.nc.description}</p></div>}
                 {selected.nc.root_cause && <div><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Causa Raiz</p><p className="text-sm bg-gray-50 rounded-lg p-3">{selected.nc.root_cause}</p></div>}
+
+                {/* 5 Porquês */}
+                <div className="bg-violet-50 border border-violet-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Análise — 5 Porquês</p>
+                    <Button size="sm" variant="ghost" className="text-violet-700 hover:bg-violet-100 h-7 px-2 text-xs" onClick={() => saveCinco(selected.nc.id)} disabled={cincoSaving}>
+                      {cincoSaving ? <Loader2 size={12} className="animate-spin" /> : "Salvar"}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {cincoState.map((val, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="w-5 h-5 shrink-0 rounded-full bg-violet-200 text-violet-700 text-xs font-bold flex items-center justify-center">{i+1}</span>
+                        <Input
+                          value={val}
+                          onChange={e => setCincoState(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                          placeholder={`Por quê ${i+1}?`}
+                          className="bg-white text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-violet-500 mt-2">Pergunte &quot;por quê?&quot; repetidamente até encontrar a causa raiz real.</p>
+                </div>
 
                 {/* Status flow */}
                 <div>

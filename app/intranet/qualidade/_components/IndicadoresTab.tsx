@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BarChart2, Plus, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from "recharts";
 import type { Setor } from "./QualidadeView";
 
 interface Props { sector: string | null; isAdmin: boolean; setores: Setor[] }
@@ -255,6 +256,33 @@ export function IndicadoresTab({ sector, isAdmin, setores }: Props) {
                   <div><p className="text-xs text-muted-foreground">Mínimo</p><p className="font-medium">{selected.min_value ?? "—"} {selected.unit}</p></div>
                 </div>
                 {selected.formula && <div><p className="text-xs text-muted-foreground mb-1">Fórmula</p><p className="text-sm font-mono bg-gray-50 rounded px-3 py-2">{selected.formula}</p></div>}
+
+                {/* Recharts line chart */}
+                {selected.records.length >= 2 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Evolução</p>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={selected.records.map(r => ({
+                        mes: fmt(r.reference_month),
+                        valor: r.actual_value,
+                      }))} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v) => [`${v} ${selected.unit}`, "Valor"]} />
+                        {selected.target_value !== null && (
+                          <ReferenceLine y={selected.target_value} stroke="#16a34a" strokeDasharray="4 4"
+                            label={{ value: `Meta: ${selected.target_value}`, fontSize: 11, fill: "#16a34a", position: "right" }} />
+                        )}
+                        {selected.min_value !== null && (
+                          <ReferenceLine y={selected.min_value} stroke="#d97706" strokeDasharray="4 4"
+                            label={{ value: `Mín: ${selected.min_value}`, fontSize: 11, fill: "#d97706", position: "right" }} />
+                        )}
+                        <Line type="monotone" dataKey="valor" stroke="#7c3aed" strokeWidth={2} dot={{ r: 4, fill: "#7c3aed" }} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
 
                 {/* Records table */}
                 <div>

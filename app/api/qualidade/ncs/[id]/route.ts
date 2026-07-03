@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Campos que qualquer um pode preencher ao criar (status muda apenas para quality)
     const allowed = ["title","description","category","origin","sector","severity",
       "responsible_id","occurrence_date","deadline","root_cause","immediate_action",
-      "effectiveness_check","conclusion","status"];
+      "effectiveness_check","conclusion","status","cinco_porques"];
 
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
     for (const k of allowed) {
