@@ -78,11 +78,11 @@ function ArticleCard({
     <article ref={ref} className="bg-white border rounded-2xl overflow-hidden shadow-sm">
       {/* Capa */}
       {item.cover_url && (
-        <div className="relative overflow-hidden aspect-video bg-gray-100">
+        <div className="relative bg-gray-100">
           <img
             src={item.cover_url}
             alt={item.title}
-            className="w-full h-full object-cover"
+            className="w-full h-auto block"
           />
           {isNovo && (
             <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
