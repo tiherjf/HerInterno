@@ -6,6 +6,7 @@ import type { StaffRole } from "@/lib/menu/types";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { MenuPermissionsProvider } from "@/components/menu/MenuPermissionsContext";
+import { ChatProvider } from "@/components/chat/ChatProvider";
 
 export default async function AdminLayout({
   children,
@@ -22,16 +23,18 @@ export default async function AdminLayout({
 
   return (
     <MenuPermissionsProvider permissions={permissions}>
-      <div className="flex min-h-screen bg-gray-50">
-        <Sidebar
-          role={profile.role}
-          menuItems={menuItems}
-        />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header profile={profile} />
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      <ChatProvider me={{ id: profile.id, name: profile.full_name, sector: profile.sector ?? "" }}>
+        <div className="flex min-h-screen bg-gray-50">
+          <Sidebar
+            role={profile.role}
+            menuItems={menuItems}
+          />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Header profile={profile} />
+            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          </div>
         </div>
-      </div>
+      </ChatProvider>
     </MenuPermissionsProvider>
   );
 }

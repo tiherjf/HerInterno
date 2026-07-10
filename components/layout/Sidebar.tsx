@@ -36,6 +36,7 @@ import { useState } from "react";
 import type { StaffRole } from "@/lib/auth/staff";
 import type { MenuItemConfig } from "@/lib/menu/types";
 import { NotificacaoDot } from "@/components/news/NotificacaoDot";
+import { useChatUnread } from "@/components/chat/ChatProvider";
 import { useMobileSidebar } from "@/components/layout/MobileSidebarContext";
 import { CATEGORY_ORDER } from "@/lib/menu/types";
 
@@ -98,6 +99,17 @@ interface SidebarProps {
   menuItems: MenuItemConfig[];
 }
 
+/** Badge vermelho com o total de mensagens não lidas do Chat Interno. */
+function ChatUnreadBadge() {
+  const count = useChatUnread();
+  if (count === 0) return null;
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 export function Sidebar({ role, menuItems }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -133,11 +145,13 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
     label,
     icon: Icon,
     showBadge,
+    showChatBadge,
   }: {
     href: string;
     label: string;
     icon: LucideIcon;
     showBadge?: boolean;
+    showChatBadge?: boolean;
   }) {
     const isActive =
       href === "/intranet"
@@ -158,6 +172,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
         <Icon size={18} className="shrink-0" />
         {!collapsed && <span>{label}</span>}
         {!collapsed && showBadge && <NotificacaoDot />}
+        {!collapsed && showChatBadge && <ChatUnreadBadge />}
       </Link>
     );
   }
@@ -226,6 +241,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
                     label={item.label}
                     icon={Icon}
                     showBadge={item.key === "noticias"}
+                    showChatBadge={item.key === "chat"}
                   />
                 );
               })}

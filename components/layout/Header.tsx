@@ -11,6 +11,31 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { NotificacaoDot } from "@/components/news/NotificacaoDot";
 import { useMobileSidebar } from "@/components/layout/MobileSidebarContext";
+import { useChatContext, type ChatStatus } from "@/components/chat/ChatProvider";
+
+const CHAT_STATUS_META: Record<ChatStatus, { label: string; dot: string; next: ChatStatus }> = {
+  disponivel: { label: "Disponível", dot: "bg-green-500", next: "ausente" },
+  ausente: { label: "Ausente", dot: "bg-yellow-400", next: "ocupado" },
+  ocupado: { label: "Ocupado", dot: "bg-red-500", next: "disponivel" },
+};
+
+/** Seletor compacto do status do chat: clique alterna disponível → ausente → ocupado. */
+function ChatStatusDot() {
+  const chat = useChatContext();
+  if (!chat) return null;
+  const meta = CHAT_STATUS_META[chat.myStatus];
+  return (
+    <button
+      type="button"
+      onClick={() => chat.setMyStatus(meta.next)}
+      className="flex items-center justify-center w-8 h-8 rounded-md hover:bg-gray-100 transition-colors"
+      title={`Chat: ${meta.label} — clique para alterar`}
+      aria-label={`Status do chat: ${meta.label}. Clique para alterar.`}
+    >
+      <span className={`w-2.5 h-2.5 rounded-full ${meta.dot}`} />
+    </button>
+  );
+}
 
 interface HeaderProps {
   profile: StaffProfile;
@@ -57,6 +82,7 @@ export function Header({ profile }: HeaderProps) {
 
       {/* Ações */}
       <div className="flex items-center gap-2">
+        <ChatStatusDot />
         <Link href="/intranet/noticias" title="Notificações" className="relative inline-flex">
           <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-800">
             <Bell size={18} />

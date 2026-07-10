@@ -33,7 +33,7 @@ export async function GET() {
 
     const { data: directory, error: dirError } = await supabase
       .from("profiles")
-      .select("id, full_name, sector, role")
+      .select("id, full_name, sector, role, phone_ext")
       .eq("active", true)
       .order("full_name");
     if (dirError) throw dirError;
@@ -43,6 +43,7 @@ export async function GET() {
       full_name: profile.full_name,
       sector: profile.sector ?? "",
       role: profile.role,
+      phone_ext: profile.phone_ext ?? "",
     };
 
     // Mensagens recentes envolvendo o usuário — reduzidas para 1 conversa por interlocutor

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { broadcastToUser } from "@/lib/chat-interno/realtime";
 
 const MISSING_TABLE_CODES = ["PGRST205", "42P01"];
 const SAFE_ID = /^[A-Za-z0-9-]+$/;
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
       }
       throw error;
     }
+
+    // Confirmação de leitura para o remetente (✓✓ ao vivo) — melhor esforço
+    await broadcastToUser(supabase, withId, "read", { by: profile.id });
 
     return NextResponse.json({ ok: true });
   } catch (err) {
