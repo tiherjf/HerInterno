@@ -1,6 +1,7 @@
 export const revalidate = 60;
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { requireStaff, canCreateNews, canDeleteNews } from "@/lib/auth/staff";
+import { requireStaff, canDeleteNews } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { MarcarLida } from "@/components/news/MarcarLida";
 import { ImageLightbox } from "@/components/news/ImageLightbox";
 import { NewsInteractions } from "@/components/news/NewsInteractions";
 import { DeleteNewsButton } from "@/components/news/DeleteNewsButton";
+import { LeitoresDialog } from "@/components/news/LeitoresDialog";
 import type { StaffRole } from "@/lib/auth/staff";
 
 interface NewsArticle {
@@ -29,7 +31,7 @@ const categoryColors: Record<string, string> = {
 
 export default async function NoticiaPage({ params }: { params: { id: string } }) {
   const profile = await requireStaff();
-  const canEdit = canCreateNews(profile.role as StaffRole);
+  const canEdit = await canEditMenuItem("noticias", profile.role as StaffRole);
   const canDel = canDeleteNews(profile.role as StaffRole);
   const isAdminOrTi = ["admin", "ti"].includes(profile.role);
 
@@ -84,6 +86,7 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
               <Eye size={12} /> {readCount} {readCount === 1 ? "leitura" : "leituras"}
             </span>
           )}
+          {canEdit && <LeitoresDialog newsId={news.id} />}
           {canEditThis && (
             <Link href={`/intranet/noticias/editar/${news.id}`}>
               <Button variant="outline" size="sm"><Edit size={14} /> Editar</Button>

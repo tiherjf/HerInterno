@@ -29,6 +29,7 @@ import {
   Wrench,
   Megaphone,
   CheckSquare,
+  MessageCircle,
   LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -59,6 +60,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Wrench,
   Megaphone,
   CheckSquare,
+  MessageCircle,
 };
 
 const adminGroups = [

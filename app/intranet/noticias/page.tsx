@@ -1,6 +1,7 @@
 export const revalidate = 60;
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { requireStaff, canCreateNews } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus, FileEdit, Calendar } from "lucide-react";
@@ -22,7 +23,7 @@ export default async function NoticiasPage({
   searchParams: { categoria?: string; pagina?: string; q?: string; aba?: string };
 }) {
   const profile = await requireStaff();
-  const canCreate = canCreateNews(profile.role as StaffRole);
+  const canCreate = await canEditMenuItem("noticias", profile.role as StaffRole);
   const isAdminOrTi = ["admin", "ti"].includes(profile.role);
 
   const page = parseInt(searchParams.pagina ?? "1");

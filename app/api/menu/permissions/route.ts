@@ -14,7 +14,7 @@ async function getAuthorizedUser() {
     .eq("active", true)
     .single();
 
-  if (!profile || !["admin", "ti", "marketing"].includes(profile.role)) return null;
+  if (!profile || !["admin", "ti"].includes(profile.role)) return null;
   return profile as { id: string; role: StaffRole };
 }
 

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 
 // ─── Cores disponíveis ──────────────────────────────────────
 const CORES: Record<string, { header: string; chip: string; dot: string }> = {
@@ -217,7 +218,7 @@ function RamalDialog({ open, initial, setores, defaultSetorId, onClose, onSaved 
 export default function RamaisPage() {
   const [setores, setSetores] = useState<Setor[]>([]);
   const [meuRamal, setMeuRamal] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { canEdit: isAdmin } = useMenuPermission("ramais");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [setorAtivo, setSetorAtivo] = useState("todos");
@@ -229,15 +230,14 @@ export default function RamaisPage() {
   const [ramalDialog, setRamalDialog] = useState<{ open: boolean; initial?: Partial<Ramal>; setorId?: string }>({ open: false });
 
   const load = useCallback(async () => {
-    const [ramRes, perfRes] = await Promise.all([
-      fetch("/api/ramais"),
-      fetch("/api/perfil"),
-    ]);
-    const [ramData, perfData] = await Promise.all([ramRes.json(), perfRes.json()]);
-    setSetores(ramData.setores ?? []);
-    setMeuRamal(ramData.meu_ramal ?? null);
-    setIsAdmin(["admin", "ti"].includes(perfData.role ?? ""));
-    setLoading(false);
+    try {
+      const ramRes = await fetch("/api/ramais");
+      const ramData = await ramRes.json();
+      setSetores(ramData.setores ?? []);
+      setMeuRamal(ramData.meu_ramal ?? null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);

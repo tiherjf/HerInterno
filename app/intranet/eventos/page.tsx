@@ -10,6 +10,7 @@ import {
   Calendar, MapPin, Users, Clock, Loader2, CheckCircle,
   Plus, Video, Building2, Clock3, History, Star, ListFilter,
 } from "lucide-react";
+import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 
 const CATEGORIES = [
   { value: "", label: "Todas" },
@@ -57,10 +58,6 @@ interface Event {
   on_waitlist: boolean;
 }
 
-interface UserProfile {
-  role: string;
-}
-
 function formatDT(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit", month: "short", year: "numeric",
@@ -73,18 +70,14 @@ function formatDate(iso: string) {
   });
 }
 
-function canManage(role: string) {
-  return ["admin", "ti", "marketing"].includes(role);
-}
-
 export default function EventosPage() {
   const router = useRouter();
+  const { canEdit: canManageEventos } = useMenuPermission("eventos");
   const [tab, setTab] = useState<Tab>("upcoming");
   const [category, setCategory] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -92,22 +85,21 @@ export default function EventosPage() {
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    params.set("view", tab === "calendar" ? "all" : tab === "mine" ? "upcoming" : tab);
-    if (category) params.set("category", category);
-    if (tab === "calendar") params.set("month", calendarMonth);
+    try {
+      const params = new URLSearchParams();
+      params.set("view", tab === "calendar" ? "all" : tab);
+      if (category) params.set("category", category);
+      if (tab === "calendar") params.set("month", calendarMonth);
 
-    const res = await fetch(`/api/eventos?${params}`);
-    const json = await res.json();
-    let evs: Event[] = json.events ?? [];
-    if (tab === "mine") evs = evs.filter(e => e.is_registered || e.on_waitlist);
-    setEvents(evs);
-    setLoading(false);
+      const res = await fetch(`/api/eventos?${params}`);
+      const json = await res.json();
+      setEvents(json.events ?? []);
+    } catch {
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
   }, [tab, category, calendarMonth]);
-
-  useEffect(() => {
-    fetch("/api/perfil").then(r => r.json()).then(d => setProfile(d));
-  }, []);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
@@ -144,7 +136,7 @@ export default function EventosPage() {
           <h2 className="text-2xl font-bold">Eventos</h2>
           <p className="text-muted-foreground text-sm mt-1">Eventos e atividades do hospital</p>
         </div>
-        {profile && canManage(profile.role) && (
+        {canManageEventos && (
           <Link href="/intranet/eventos/novo">
             <Button size="sm">
               <Plus size={15} className="mr-1.5" /> Novo Evento

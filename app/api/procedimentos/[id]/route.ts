@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { canEditMenuItem } from "@/lib/menu/server";
+import type { StaffRole } from "@/lib/menu/types";
 
 type Params = { params: { id: string } };
-const CAN_EDIT = ["admin", "ti", "marketing", "recepcao"];
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    if (!CAN_EDIT.includes(profile.role)) {
+    if (!(await canEditMenuItem("procedimentos", profile.role as StaffRole))) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
@@ -32,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    if (!CAN_EDIT.includes(profile.role)) {
+    if (!(await canEditMenuItem("procedimentos", profile.role as StaffRole))) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 

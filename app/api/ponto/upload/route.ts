@@ -54,9 +54,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data } = supabase.storage.from("justificativas").getPublicUrl(path);
-
-    return NextResponse.json({ url: data.publicUrl, path });
+    // Bucket privado: retorna apenas o caminho. O download passa por
+    // /api/ponto/justificativas/[id]/comprovante com URL assinada.
+    return NextResponse.json({ path });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro interno";
     return NextResponse.json({ error: message }, { status: 500 });

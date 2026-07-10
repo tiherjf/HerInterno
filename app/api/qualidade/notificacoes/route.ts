@@ -1,18 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import { sendEmail } from "@/lib/email/resend";
 import { qualidadeAlertaEmail } from "@/lib/email/templates/qualidade-alerta";
 
-// POST /api/qualidade/notificacoes — verifica e envia alertas. Admin/ti/rh only.
-export async function POST() {
-  try {
-    const profile = await requireStaff();
-    if (!["admin", "ti", "rh"].includes(profile.role)) {
-      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
-    }
-
+// Executa a verificação e envio de alertas de qualidade.
+// Chamado manualmente (POST, staff autorizado) ou pelo cron do Vercel (GET com CRON_SECRET).
+async function runQualityAlertsJob() {
     const svc = createServiceClient();
     const today = new Date().toISOString().split("T")[0];
     const in30days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -120,25 +115,43 @@ export async function POST() {
       } catch { /* skip individual failures */ }
     }
 
-    return NextResponse.json({
-      ok: true,
-      summary: {
-        overdueNCs: overdue?.length ?? 0,
-        noPlansNCs: noPlansFiltered.length,
-        expiringDocs: expiringDocs?.length ?? 0,
-        criticalIndicators: criticalInds?.length ?? 0,
-        emailsSent: sent,
-      },
-    });
+    return {
+      overdueNCs: overdue?.length ?? 0,
+      noPlansNCs: noPlansFiltered.length,
+      expiringDocs: expiringDocs?.length ?? 0,
+      criticalIndicators: criticalInds?.length ?? 0,
+      emailsSent: sent,
+    };
+}
+
+// POST — disparo manual pelo painel (staff autorizado)
+export async function POST() {
+  try {
+    const profile = await requireStaff();
+    if (!["admin", "ti", "rh", "qualidade"].includes(profile.role)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+    const summary = await runQualityAlertsJob();
+    return NextResponse.json({ ok: true, summary });
   } catch (err) {
     return apiError(err);
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    // Cron do Vercel: GET com Authorization: Bearer <CRON_SECRET> executa o job
+    const authHeader = req.headers.get("authorization");
+    if (
+      process.env.CRON_SECRET &&
+      authHeader === `Bearer ${process.env.CRON_SECRET}`
+    ) {
+      const summary = await runQualityAlertsJob();
+      return NextResponse.json({ ok: true, cron: true, summary });
+    }
+
     const profile = await requireStaff();
-    if (!["admin", "ti", "rh"].includes(profile.role)) {
+    if (!["admin", "ti", "rh", "qualidade"].includes(profile.role)) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 

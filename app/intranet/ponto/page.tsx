@@ -49,11 +49,25 @@ export default async function PontoDashboard() {
 
     // Contagem para gestores
     if (isGestor) {
-      const { count: teamCount } = await supabase
-        .from("justifications")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending");
-      pendingTeam = teamCount || 0;
+      // Gestor comum: conta apenas subordinados diretos (mesmo filtro da tela de aprovações)
+      let subordinateIds: string[] | null = null;
+      if (!isRH) {
+        const { data: subordinates } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("manager_id", profile.id)
+          .eq("active", true);
+        subordinateIds = (subordinates || []).map((u: { id: string }) => u.id);
+      }
+      if (isRH || (subordinateIds && subordinateIds.length > 0)) {
+        let teamQuery = supabase
+          .from("justifications")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending");
+        if (subordinateIds) teamQuery = teamQuery.in("user_id", subordinateIds);
+        const { count: teamCount } = await teamQuery;
+        pendingTeam = teamCount || 0;
+      }
     }
 
     // Contagem para RH
@@ -153,7 +167,7 @@ export default async function PontoDashboard() {
         )}
 
         {isRH && (
-          <Link href="/admin/ponto">
+          <Link href="/intranet/ponto/rh">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -267,7 +281,7 @@ export default async function PontoDashboard() {
             )}
 
             {isRH && (
-              <Link href="/admin/ponto?tab=banco" className="block mt-3">
+              <Link href="/intranet/ponto/rh?tab=banco" className="block mt-3">
                 <Button variant="outline" size="sm" className="w-full">
                   Gerenciar Banco de Horas <ChevronRight size={14} />
                 </Button>

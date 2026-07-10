@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStaff, canManageEvents } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import type { StaffRole } from "@/lib/auth/staff";
@@ -14,6 +15,12 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get("month"); // YYYY-MM
     const now = new Date().toISOString();
 
+    // User's registrations + waitlist
+    const [{ data: regs }, { data: waitlist }] = await Promise.all([
+      supabase.from("event_registrations").select("event_id, checked_in, checked_in_at").eq("user_id", profile.id),
+      supabase.from("event_waitlist").select("event_id, joined_at").eq("user_id", profile.id),
+    ]);
+
     let query = supabase
       .from("events")
       .select(`
@@ -22,12 +29,18 @@ export async function GET(req: NextRequest) {
         meeting_link, is_mandatory, created_by, created_at
       `)
       .eq("active", true)
-      .order("event_date", { ascending: view !== "past" });
+      .order("event_date", { ascending: view !== "past" && view !== "mine" });
 
     if (view === "upcoming") query = query.gte("event_date", now);
     else if (view === "past") query = query.lt("event_date", now);
     else if (view === "mine") {
-      // handled client-side with registrations filter
+      // Eventos em que o usuário está inscrito ou na fila — inclui histórico
+      const myIds = [
+        ...(regs ?? []).map(r => r.event_id),
+        ...(waitlist ?? []).map(w => w.event_id),
+      ];
+      if (myIds.length === 0) return NextResponse.json({ events: [] });
+      query = query.in("id", myIds);
     }
     if (month) {
       const [y, m] = month.split("-").map(Number);
@@ -39,12 +52,6 @@ export async function GET(req: NextRequest) {
 
     const { data: events, error } = await query.limit(100);
     if (error) throw error;
-
-    // User's registrations + waitlist
-    const [{ data: regs }, { data: waitlist }] = await Promise.all([
-      supabase.from("event_registrations").select("event_id, checked_in, checked_in_at").eq("user_id", profile.id),
-      supabase.from("event_waitlist").select("event_id, joined_at").eq("user_id", profile.id),
-    ]);
 
     const regMap = new Map((regs ?? []).map(r => [r.event_id, r]));
     const waitMap = new Map((waitlist ?? []).map(w => [w.event_id, w]));
@@ -66,7 +73,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    if (!canManageEvents(profile.role as StaffRole)) {
+    if (!(await canEditMenuItem("eventos", profile.role as StaffRole))) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
@@ -78,6 +85,15 @@ export async function POST(req: NextRequest) {
 
     if (!title?.trim() || !event_date) {
       return NextResponse.json({ error: "Título e data são obrigatórios" }, { status: 400 });
+    }
+    if (new Date(event_date) < new Date()) {
+      return NextResponse.json({ error: "A data do evento não pode estar no passado" }, { status: 400 });
+    }
+    if (registration_deadline && new Date(registration_deadline) > new Date(event_date)) {
+      return NextResponse.json({ error: "O prazo de inscrição deve ser antes da data do evento" }, { status: 400 });
+    }
+    if (max_slots !== undefined && max_slots !== null && (!Number.isInteger(max_slots) || max_slots < 1)) {
+      return NextResponse.json({ error: "Número de vagas inválido" }, { status: 400 });
     }
 
     const svc = createServiceClient();

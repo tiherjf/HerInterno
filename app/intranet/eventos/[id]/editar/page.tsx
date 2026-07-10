@@ -1,4 +1,5 @@
-import { requireStaff, canManageEvents } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import EventForm from "@/components/eventos/EventForm";
@@ -8,7 +9,7 @@ type Params = { params: { id: string } };
 
 export default async function EditarEventoPage({ params }: Params) {
   const profile = await requireStaff();
-  if (!canManageEvents(profile.role as StaffRole)) redirect("/intranet/eventos");
+  if (!(await canEditMenuItem("eventos", profile.role as StaffRole))) redirect("/intranet/eventos");
 
   const svc = createServiceClient();
   const { data: ev } = await svc

@@ -8,7 +8,7 @@ type Params = { params: { id: string } };
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    if (!["admin", "ti", "rh"].includes(profile.role)) {
+    if (!["admin", "ti", "rh", "qualidade"].includes(profile.role)) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
     const svc = createServiceClient();

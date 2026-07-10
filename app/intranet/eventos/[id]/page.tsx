@@ -1,4 +1,5 @@
-import { requireStaff, canManageEvents } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -69,7 +70,7 @@ export default async function EventoDetailPage({ params }: Params) {
     .select("*", { count: "exact", head: true })
     .eq("event_id", params.id);
 
-  const isOrganizer = canManageEvents(profile.role as StaffRole);
+  const isOrganizer = await canEditMenuItem("eventos", profile.role as StaffRole);
   const isPast = new Date(ev.event_date) < new Date();
 
   return (

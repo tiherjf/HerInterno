@@ -57,7 +57,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
   created:           { label: "Enviada",           color: "text-gray-600" },
   manager_approved:  { label: "Aprovada (Gestor)", color: "text-blue-700" },
   manager_rejected:  { label: "Recusada (Gestor)", color: "text-red-700" },
-  rh_approved:       { label: "Aprovada (RH)",     color: "text-green-700" },
+  rh_approve:        { label: "Aprovada (RH)",     color: "text-green-700" },
   rh_reject:         { label: "Recusada (RH)",     color: "text-red-700" },
 };
 
@@ -186,7 +186,7 @@ function ApprovacoesRH() {
                       </p>
                     )}
                     {j.document_url && (
-                      <a href={j.document_url} target="_blank" rel="noopener noreferrer"
+                      <a href={`/api/ponto/justificativas/${j.id}/comprovante`} target="_blank" rel="noopener noreferrer"
                         className="text-xs text-primary flex items-center gap-1 hover:underline">
                         <Paperclip size={12} /> Ver comprovante
                       </a>

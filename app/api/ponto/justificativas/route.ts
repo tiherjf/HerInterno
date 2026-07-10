@@ -102,10 +102,26 @@ export async function POST(req: NextRequest) {
     const profile = await requireStaff();
     const supabase = createServiceClient();
     const body = await req.json();
-    const { type_id, occurrence_date, is_full_day, start_time, end_time, description } = body;
+    const { type_id, occurrence_date, is_full_day, start_time, end_time, description, document_path } = body;
 
     if (!type_id || !occurrence_date || !description?.trim()) {
       return NextResponse.json({ error: "Tipo, data e descrição são obrigatórios" }, { status: 400 });
+    }
+
+    const { data: type } = await supabase
+      .from("justification_types")
+      .select("id, requires_document, active")
+      .eq("id", type_id)
+      .maybeSingle();
+    if (!type || !type.active) {
+      return NextResponse.json({ error: "Tipo de justificativa inválido" }, { status: 400 });
+    }
+    if (type.requires_document && !document_path) {
+      return NextResponse.json({ error: "Este tipo de justificativa exige comprovante anexado" }, { status: 400 });
+    }
+    // O upload grava em justificativas/{user_id}/... — só aceita caminho do próprio usuário
+    if (document_path && !String(document_path).startsWith(`${profile.id}/`)) {
+      return NextResponse.json({ error: "Comprovante inválido" }, { status: 400 });
     }
 
     const occDate = new Date(occurrence_date + "T00:00:00");
@@ -141,6 +157,7 @@ export async function POST(req: NextRequest) {
       start_time: is_full_day !== false ? null : (start_time || null),
       end_time: is_full_day !== false ? null : (end_time || null),
       description: description.trim(),
+      document_url: document_path || null,
       deadline: deadline.toISOString().split("T")[0],
       status: "pending",
     }).select().single();

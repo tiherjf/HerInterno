@@ -177,20 +177,26 @@ export async function POST(
 
     const pdfBytes = await pdfDoc.save();
 
-    // Salvar no Supabase Storage
+    // Salvar no Supabase Storage (bucket privado)
     const filename = `certificates/${userId}/${params.id}_${Date.now()}.pdf`;
-    await serviceClient.storage
+    const { error: uploadError } = await serviceClient.storage
       .from("certificates")
       .upload(filename, pdfBytes, {
         contentType: "application/pdf",
         upsert: true,
       });
+    if (uploadError) {
+      return NextResponse.json({ error: "Erro ao salvar certificado" }, { status: 500 });
+    }
 
-    const { data: publicUrl } = serviceClient.storage
+    const { data: signed, error: signError } = await serviceClient.storage
       .from("certificates")
-      .getPublicUrl(filename);
+      .createSignedUrl(filename, 60 * 60 * 24); // 24h
+    if (signError || !signed?.signedUrl) {
+      return NextResponse.json({ error: "Erro ao gerar link do certificado" }, { status: 500 });
+    }
 
-    return NextResponse.json({ url: publicUrl.publicUrl });
+    return NextResponse.json({ url: signed.signedUrl });
   } catch (error) {
     console.error("Certificate generation error:", error);
     return NextResponse.json({ error: "Erro ao gerar certificado" }, { status: 500 });

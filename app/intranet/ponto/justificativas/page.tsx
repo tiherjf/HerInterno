@@ -216,7 +216,7 @@ export default function MinhasJustificativasPage() {
               {selected.document_url && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Comprovante</p>
-                  <a href={selected.document_url} target="_blank" rel="noopener noreferrer"
+                  <a href={`/api/ponto/justificativas/${selected.id}/comprovante`} target="_blank" rel="noopener noreferrer"
                     className="text-primary text-sm hover:underline flex items-center gap-1">
                     <Paperclip size={14} /> Ver documento anexado
                   </a>

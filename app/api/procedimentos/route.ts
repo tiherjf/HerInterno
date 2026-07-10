@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
-
-const CAN_EDIT = ["admin", "ti", "marketing", "recepcao"];
+import { canEditMenuItem } from "@/lib/menu/server";
+import type { StaffRole } from "@/lib/menu/types";
 
 export async function GET() {
   try {
     const profile = await requireStaff();
-    const supabase = CAN_EDIT.includes(profile.role) ? createServiceClient() : createClient();
+    const canEdit = await canEditMenuItem("procedimentos", profile.role as StaffRole);
+    const supabase = canEdit ? createServiceClient() : createClient();
 
     let query = supabase
       .from("procedimentos")
@@ -18,7 +19,7 @@ export async function GET() {
       .order("order_num")
       .order("nome");
 
-    if (!CAN_EDIT.includes(profile.role)) {
+    if (!canEdit) {
       query = query.eq("ativo", true);
     }
 
@@ -33,7 +34,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    if (!CAN_EDIT.includes(profile.role)) {
+    if (!(await canEditMenuItem("procedimentos", profile.role as StaffRole))) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
         unidade: unidade.trim(),
         descricao: descricao?.trim() || null,
         preparacao: preparacao?.trim() || null,
-        order_num: count ?? 0,
+        order_num: (count ?? 0) + 1,
         created_by: profile.id,
       })
       .select()

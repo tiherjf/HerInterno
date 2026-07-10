@@ -85,11 +85,29 @@ export default function NovaJustificativaPage() {
       setError("Informe os horários de início e fim.");
       return;
     }
+    if (selectedType?.requires_document && !file) {
+      setError("Este tipo de justificativa exige comprovante anexado.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
 
     try {
+      // Upload do comprovante antes de criar a justificativa
+      let documentPath: string | null = null;
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const upRes = await fetch("/api/ponto/upload", { method: "POST", body: fd });
+        const upData = await upRes.json().catch(() => ({}));
+        if (!upRes.ok || !upData.path) {
+          setError(upData.error || "Erro ao enviar o comprovante. Tente novamente.");
+          return;
+        }
+        documentPath = upData.path;
+      }
+
       const res = await fetch("/api/ponto/justificativas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,20 +118,13 @@ export default function NovaJustificativaPage() {
           start_time: form.is_full_day ? null : form.start_time,
           end_time: form.is_full_day ? null : form.end_time,
           description: form.description,
+          document_path: documentPath,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Erro ao enviar.");
         return;
-      }
-
-      // Upload de documento se houver
-      if (file && data.justification?.id) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("justification_id", data.justification.id);
-        await fetch("/api/ponto/upload", { method: "POST", body: fd }).catch(() => {});
       }
 
       setSuccess(true);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { computeSlaDeadline } from "@/lib/chamados/sla";
 
 // Determina a equipe do agente (ti, manutencao ou marketing)
 function agentTeam(role: string): string | null {
@@ -120,8 +121,8 @@ export async function POST(req: NextRequest) {
         : cat?.sla_hours;
 
       if (slaHours) {
-        const deadline = new Date();
-        deadline.setHours(deadline.getHours() + slaHours);
+        // Prazo em horas úteis (seg–sex 08:00–18:00), pulando feriados
+        const deadline = await computeSlaDeadline(svc, new Date(), slaHours);
         sla_deadline = deadline.toISOString();
       }
     }

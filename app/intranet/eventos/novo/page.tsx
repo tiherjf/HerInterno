@@ -1,11 +1,12 @@
-import { requireStaff, canManageEvents } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { redirect } from "next/navigation";
 import EventForm from "@/components/eventos/EventForm";
 import type { StaffRole } from "@/lib/auth/staff";
 
 export default async function NovoEventoPage() {
   const profile = await requireStaff();
-  if (!canManageEvents(profile.role as StaffRole)) redirect("/intranet/eventos");
+  if (!(await canEditMenuItem("eventos", profile.role as StaffRole))) redirect("/intranet/eventos");
 
   return (
     <div className="space-y-6">

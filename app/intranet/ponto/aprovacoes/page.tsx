@@ -198,7 +198,7 @@ export default function AprovacoesPage() {
                     <p className="text-sm bg-white border p-3 rounded-lg">{j.description}</p>
                     <div className="flex items-center gap-3">
                       {j.document_url && (
-                        <a href={j.document_url} target="_blank" rel="noopener noreferrer"
+                        <a href={`/api/ponto/justificativas/${j.id}/comprovante`} target="_blank" rel="noopener noreferrer"
                           className="text-xs text-primary hover:underline flex items-center gap-1">
                           <Paperclip size={12} /> Ver comprovante
                         </a>

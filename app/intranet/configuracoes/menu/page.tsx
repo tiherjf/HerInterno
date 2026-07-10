@@ -6,7 +6,7 @@ import { MenuPermissionsEditor } from "./MenuPermissionsEditor";
 
 export default async function MenuConfigPage() {
   const profile = await requireStaff();
-  if (!["admin", "ti", "marketing"].includes(profile.role)) {
+  if (!["admin", "ti"].includes(profile.role)) {
     redirect("/intranet");
   }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireStaff, canManageExtensions } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import type { StaffRole } from "@/lib/auth/staff";
@@ -7,7 +8,7 @@ import type { StaffRole } from "@/lib/auth/staff";
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    if (!canManageExtensions(profile.role as StaffRole)) {
+    if (!(await canEditMenuItem("ramais", profile.role as StaffRole))) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
     const { setor_id, numero, descricao, order_index } = await req.json();

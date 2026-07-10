@@ -9,6 +9,7 @@ const ALL: StaffRole[] = [
   "enfermagem",
   "administrativo",
   "manutencao",
+  "qualidade",
 ];
 
 export const DEFAULT_MENU: MenuItemConfig[] = [
@@ -41,6 +42,17 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
     icon: "Phone",
     category: "Comunicação",
     order_num: 3,
+    can_view: ALL,
+    can_edit: ["admin", "ti"],
+    active: true,
+  },
+  {
+    key: "chat",
+    label: "Chat Interno",
+    href: "/intranet/chat",
+    icon: "MessageCircle",
+    category: "Comunicação",
+    order_num: 4,
     can_view: ALL,
     can_edit: ["admin", "ti"],
     active: true,
@@ -174,7 +186,7 @@ export const DEFAULT_MENU: MenuItemConfig[] = [
     category: "Qualidade",
     order_num: 1,
     can_view: ALL,
-    can_edit: ["admin", "ti", "rh"],
+    can_edit: ["admin", "ti", "rh", "qualidade"],
     active: true,
   },
 ];

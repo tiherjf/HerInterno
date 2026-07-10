@@ -21,6 +21,10 @@ import {
   ExternalLink, X,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+
+type BrowserSupabase = ReturnType<typeof createClient>;
 
 // ─── Types ───────────────────────────────────────────────────
 interface Category {
@@ -183,15 +187,15 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
   const isManutencao = form.team === "manutencao";
 
-  const fetchTickets = useCallback(async () => {
-    setLoading(true);
+  const fetchTickets = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const teamParam = defaultTeam ? `&team=${defaultTeam}` : "";
       const res = await fetch(`/api/chamados?view=own&limit=100${teamParam}`);
       const json = await res.json();
       setTickets(json.tickets ?? []);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [defaultTeam]);
 
@@ -208,6 +212,67 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
       }).catch(() => {});
     }
   }, [isMkt]);
+
+  // Realtime: atualiza a lista quando qualquer chamado muda (canal global,
+  // debounce de ~1s para evitar rajadas). Melhor esforço — sem Realtime o
+  // app funciona igual, via recarregamento manual/navegação.
+  useEffect(() => {
+    let supabase: BrowserSupabase | null = null;
+    let channel: RealtimeChannel | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      supabase = createClient();
+      channel = supabase
+        .channel("tickets:global", { config: { broadcast: { self: false } } })
+        .on("broadcast", { event: "update" }, () => {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => { fetchTickets({ silent: true }); }, 1000);
+        })
+        .subscribe();
+    } catch {
+      channel = null; // Realtime indisponível — segue sem atualizações ao vivo
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+      try {
+        if (supabase && channel) supabase.removeChannel(channel);
+      } catch { /* ignora */ }
+    };
+  }, [fetchTickets]);
+
+  // Realtime: enquanto o detalhe está aberto, escuta o canal do chamado e
+  // recarrega o detalhe quando há comentário/status/anexo novo.
+  useEffect(() => {
+    const ticketId = selected?.id;
+    if (!ticketId) return;
+    let active = true;
+    let supabase: BrowserSupabase | null = null;
+    let channel: RealtimeChannel | null = null;
+    const refreshDetail = async () => {
+      try {
+        const res = await fetch(`/api/chamados/${ticketId}`);
+        const json = await res.json();
+        if (!active) return;
+        setDetail(json);
+        if (json.ticket) setSelected(prev => (prev && prev.id === ticketId ? json.ticket : prev));
+      } catch { /* silencioso — próxima atualização tenta de novo */ }
+    };
+    try {
+      supabase = createClient();
+      channel = supabase
+        .channel(`ticket:${ticketId}`, { config: { broadcast: { self: false } } })
+        .on("broadcast", { event: "update" }, () => { refreshDetail(); })
+        .subscribe();
+    } catch {
+      channel = null; // Realtime indisponível — segue sem atualizações ao vivo
+    }
+    return () => {
+      active = false;
+      try {
+        if (supabase && channel) supabase.removeChannel(channel);
+      } catch { /* ignora */ }
+    };
+  }, [selected?.id]);
 
   const categoriasByTeam = useMemo(() => {
     const map: Record<string, Category[]> = { ti: [], manutencao: [], marketing: [] };
@@ -273,10 +338,19 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
       // Upload attachments sequentially after ticket creation
       if (attachFiles.length > 0 && json.id) {
+        const failed: string[] = [];
         for (const file of attachFiles) {
           const fd = new FormData();
           fd.append("file", file);
-          await fetch(`/api/chamados/${json.id}/anexos`, { method: "POST", body: fd });
+          try {
+            const upRes = await fetch(`/api/chamados/${json.id}/anexos`, { method: "POST", body: fd });
+            if (!upRes.ok) failed.push(file.name);
+          } catch {
+            failed.push(file.name);
+          }
+        }
+        if (failed.length > 0) {
+          alert(`Chamado criado, mas falhou o envio de ${failed.length} anexo(s): ${failed.join(", ")}. Abra o chamado e anexe novamente.`);
         }
       }
 
@@ -951,7 +1025,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                         {detail.ticket.ticket_attachments.map(att => (
                           <a
                             key={att.id}
-                            href={att.file_url}
+                            href={att.file_url.startsWith("http") ? att.file_url : `/api/chamados/${detail.ticket.id}/anexos/${att.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-2 px-3 py-2 rounded-lg border hover:bg-gray-50 text-sm transition-colors"

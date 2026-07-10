@@ -30,12 +30,22 @@ export async function GET(_: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    const isQuality = ["admin", "ti", "rh"].includes(profile.role);
+    const isQuality = ["admin", "ti", "rh", "qualidade"].includes(profile.role);
     const svc = createServiceClient();
     const body = await req.json();
 
-    const { data: current } = await svc.from("quality_ncs").select("status").eq("id", params.id).single();
+    const { data: current } = await svc
+      .from("quality_ncs")
+      .select("status, created_by, responsible_id")
+      .eq("id", params.id)
+      .single();
     if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+
+    // Edição restrita à equipe de qualidade, ao autor ou ao responsável pela NC
+    const isInvolved = current.created_by === profile.id || current.responsible_id === profile.id;
+    if (!isQuality && !isInvolved) {
+      return NextResponse.json({ error: "Sem permissão para editar esta não-conformidade" }, { status: 403 });
+    }
 
     // Campos que qualquer um pode preencher ao criar (status muda apenas para quality)
     const allowed = ["title","description","category","origin","sector","severity",

@@ -22,7 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const CATEGORIES = ["Institucional", "RH", "Qualidade", "TI", "Eventos"];
 
 interface NewsFormProps {
-  authorId: string;
+  authorId?: string; // mantido por compatibilidade; o autor agora é definido no servidor
   initialData?: {
     id: string;
     title: string;
@@ -35,7 +35,7 @@ interface NewsFormProps {
   };
 }
 
-export function NewsForm({ authorId, initialData }: NewsFormProps) {
+export function NewsForm({ initialData }: NewsFormProps) {
   const router = useRouter();
   const supabase = createClient();
   const isEditing = !!initialData?.id;
@@ -98,43 +98,26 @@ export function NewsForm({ authorId, initialData }: NewsFormProps) {
       const coverUrl = await uploadCover();
       const body = editor?.getHTML() ?? "";
 
-      if (isEditing) {
-        // PUT via API (respeita permissões de autor vs admin)
-        const res = await fetch(`/api/noticias/${initialData.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title.trim(),
-            summary,
-            body,
-            category,
-            cover_url: coverUrl,
-            status: mode === "draft" ? "draft" : "published",
-            scheduled_for: mode === "schedule" ? scheduledFor : null,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) { setError(json.error ?? "Erro ao salvar."); return; }
-      } else {
-        // Criação direta via Supabase (INSERT)
-        const publishNow = mode === "publish";
-        const publishAt = mode === "schedule"
-          ? new Date(scheduledFor).toISOString()
-          : publishNow ? new Date().toISOString() : null;
+      const payload = {
+        title: title.trim(),
+        summary,
+        body,
+        category,
+        cover_url: coverUrl,
+        status: mode === "draft" ? "draft" : mode === "schedule" ? "scheduled" : "published",
+        scheduled_for: mode === "schedule" ? scheduledFor : null,
+      };
 
-        const { error: dbError } = await supabase.from("news").insert({
-          title: title.trim(),
-          summary,
-          body,
-          category,
-          cover_url: coverUrl,
-          status: mode === "draft" ? "draft" : "published",
-          author_id: authorId,
-          published_at: publishAt,
-          scheduled_for: mode === "schedule" ? new Date(scheduledFor).toISOString() : null,
-        });
-        if (dbError) throw dbError;
-      }
+      const res = await fetch(
+        isEditing ? `/api/noticias/${initialData.id}` : "/api/noticias",
+        {
+          method: isEditing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Erro ao salvar."); return; }
 
       router.push("/intranet/noticias");
       router.refresh();

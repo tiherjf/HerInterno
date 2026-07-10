@@ -1,11 +1,12 @@
 export const revalidate = 60;
-import { requireStaff, canCreateNews } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { redirect } from "next/navigation";
 import { NewsForm } from "@/components/modules/NewsForm";
 
 export default async function NovaNoticiaPage() {
   const profile = await requireStaff();
-  if (!canCreateNews(profile.role)) redirect("/intranet/noticias");
+  if (!(await canEditMenuItem("noticias", profile.role))) redirect("/intranet/noticias");
 
   return (
     <div className="max-w-4xl mx-auto">

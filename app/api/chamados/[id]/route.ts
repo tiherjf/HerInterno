@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { sendEmail } from "@/lib/email/resend";
+import { chamadoStatusEmail } from "@/lib/email/templates/chamado-atualizado";
+import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
 
 type Params = { params: { id: string } };
 
@@ -89,7 +92,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { data: current, error: fetchErr } = await supabase
       .from("tickets")
-      .select("id, status, priority, requester_id, assigned_to, solution")
+      .select("id, number, title, status, priority, requester_id, assigned_to, solution")
       .eq("id", params.id)
       .single();
 
@@ -104,6 +107,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         if (current.status !== "open") return NextResponse.json({ error: "Apenas chamados abertos podem ser cancelados" }, { status: 400 });
         await supabase.from("tickets").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", params.id);
         await log(supabase, params.id, profile.id, profile.full_name, "status_changed", current.status, "cancelled");
+        await broadcastTicketUpdate(supabase, params.id, "status");
         return NextResponse.json({ ok: true });
       }
       if (action === "reopen") {
@@ -111,6 +115,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         if (current.status !== "resolved") return NextResponse.json({ error: "Apenas chamados resolvidos podem ser reabertos" }, { status: 400 });
         await supabase.from("tickets").update({ status: "open", resolved_at: null, updated_at: new Date().toISOString() }).eq("id", params.id);
         await log(supabase, params.id, profile.id, profile.full_name, "reopened", "resolved", "open");
+        await broadcastTicketUpdate(supabase, params.id, "status");
         return NextResponse.json({ ok: true });
       }
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
@@ -184,6 +189,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { error } = await supabase.from("tickets").update(updates).eq("id", params.id);
     if (error) throw error;
+
+    // Notifica o solicitante por e-mail quando o status muda (melhor esforço)
+    if (
+      action === "set_status" &&
+      rest.status !== current.status &&
+      current.requester_id &&
+      current.requester_id !== profile.id
+    ) {
+      try {
+        const { data: authUser } = await supabase.auth.admin.getUserById(current.requester_id);
+        const email = authUser?.user?.email;
+        if (email) {
+          const { data: requester } = await supabase
+            .from("profiles").select("full_name").eq("id", current.requester_id).single();
+          const { subject, html } = chamadoStatusEmail({
+            userName: requester?.full_name ?? "Colaborador",
+            ticketNumber: current.number,
+            ticketTitle: current.title,
+            newStatus: rest.status,
+            solution: rest.status === "resolved" ? rest.solution : null,
+          });
+          await sendEmail({ to: email, subject, html });
+        }
+      } catch { /* e-mail é melhor esforço — não quebra o fluxo */ }
+    }
+
+    // Notifica clientes conectados em tempo real (melhor esforço)
+    await broadcastTicketUpdate(supabase, params.id, "status");
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return apiError(err);

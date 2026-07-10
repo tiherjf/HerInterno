@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { sendEmail } from "@/lib/email/resend";
+import { chamadoComentarioEmail } from "@/lib/email/templates/chamado-atualizado";
+import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
 
 type Params = { params: { id: string } };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    const isAgent = ["admin", "ti", "rh", "manutencao"].includes(profile.role);
+    const isAgent = ["admin", "ti", "rh", "manutencao", "marketing"].includes(profile.role);
     const { content, is_internal = false } = await req.json();
 
     if (!content?.trim()) {
@@ -25,7 +28,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Verifica se o usuário tem acesso ao ticket
     const { data: ticket } = await supabase
       .from("tickets")
-      .select("id, requester_id, status")
+      .select("id, number, title, requester_id, status")
       .eq("id", params.id)
       .single();
 
@@ -69,6 +72,30 @@ export async function POST(req: NextRequest, { params }: Params) {
           .eq("id", params.id);
       }
     }
+
+    // Notifica o solicitante por e-mail quando um agente responde (exceto notas internas
+    // e respostas do próprio solicitante)
+    if (isAgent && !is_internal && ticket.requester_id && ticket.requester_id !== profile.id) {
+      try {
+        const { data: authUser } = await supabase.auth.admin.getUserById(ticket.requester_id);
+        const email = authUser?.user?.email;
+        if (email) {
+          const { data: requester } = await supabase
+            .from("profiles").select("full_name").eq("id", ticket.requester_id).single();
+          const { subject, html } = chamadoComentarioEmail({
+            userName: requester?.full_name ?? "Colaborador",
+            ticketNumber: ticket.number,
+            ticketTitle: ticket.title,
+            authorName: profile.full_name,
+            comment: content.trim(),
+          });
+          await sendEmail({ to: email, subject, html });
+        }
+      } catch { /* e-mail é melhor esforço — não quebra o fluxo */ }
+    }
+
+    // Notifica clientes conectados em tempo real (melhor esforço)
+    await broadcastTicketUpdate(supabase, params.id, "comment");
 
     return NextResponse.json({ ok: true, comment: data }, { status: 201 });
   } catch (err) {

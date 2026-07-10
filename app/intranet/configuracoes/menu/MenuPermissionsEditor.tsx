@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 // Roles editáveis (admin e ti são fixos)
-const EDITABLE_ROLES: StaffRole[] = ["marketing", "rh", "recepcao", "enfermagem", "administrativo", "manutencao"];
+const EDITABLE_ROLES: StaffRole[] = ["marketing", "rh", "recepcao", "enfermagem", "administrativo", "manutencao", "qualidade"];
 
 // Cores de destaque por role
 const ROLE_ACCENT: Record<string, string> = {
@@ -26,6 +26,7 @@ const ROLE_ACCENT: Record<string, string> = {
   enfermagem:"text-cyan-600",
   administrativo: "text-orange-600",
   manutencao:"text-amber-700",
+  qualidade: "text-teal-600",
 };
 
 interface ItemState {

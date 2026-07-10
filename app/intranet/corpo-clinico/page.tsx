@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
+import { AgendaEditor } from "@/components/corpo-clinico/AgendaEditor";
+import { agendaDoDia, type AgendaEntry } from "@/components/corpo-clinico/agenda";
 
 const UNIDADES = [
   { key: "Hospital",           label: "Hospital",            emoji: "🏥", cor: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -42,6 +44,7 @@ interface Profissional {
   horarios: string;
   observacoes?: string | null;
   sem_agenda: boolean;
+  agenda?: AgendaEntry[] | null;
 }
 
 interface Grupo {
@@ -54,11 +57,12 @@ const EMPTY_FORM = {
   especialidade: "",
   grupo: "",
   grupo_novo: "",
-  unidade: "Hospital" as UnidadeKey | string,
+  unidade: "Clínica da Criança" as UnidadeKey | string,
   dias: "",
   horarios: "",
   observacoes: "",
   sem_agenda: false,
+  agenda: [] as AgendaEntry[],
 };
 
 export default function CorpoClinicoPage() {
@@ -69,6 +73,7 @@ export default function CorpoClinicoPage() {
   const [busca, setBusca] = useState("");
   const [grupoAtivo, setGrupoAtivo] = useState<string | null>(null);
   const [unidadeAtiva, setUnidadeAtiva] = useState<string | null>(null);
+  const [apenasHoje, setApenasHoje] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
   const [showForm, setShowForm] = useState(false);
@@ -105,6 +110,7 @@ export default function CorpoClinicoPage() {
 
   const gruposFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
+    const hoje = new Date().getDay();
     return grupos.filter(g => {
       if (grupoAtivo && g.nome !== grupoAtivo) return false;
       return true;
@@ -112,6 +118,7 @@ export default function CorpoClinicoPage() {
       ...g,
       profissionais: g.profissionais.filter(p => {
         if (unidadeAtiva && p.unidade !== unidadeAtiva) return false;
+        if (apenasHoje && agendaDoDia(p.agenda, hoje).length === 0) return false;
         if (!termo) return true;
         return (
           p.nome.toLowerCase().includes(termo) ||
@@ -121,7 +128,7 @@ export default function CorpoClinicoPage() {
         );
       }),
     })).filter(g => g.profissionais.length > 0);
-  }, [busca, grupoAtivo, unidadeAtiva, grupos]);
+  }, [busca, grupoAtivo, unidadeAtiva, apenasHoje, grupos]);
 
   const toggleExpandido = (nome: string) => {
     setExpandidos(prev => {
@@ -140,16 +147,22 @@ export default function CorpoClinicoPage() {
 
   const openEdit = (p: Profissional) => {
     setEditingId(p.id);
+    // Editor trabalha com uma faixa por dia: mantém a primeira faixa de cada dia
+    const porDia = new Map<number, AgendaEntry>();
+    for (const e of Array.isArray(p.agenda) ? p.agenda : []) {
+      if (!porDia.has(e.dia)) porDia.set(e.dia, e);
+    }
     setForm({
       nome: p.nome,
       especialidade: p.especialidade,
       grupo: p.grupo,
       grupo_novo: "",
-      unidade: p.unidade ?? "Hospital",
+      unidade: p.unidade ?? "Clínica da Criança",
       dias: p.dias === "—" ? "" : p.dias,
       horarios: p.horarios === "—" ? "" : p.horarios,
       observacoes: p.observacoes ?? "",
       sem_agenda: p.sem_agenda,
+      agenda: Array.from(porDia.values()).sort((a, b) => a.dia - b.dia),
     });
     setFormError("");
     setShowForm(true);
@@ -161,29 +174,54 @@ export default function CorpoClinicoPage() {
       setFormError("Nome, especialidade e grupo são obrigatórios.");
       return;
     }
+    const temAgenda = !form.sem_agenda && form.agenda.length > 0;
+    if (temAgenda) {
+      const invalida = form.agenda.find(e => !e.inicio || !e.fim || e.inicio >= e.fim);
+      if (invalida) {
+        setFormError("Agenda: o horário de início deve ser antes do fim em todos os dias.");
+        return;
+      }
+    }
     setSaving(true);
     setFormError("");
     try {
-      const body = {
+      const original = editingId ? profissionais.find(p => p.id === editingId) : undefined;
+      const tinhaAgenda = Array.isArray(original?.agenda) && (original?.agenda?.length ?? 0) > 0;
+
+      const body: Record<string, unknown> = {
         nome: form.nome.trim(),
         especialidade: form.especialidade.trim(),
         grupo: grupoFinal,
-        unidade: form.unidade || "Hospital",
-        dias: form.sem_agenda ? "—" : (form.dias.trim() || "—"),
-        horarios: form.sem_agenda ? "—" : (form.horarios.trim() || "—"),
+        unidade: form.unidade || "Clínica da Criança",
         observacoes: form.observacoes.trim() || null,
         sem_agenda: form.sem_agenda,
       };
+      if (temAgenda) {
+        // O servidor gera dias/horarios legíveis a partir da agenda
+        body.agenda = form.agenda;
+      } else {
+        body.dias = form.sem_agenda ? "—" : (form.dias.trim() || "—");
+        body.horarios = form.sem_agenda ? "—" : (form.horarios.trim() || "—");
+        // Só limpa a coluna agenda se o registro tinha agenda estruturada
+        if (tinhaAgenda) body.agenda = null;
+      }
+
       const url = editingId ? `/api/corpo-clinico/${editingId}` : "/api/corpo-clinico";
       const method = editingId ? "PATCH" : "POST";
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) {
-        const j = await res.json();
-        setFormError(j.error ?? "Erro ao salvar.");
+        let msg = "Erro ao salvar.";
+        try {
+          const j = await res.json();
+          if (j?.error) msg = j.error;
+        } catch { /* resposta sem JSON */ }
+        setFormError(msg);
         return;
       }
       setShowForm(false);
       fetchProfissionais();
+    } catch {
+      setFormError("Falha de conexão ao salvar. Tente novamente.");
     } finally {
       setSaving(false);
     }
@@ -191,8 +229,21 @@ export default function CorpoClinicoPage() {
 
   const remove = async (p: Profissional) => {
     if (!confirm(`Remover "${p.nome}" do corpo clínico?`)) return;
-    await fetch(`/api/corpo-clinico/${p.id}`, { method: "DELETE" });
-    fetchProfissionais();
+    try {
+      const res = await fetch(`/api/corpo-clinico/${p.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        let msg = "Erro ao remover.";
+        try {
+          const j = await res.json();
+          if (j?.error) msg = j.error;
+        } catch { /* resposta sem JSON */ }
+        alert(msg);
+        return;
+      }
+      fetchProfissionais();
+    } catch {
+      alert("Falha de conexão ao remover. Tente novamente.");
+    }
   };
 
   const f = (field: keyof typeof EMPTY_FORM) => (
@@ -201,6 +252,13 @@ export default function CorpoClinicoPage() {
 
   const grupoFinalLabel = form.grupo === "__novo__" ? form.grupo_novo : form.grupo;
   const totalProfissionais = profissionais.length;
+  const hoje = new Date().getDay();
+
+  // Registro em edição sem agenda estruturada, mas com textos legados de dias/horários
+  const registroEmEdicao = editingId ? profissionais.find(p => p.id === editingId) : undefined;
+  const legadoSemEstrutura = !!registroEmEdicao &&
+    !(Array.isArray(registroEmEdicao.agenda) && registroEmEdicao.agenda.length > 0) &&
+    Boolean(form.dias.trim() || form.horarios.trim());
 
   return (
     <div className="space-y-6">
@@ -268,6 +326,17 @@ export default function CorpoClinicoPage() {
             className="pl-9"
           />
         </div>
+        <Button
+          variant="outline"
+          onClick={() => setApenasHoje(v => !v)}
+          className={`rounded-full gap-1.5 shrink-0 ${
+            apenasHoje
+              ? "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white"
+              : "text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800"
+          }`}
+        >
+          <Clock size={14} /> Atendem hoje
+        </Button>
       </div>
 
       {/* Chips de especialidade */}
@@ -357,6 +426,7 @@ export default function CorpoClinicoPage() {
                     <tbody>
                       {g.profissionais.map(prof => {
                         const ud = unidadeInfo(prof.unidade);
+                        const entradasHoje = agendaDoDia(prof.agenda, hoje);
                         return (
                           <tr
                             key={prof.id}
@@ -365,9 +435,17 @@ export default function CorpoClinicoPage() {
                             }`}
                           >
                             <td className="px-5 py-3 font-medium text-gray-800">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 {prof.sem_agenda && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                                 {prof.nome}
+                                {entradasHoje.length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold shrink-0"
+                                  >
+                                    Hoje · {entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}
+                                  </Badge>
+                                )}
                               </div>
                               <div className="sm:hidden mt-1">
                                 <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${ud.cor}`}>
@@ -515,15 +593,26 @@ export default function CorpoClinicoPage() {
 
             {!form.sem_agenda && (
               <>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1"><CalendarDays size={13} /> Dias de atendimento</Label>
-                  <Input placeholder="Ex: Segunda e Quarta / Sexta-feira" value={form.dias} onChange={f("dias")} />
-                  <p className="text-xs text-muted-foreground">Use &quot; / &quot; para separar diferentes turnos</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1"><Clock size={13} /> Horários</Label>
-                  <Input placeholder="Ex: 09:00 às 13:00 / 14:00 às 17:00" value={form.horarios} onChange={f("horarios")} />
-                </div>
+                {legadoSemEstrutura && (
+                  <div className="rounded-lg border bg-muted/50 px-3 py-2.5 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <CalendarDays size={12} /> Cadastro antigo (texto livre)
+                    </p>
+                    {form.dias.trim() && (
+                      <p className="text-sm text-foreground"><strong>Dias:</strong> {form.dias}</p>
+                    )}
+                    {form.horarios.trim() && (
+                      <p className="text-sm text-foreground"><strong>Horários:</strong> {form.horarios}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Ao salvar com a agenda estruturada abaixo, esses textos serão substituídos automaticamente.
+                    </p>
+                  </div>
+                )}
+                <AgendaEditor
+                  value={form.agenda}
+                  onChange={agenda => setForm(prev => ({ ...prev, agenda }))}
+                />
               </>
             )}
 

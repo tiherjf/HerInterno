@@ -1,4 +1,5 @@
-import { requireStaff, canCreateNews } from "@/lib/auth/staff";
+import { requireStaff } from "@/lib/auth/staff";
+import { canEditMenuItem } from "@/lib/menu/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { NewsForm } from "@/components/modules/NewsForm";
@@ -10,7 +11,7 @@ import type { StaffRole } from "@/lib/auth/staff";
 export default async function EditarNoticiaPage({ params }: { params: { id: string } }) {
   const profile = await requireStaff();
 
-  if (!canCreateNews(profile.role as StaffRole)) redirect("/intranet/noticias");
+  if (!(await canEditMenuItem("noticias", profile.role as StaffRole))) redirect("/intranet/noticias");
 
   const supabase = createServiceClient();
   const { data: news } = await supabase
