@@ -18,7 +18,7 @@ import {
   Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle,
   RefreshCw, RotateCcw, Monitor, Wrench, Megaphone, Lock, Loader2,
   Pencil, Sparkles, CalendarClock, User, FileText, MapPin, Paperclip,
-  ExternalLink, X,
+  ExternalLink, X, Hourglass,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -60,7 +60,10 @@ type TimelineItem =
   | ({ kind: "comment" } & { id: string; author_name: string; content: string; is_internal: boolean; created_at: string })
   | ({ kind: "history" } & HistoryEntry);
 
-interface MyProfile { full_name: string; sector: string; phone_ext: string; }
+interface MyProfile { full_name: string; sector: string; phone_ext: string; role?: string; }
+
+// Papéis que atendem chamados (agentes) — RH é solicitante comum
+const AGENT_ROLES = ["admin", "ti", "manutencao", "marketing"];
 
 // ─── Constants ───────────────────────────────────────────────
 const URGENCY_OPTIONS = [
@@ -84,6 +87,7 @@ const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
 const STATUS_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   open:        { label: "Aberto",         icon: <Clock size={12} />,        color: "bg-gray-100 text-gray-700" },
   in_progress: { label: "Em Atendimento", icon: <RefreshCw size={12} />,    color: "bg-blue-100 text-blue-700" },
+  waiting_user: { label: "Aguardando Usuário", icon: <Hourglass size={12} />, color: "bg-amber-100 text-amber-700" },
   resolved:    { label: "Resolvido",      icon: <CheckCircle2 size={12} />, color: "bg-green-100 text-green-700" },
   closed:      { label: "Encerrado",      icon: <CheckCircle2 size={12} />, color: "bg-green-100 text-green-700" },
   cancelled:   { label: "Cancelado",      icon: <XCircle size={12} />,      color: "bg-red-100 text-red-700" },
@@ -103,12 +107,18 @@ const FILTERS = [
   { key: "",                label: "Todos" },
   { key: "open",            label: "Abertos" },
   { key: "in_progress",     label: "Em Atendimento" },
+  { key: "waiting_user",    label: "Aguardando usuário" },
   { key: "resolved,closed", label: "Resolvidos" },
   { key: "cancelled",       label: "Cancelados" },
 ];
 
 // ─── Sub-components ──────────────────────────────────────────
 function SlaIndicator({ deadline, status }: { deadline: string | null; status: string }) {
+  if (status === "waiting_user") return (
+    <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
+      <Hourglass size={11} /> SLA pausado
+    </span>
+  );
   if (!deadline || ["resolved", "closed", "cancelled"].includes(status)) return null;
   const diff = new Date(deadline).getTime() - Date.now();
   if (diff <= 0) return (
@@ -146,6 +156,8 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [filter, setFilter] = useState("");
+  // "Meus chamados" (apenas agentes): lista os chamados atribuídos ao usuário
+  const [onlyMine, setOnlyMine] = useState(false);
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
   const [selected, setSelected] = useState<Ticket | null>(null);
@@ -186,18 +198,21 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const [attachFiles, setAttachFiles] = useState<File[]>([]);
 
   const isManutencao = form.team === "manutencao";
+  const isAgentUser = AGENT_ROLES.includes(myProfile?.role ?? "");
 
   const fetchTickets = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     try {
       const teamParam = defaultTeam ? `&team=${defaultTeam}` : "";
-      const res = await fetch(`/api/chamados?view=own&limit=100${teamParam}`);
+      // Agente com "Meus chamados": lista o que está atribuído a ele (view=all)
+      const baseParams = onlyMine ? "view=all&responsible=me" : "view=own";
+      const res = await fetch(`/api/chamados?${baseParams}&limit=100${teamParam}`);
       const json = await res.json();
       setTickets(json.tickets ?? []);
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [defaultTeam]);
+  }, [defaultTeam, onlyMine]);
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
@@ -206,12 +221,10 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   }, []);
 
   useEffect(() => {
-    if (isMkt) {
-      fetch("/api/perfil").then(r => r.json()).then(data => {
-        if (data.full_name) setMyProfile(data as MyProfile);
-      }).catch(() => {});
-    }
-  }, [isMkt]);
+    fetch("/api/perfil").then(r => r.json()).then(data => {
+      if (data.full_name) setMyProfile(data as MyProfile);
+    }).catch(() => {});
+  }, []);
 
   // Realtime: atualiza a lista quando qualquer chamado muda (canal global,
   // debounce de ~1s para evitar rajadas). Melhor esforço — sem Realtime o
@@ -454,6 +467,12 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
             )}
           </Button>
         ))}
+        {isAgentUser && (
+          <Button size="sm" variant={onlyMine ? "default" : "outline"}
+            onClick={() => setOnlyMine(v => !v)} className="rounded-full">
+            <User size={13} /> Meus chamados
+          </Button>
+        )}
       </div>
 
       {/* Lista */}

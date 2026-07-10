@@ -30,6 +30,7 @@ import {
   Megaphone,
   CheckSquare,
   MessageCircle,
+  CalendarClock,
   LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -82,6 +83,7 @@ const adminGroups = [
     label: "Suporte & TI",
     items: [
       { href: "/admin/chamados", label: "Chamados", icon: Ticket },
+      { href: "/admin/chamados/preventivas", label: "Preventivas", icon: CalendarClock },
       { href: "/admin/inventario", label: "Inventário TI", icon: Package },
     ],
   },

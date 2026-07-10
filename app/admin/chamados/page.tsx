@@ -30,7 +30,7 @@ import {
   User, BarChart2, SlidersHorizontal, ChevronDown, ChevronUp,
   ListChecks, BookOpen, Check, Square, X, Plus, Trash2, RotateCcw,
   UserCheck, GripVertical, List, Columns, Tag, Pencil, ToggleLeft, ToggleRight,
-  Loader2,
+  Loader2, Hourglass, Wrench, History,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -43,15 +43,17 @@ interface Ticket {
   created_at: string; updated_at: string; sla_deadline: string | null;
   first_response_at: string | null; resolved_at: string | null; rating: number | null;
   solution: string | null;
+  equipment_patrimonio?: string | null;
   ticket_categories: { id: string; name: string; color: string } | null;
   assigned: { id: string; full_name: string } | null;
 }
 
 const KANBAN_COLS: { key: string; label: string; header: string; bg: string }[] = [
-  { key: "open",        label: "Aberto",          header: "bg-gray-200 text-gray-700",  bg: "bg-gray-50" },
-  { key: "in_progress", label: "Em Atendimento",   header: "bg-blue-100 text-blue-800",  bg: "bg-blue-50/40" },
-  { key: "resolved",    label: "Resolvido",        header: "bg-green-100 text-green-800",bg: "bg-green-50/40" },
-  { key: "closed",      label: "Encerrado",        header: "bg-slate-200 text-slate-700",bg: "bg-slate-50" },
+  { key: "open",         label: "Aberto",             header: "bg-gray-200 text-gray-700",  bg: "bg-gray-50" },
+  { key: "in_progress",  label: "Em Atendimento",      header: "bg-blue-100 text-blue-800",  bg: "bg-blue-50/40" },
+  { key: "waiting_user", label: "Aguardando Usuário",  header: "bg-amber-100 text-amber-800",bg: "bg-amber-50/40" },
+  { key: "resolved",     label: "Resolvido",           header: "bg-green-100 text-green-800",bg: "bg-green-50/40" },
+  { key: "closed",       label: "Encerrado",           header: "bg-slate-200 text-slate-700",bg: "bg-slate-50" },
 ];
 interface Comment { id: string; author_name: string; content: string; is_internal: boolean; created_at: string }
 interface HistoryEntry { id: string; user_name: string; action: string; old_value: string | null; new_value: string | null; created_at: string }
@@ -79,6 +81,7 @@ const PRIORITY: Record<string, { label: string; color: string }> = {
 const STATUS: Record<string, { label: string; color: string }> = {
   open:        { label: "Aberto",         color: "bg-gray-100 text-gray-700" },
   in_progress: { label: "Em Atendimento", color: "bg-blue-100 text-blue-700" },
+  waiting_user: { label: "Aguardando Usuário", color: "bg-amber-100 text-amber-700" },
   resolved:    { label: "Resolvido",      color: "bg-green-100 text-green-700" },
   closed:      { label: "Encerrado",      color: "bg-green-100 text-green-700" },
   cancelled:   { label: "Cancelado",      color: "bg-red-100 text-red-700" },
@@ -106,6 +109,11 @@ const TEAM_TABS = [
 
 // ── SLA chip com alerta visual ──────────────────────────────────────────────
 function SlaChip({ deadline, status }: { deadline: string | null; status: string }) {
+  if (status === "waiting_user") return (
+    <span className="text-xs text-amber-600 font-medium flex items-center gap-0.5">
+      <Hourglass size={11} /> SLA pausado
+    </span>
+  );
   if (!deadline || ["resolved", "closed", "cancelled"].includes(status)) return null;
   const diff = new Date(deadline).getTime() - Date.now();
   if (diff <= 0) return (
@@ -142,7 +150,7 @@ export default function AdminChamadosPage() {
 
   // Modal detalhe
   const [selected, setSelected] = useState<Ticket | null>(null);
-  const [detail, setDetail] = useState<{ ticket: Ticket & { description: string; ticket_comments: Comment[]; ticket_history: HistoryEntry[] } } | null>(null);
+  const [detail, setDetail] = useState<{ ticket: Ticket & { description: string; materials?: string | null; cost?: number | null; ticket_comments: Comment[]; ticket_history: HistoryEntry[] } } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [comment, setComment] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -183,6 +191,13 @@ export default function AdminChamadosPage() {
   const [resolveModal, setResolveModal] = useState<Ticket | null>(null);
   const [resolveSolution, setResolveSolution] = useState("");
   const [resolveAssignTo, setResolveAssignTo] = useState("");
+  // Materiais e custo (manutenção) — opcionais ao resolver
+  const [resolveMaterials, setResolveMaterials] = useState("");
+  const [resolveCost, setResolveCost] = useState("");
+
+  // Histórico de chamados do mesmo patrimônio (manutenção)
+  const [patrHistory, setPatrHistory] = useState<Ticket[]>([]);
+  const [showPatrHistory, setShowPatrHistory] = useState(false);
 
   // ── fetch ──────────────────────────────────────────────────────────────
   const fetchTickets = useCallback(async () => {
@@ -248,18 +263,41 @@ export default function AdminChamadosPage() {
   const doAction = async (action: string, extra: Record<string, unknown> = {}) => {
     if (!selected) return;
     setActioning(true);
-    await fetch(`/api/chamados/${selected.id}`, {
+    const patchRes = await fetch(`/api/chamados/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, ...extra }),
     });
     setActioning(false);
+    if (!patchRes.ok) {
+      const err = await patchRes.json().catch(() => null);
+      alert(err?.error ?? "Erro ao atualizar o chamado");
+      return;
+    }
     fetchTickets();
     const res = await fetch(`/api/chamados/${selected.id}`);
     const json = await res.json();
     setDetail(json);
     setSelected(json.ticket);
   };
+
+  // Histórico do equipamento (patrimônio): melhor esforço — oculta em caso de erro
+  useEffect(() => {
+    const patr = detail?.ticket?.equipment_patrimonio;
+    const ticketId = detail?.ticket?.id;
+    setPatrHistory([]);
+    setShowPatrHistory(false);
+    if (!patr || !ticketId) return;
+    let active = true;
+    fetch(`/api/chamados?view=all&patrimonio=${encodeURIComponent(patr)}&limit=10`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (!active || !j) return;
+        setPatrHistory(((j.tickets ?? []) as Ticket[]).filter(t => t.id !== ticketId));
+      })
+      .catch(() => { /* melhor esforço */ });
+    return () => { active = false; };
+  }, [detail?.ticket?.id, detail?.ticket?.equipment_patrimonio]);
 
   const fetchCategories = useCallback(async () => {
     setLoadingCats(true);
@@ -322,11 +360,15 @@ export default function AdminChamadosPage() {
   ) => setCatForm(prev => ({ ...prev, [field]: e.target.value }));
 
   const quickStatusChange = async (ticketId: string, status: string) => {
-    await fetch(`/api/chamados/${ticketId}`, {
+    const res = await fetch(`/api/chamados/${ticketId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "set_status", status }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      alert(err?.error ?? "Erro ao atualizar status");
+    }
     fetchTickets();
   };
 
@@ -334,12 +376,23 @@ export default function AdminChamadosPage() {
     setResolveModal(ticket);
     setResolveSolution("");
     setResolveAssignTo(ticket.assigned?.id ?? "");
+    setResolveMaterials("");
+    setResolveCost("");
+  };
+
+  const closeResolveModal = () => {
+    setResolveModal(null);
+    setResolveSolution("");
+    setResolveAssignTo("");
+    setResolveMaterials("");
+    setResolveCost("");
   };
 
   const doResolve = async () => {
     if (!resolveModal || !resolveSolution.trim()) return;
     const assignee = resolveAssignTo || resolveModal.assigned?.id;
     if (!assignee) return;
+    const isManutencao = resolveModal.team === "manutencao";
     setActioning(true);
     const res = await fetch(`/api/chamados/${resolveModal.id}`, {
       method: "PATCH",
@@ -348,23 +401,25 @@ export default function AdminChamadosPage() {
         action: "set_status", status: "resolved",
         solution: resolveSolution,
         assigned_to: assignee,
+        materials: isManutencao && resolveMaterials.trim() ? resolveMaterials.trim() : undefined,
+        cost: isManutencao && resolveCost !== "" ? Number(resolveCost) : undefined,
       }),
     });
     setActioning(false);
+    const json = await res.json().catch(() => null);
     if (res.ok) {
-      setResolveModal(null);
-      setResolveSolution("");
-      setResolveAssignTo("");
+      if (json?.aviso) alert(json.aviso);
+      const resolvedId = resolveModal.id;
+      closeResolveModal();
       fetchTickets();
-      if (selected?.id === resolveModal.id) {
-        const r = await fetch(`/api/chamados/${resolveModal.id}`);
-        const json = await r.json();
-        setDetail(json);
-        setSelected(json.ticket);
+      if (selected?.id === resolvedId) {
+        const r = await fetch(`/api/chamados/${resolvedId}`);
+        const detailJson = await r.json();
+        setDetail(detailJson);
+        setSelected(detailJson.ticket);
       }
     } else {
-      const json = await res.json();
-      alert(json.error ?? "Erro ao resolver chamado");
+      alert(json?.error ?? "Erro ao resolver chamado");
     }
   };
 
@@ -526,7 +581,7 @@ export default function AdminChamadosPage() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               className="pl-9"
-              placeholder="Buscar por título..."
+              placeholder="Buscar por título, descrição, nº ou protocolo..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -838,7 +893,7 @@ export default function AdminChamadosPage() {
               </DialogHeader>
 
               {/* Atribuição manual */}
-              {["open","in_progress"].includes(selected.status) && (
+              {["open","in_progress","waiting_user"].includes(selected.status) && (
                 <div className="flex gap-2 items-center border rounded-lg px-3 py-2 bg-muted/50">
                   <UserCheck size={15} className="text-muted-foreground shrink-0" />
                   <Select value={assignToId || "__none__"} onValueChange={v => setAssignToId(v === "__none__" ? "" : v)}>
@@ -867,12 +922,23 @@ export default function AdminChamadosPage() {
                   </Button>
                 )}
                 {selected.status === "in_progress" && (
+                  <Button size="sm" variant="outline" className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                    onClick={() => doAction("set_status", { status: "waiting_user" })} disabled={actioning}>
+                    <Hourglass size={14} /> Aguardar Usuário
+                  </Button>
+                )}
+                {selected.status === "waiting_user" && (
+                  <Button size="sm" onClick={() => doAction("set_status", { status: "in_progress" })} disabled={actioning}>
+                    <RefreshCw size={14} /> Retomar Atendimento
+                  </Button>
+                )}
+                {["in_progress","waiting_user"].includes(selected.status) && (
                   <Button size="sm" className="bg-green-600 hover:bg-green-700"
                     onClick={() => openResolveModal(selected)} disabled={actioning}>
                     <CheckCircle2 size={14} /> Resolver
                   </Button>
                 )}
-                {["open","in_progress"].includes(selected.status) && (
+                {["open","in_progress","waiting_user"].includes(selected.status) && (
                   <Button size="sm" variant="outline" className="text-red-600 border-red-200"
                     onClick={() => doAction("set_status", { status: "cancelled" })} disabled={actioning}>
                     <XCircle size={14} /> Cancelar
@@ -946,6 +1012,56 @@ export default function AdminChamadosPage() {
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <p className="text-xs font-bold text-green-700 mb-1 flex items-center gap-1"><CheckCircle2 size={12} /> Solução aplicada</p>
                       <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.solution}</p>
+                    </div>
+                  )}
+
+                  {/* Materiais e custo (manutenção) */}
+                  {(detail.ticket.materials || detail.ticket.cost != null) && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
+                      {detail.ticket.materials && (
+                        <div>
+                          <p className="text-xs font-bold text-orange-700 mb-1 flex items-center gap-1"><Wrench size={12} /> Materiais utilizados</p>
+                          <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.materials}</p>
+                        </div>
+                      )}
+                      {detail.ticket.cost != null && (
+                        <p className="text-sm text-gray-700">
+                          <span className="text-xs font-bold text-orange-700">Custo:</span>{" "}
+                          {Number(detail.ticket.cost).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Histórico do equipamento (patrimônio) */}
+                  {detail.ticket.equipment_patrimonio && patrHistory.length > 0 && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowPatrHistory(v => !v)}
+                        className="w-full flex items-center justify-between bg-gray-50 px-4 py-2.5 text-sm font-medium hover:bg-gray-100 transition-colors"
+                      >
+                        <span className="flex items-center gap-2">
+                          <History size={15} />
+                          Histórico deste equipamento ({patrHistory.length} chamado{patrHistory.length > 1 ? "s" : ""})
+                          <span className="font-mono text-xs text-muted-foreground">Pat. {detail.ticket.equipment_patrimonio}</span>
+                        </span>
+                        {showPatrHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                      {showPatrHistory && (
+                        <div className="divide-y">
+                          {patrHistory.map(t => (
+                            <div key={t.id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                              <span className="font-mono text-xs text-muted-foreground shrink-0">#{String(t.number).padStart(4, "0")}</span>
+                              <span className="flex-1 truncate">{t.title}</span>
+                              <Badge className={`text-xs border-0 shrink-0 ${STATUS[t.status]?.color ?? "bg-gray-100 text-gray-700"}`}>
+                                {STATUS[t.status]?.label ?? t.status}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground shrink-0">{formatDate(t.created_at)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1094,7 +1210,7 @@ export default function AdminChamadosPage() {
       </Dialog>
 
       {/* Modal Resolver — campos obrigatórios */}
-      <Dialog open={!!resolveModal} onOpenChange={v => { if (!v) { setResolveModal(null); setResolveSolution(""); setResolveAssignTo(""); } }}>
+      <Dialog open={!!resolveModal} onOpenChange={v => { if (!v) closeResolveModal(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1145,8 +1261,41 @@ export default function AdminChamadosPage() {
                 )}
               </div>
 
+              {/* Materiais e custo — apenas manutenção, opcionais */}
+              {resolveModal.team === "manutencao" && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1">
+                      <Wrench size={14} /> Materiais utilizados
+                      <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+                    </Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="Ex: 2m de fio 2,5mm, 1 disjuntor 20A..."
+                      value={resolveMaterials}
+                      onChange={e => setResolveMaterials(e.target.value)}
+                      maxLength={2000}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>
+                      Custo (R$) <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0,00"
+                      value={resolveCost}
+                      onChange={e => setResolveCost(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-end gap-3 pt-2">
-                <Button variant="outline" onClick={() => { setResolveModal(null); setResolveSolution(""); setResolveAssignTo(""); }}>
+                <Button variant="outline" onClick={closeResolveModal}>
                   Cancelar
                 </Button>
                 <Button

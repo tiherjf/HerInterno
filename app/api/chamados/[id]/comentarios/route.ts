@@ -11,7 +11,7 @@ type Params = { params: { id: string } };
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    const isAgent = ["admin", "ti", "rh", "manutencao", "marketing"].includes(profile.role);
+    const isAgent = ["admin", "ti", "manutencao", "marketing"].includes(profile.role);
     const { content, is_internal = false } = await req.json();
 
     if (!content?.trim()) {
@@ -57,6 +57,41 @@ export async function POST(req: NextRequest, { params }: Params) {
       .single();
 
     if (error) throw error;
+
+    // Solicitante respondeu um chamado em "Aguardando usuário": retoma o atendimento,
+    // estende o SLA pelo tempo aguardado e limpa a pausa (melhor esforço — o status
+    // waiting_user só existe após a migração 041, então as colunas estão disponíveis)
+    if (!isAgent && ticket.requester_id === profile.id && ticket.status === "waiting_user") {
+      try {
+        const { data: pausa } = await supabase
+          .from("tickets")
+          .select("waiting_since, sla_deadline")
+          .eq("id", params.id)
+          .maybeSingle();
+        const upd: Record<string, unknown> = {
+          status: "in_progress",
+          waiting_since: null,
+          updated_at: new Date().toISOString(),
+        };
+        if (pausa?.waiting_since && pausa?.sla_deadline) {
+          const aguardadoMs = Date.now() - new Date(pausa.waiting_since).getTime();
+          if (aguardadoMs > 0) {
+            upd.sla_deadline = new Date(new Date(pausa.sla_deadline).getTime() + aguardadoMs).toISOString();
+          }
+        }
+        const { error: resumeErr } = await supabase.from("tickets").update(upd).eq("id", params.id);
+        if (!resumeErr) {
+          await supabase.from("ticket_history").insert({
+            ticket_id: params.id,
+            user_id: profile.id,
+            user_name: profile.full_name,
+            action: "status_changed",
+            old_value: "Aguardando Usuário",
+            new_value: "Em Atendimento",
+          });
+        }
+      } catch { /* melhor esforço — o comentário já foi registrado */ }
+    }
 
     // Primeira resposta do agente: registra first_response_at se ainda não foi
     if (isAgent) {

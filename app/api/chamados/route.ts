@@ -27,8 +27,9 @@ export async function GET(req: NextRequest) {
     const sector = req.nextUrl.searchParams.get("sector") ?? "";
     const responsible = req.nextUrl.searchParams.get("responsible") ?? "";
     const teamFilter = req.nextUrl.searchParams.get("team") ?? "";
+    const patrimonio = req.nextUrl.searchParams.get("patrimonio") ?? "";
 
-    const isAgent = ["admin", "ti", "rh", "manutencao", "marketing"].includes(profile.role);
+    const isAgent = ["admin", "ti", "manutencao", "marketing"].includes(profile.role);
     const supabase = isAgent ? createServiceClient() : createClient();
 
     let query = supabase
@@ -65,11 +66,26 @@ export async function GET(req: NextRequest) {
     if (status) query = query.eq("status", status);
     if (priority) query = query.eq("priority", priority);
     if (category) query = query.eq("category_id", category);
-    if (search) query = query.ilike("title", `%${search}%`);
+    if (search) {
+      // Busca ampla: título, descrição, protocolo MKT e (se numérico) número do chamado.
+      // Remove caracteres reservados do PostgREST (`,` e parênteses) antes de interpolar no .or()
+      const q = search.replace(/[,()]/g, "").trim();
+      if (q) {
+        const conds = [
+          `title.ilike.%${q}%`,
+          `description.ilike.%${q}%`,
+          `mkt_protocolo.ilike.%${q}%`,
+        ];
+        if (/^\d+$/.test(q)) conds.push(`number.eq.${q}`);
+        query = query.or(conds.join(","));
+      }
+    }
     if (dateFrom) query = query.gte("created_at", dateFrom);
     if (dateTo) query = query.lte("created_at", `${dateTo}T23:59:59`);
     if (sector) query = query.ilike("requester_sector", `%${sector}%`);
-    if (responsible) query = query.eq("assigned_to", responsible);
+    // "me" → chamados atribuídos ao próprio usuário (filtro "Meus chamados")
+    if (responsible) query = query.eq("assigned_to", responsible === "me" ? profile.id : responsible);
+    if (patrimonio) query = query.eq("equipment_patrimonio", patrimonio);
 
     const { data, error } = await query;
     if (error) throw error;

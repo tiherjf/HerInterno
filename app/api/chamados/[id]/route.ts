@@ -5,15 +5,18 @@ import { apiError } from "@/lib/api/error";
 import { sendEmail } from "@/lib/email/resend";
 import { chamadoStatusEmail } from "@/lib/email/templates/chamado-atualizado";
 import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
+import { erroColunaChamados, erroCheckStatus } from "@/lib/chamados/migracao";
 
 type Params = { params: { id: string } };
 
-const IS_AGENT = ["admin", "ti", "rh", "manutencao", "marketing"];
+const IS_AGENT = ["admin", "ti", "manutencao", "marketing"];
 
 const STATUS_PT: Record<string, string> = {
-  open: "Aberto", in_progress: "Em Atendimento", resolved: "Resolvido",
-  closed: "Encerrado", cancelled: "Cancelado",
+  open: "Aberto", in_progress: "Em Atendimento", waiting_user: "Aguardando Usuário",
+  resolved: "Resolvido", closed: "Encerrado", cancelled: "Cancelado",
 };
+
+const MSG_MIGRACAO_041 = "Execute a migração 041 no Supabase (041_chamados_melhorias.sql) para habilitar este recurso.";
 const PRIORITY_PT: Record<string, string> = {
   low: "Baixa", medium: "Média", high: "Alta", critical: "Crítica",
 };
@@ -92,7 +95,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { data: current, error: fetchErr } = await supabase
       .from("tickets")
-      .select("id, number, title, status, priority, requester_id, assigned_to, solution")
+      .select("id, number, title, status, priority, requester_id, assigned_to, solution, sla_deadline")
       .eq("id", params.id)
       .single();
 
@@ -147,7 +150,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       updates.resolved_at = null;
       await log(supabase, params.id, profile.id, profile.full_name, "reopened", current.status, "open");
     } else if (action === "set_status") {
-      const allowed = ["open", "in_progress", "resolved", "closed", "cancelled"];
+      const allowed = ["open", "in_progress", "waiting_user", "resolved", "closed", "cancelled"];
       if (!allowed.includes(rest.status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
 
       // Validações obrigatórias para resolver
@@ -163,6 +166,42 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         if (rest.assigned_to && rest.assigned_to !== current.assigned_to) {
           updates.assigned_to = rest.assigned_to;
           if (!current.assigned_to) updates.first_response_at = new Date().toISOString();
+        }
+
+        // Materiais e custo (manutenção) — opcionais
+        if (typeof rest.materials === "string" && rest.materials.trim()) {
+          if (rest.materials.trim().length > 2000) {
+            return NextResponse.json({ error: "Materiais: máximo de 2000 caracteres" }, { status: 400 });
+          }
+          updates.materials = rest.materials.trim();
+        }
+        if (rest.cost !== undefined && rest.cost !== null && rest.cost !== "") {
+          const cost = Number(rest.cost);
+          if (!Number.isFinite(cost) || cost < 0) {
+            return NextResponse.json({ error: "Custo inválido — informe um valor maior ou igual a zero" }, { status: 400 });
+          }
+          updates.cost = cost;
+        }
+      }
+
+      // Entrando em "Aguardando usuário": marca o início da pausa do SLA
+      if (rest.status === "waiting_user" && current.status !== "waiting_user") {
+        updates.waiting_since = new Date().toISOString();
+      }
+
+      // Saindo de "Aguardando usuário": estende o SLA pelo tempo aguardado e limpa a pausa
+      if (current.status === "waiting_user" && rest.status !== "waiting_user") {
+        const { data: pausa } = await supabase
+          .from("tickets")
+          .select("waiting_since")
+          .eq("id", params.id)
+          .maybeSingle();
+        if (pausa?.waiting_since) {
+          const aguardadoMs = Date.now() - new Date(pausa.waiting_since).getTime();
+          if (current.sla_deadline && aguardadoMs > 0) {
+            updates.sla_deadline = new Date(new Date(current.sla_deadline).getTime() + aguardadoMs).toISOString();
+          }
+          updates.waiting_since = null;
         }
       }
 
@@ -187,7 +226,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
     }
 
-    const { error } = await supabase.from("tickets").update(updates).eq("id", params.id);
+    let { error } = await supabase.from("tickets").update(updates).eq("id", params.id);
+    let aviso: string | undefined;
+
+    // Pré-migração 041: materials/cost inexistentes — tenta de novo sem eles
+    // para não bloquear a resolução do chamado
+    if (
+      error &&
+      erroColunaChamados(error, ["materials", "cost"]) &&
+      ("materials" in updates || "cost" in updates)
+    ) {
+      const semNovas = { ...updates };
+      delete semNovas.materials;
+      delete semNovas.cost;
+      const retry = await supabase.from("tickets").update(semNovas).eq("id", params.id);
+      error = retry.error;
+      if (!error) aviso = "Execute a migração 041 para salvar materiais/custo";
+    }
+
+    // Pré-migração 041: waiting_since inexistente ou status 'waiting_user' fora da CHECK constraint
+    if (error && (erroColunaChamados(error, ["waiting_since"]) || erroCheckStatus(error))) {
+      return NextResponse.json({ error: MSG_MIGRACAO_041 }, { status: 400 });
+    }
+
     if (error) throw error;
 
     // Notifica o solicitante por e-mail quando o status muda (melhor esforço)
@@ -218,7 +279,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Notifica clientes conectados em tempo real (melhor esforço)
     await broadcastTicketUpdate(supabase, params.id, "status");
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(aviso ? { ok: true, aviso } : { ok: true });
   } catch (err) {
     return apiError(err);
   }

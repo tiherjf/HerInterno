@@ -1,6 +1,7 @@
 const STATUS_META: Record<string, { label: string; color: string; icon: string }> = {
   open: { label: "Aberto", color: "#2563eb", icon: "📩" },
   in_progress: { label: "Em Atendimento", color: "#d97706", icon: "🔧" },
+  waiting_user: { label: "Aguardando Usuário", color: "#d97706", icon: "⏸️" },
   resolved: { label: "Resolvido", color: "#16a34a", icon: "✅" },
   closed: { label: "Encerrado", color: "#6b7280", icon: "🔒" },
   cancelled: { label: "Cancelado", color: "#dc2626", icon: "🚫" },

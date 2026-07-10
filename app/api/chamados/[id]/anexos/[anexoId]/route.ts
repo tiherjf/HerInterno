@@ -5,7 +5,7 @@ import { apiError } from "@/lib/api/error";
 
 type Params = { params: { id: string; anexoId: string } };
 
-const AGENT_ROLES = ["admin", "ti", "rh", "manutencao", "marketing"];
+const AGENT_ROLES = ["admin", "ti", "manutencao", "marketing"];
 
 // Serve o anexo do chamado via URL assinada (bucket privado).
 // Acesso: solicitante do chamado ou agente.

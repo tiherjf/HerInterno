@@ -6,7 +6,7 @@ import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
 
 type Params = { params: { id: string } };
 
-const AGENT_ROLES = ["admin", "ti", "rh", "manutencao", "marketing"];
+const AGENT_ROLES = ["admin", "ti", "manutencao", "marketing"];
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
