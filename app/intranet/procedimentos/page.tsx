@@ -34,6 +34,11 @@ const TIPOS = [
 
 type TipoKey = typeof TIPOS[number]["key"];
 
+// Rótulo interno para itens sem categoria (agrupados por último)
+const SEM_CATEGORIA = "__geral__";
+
+const fmtBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
 interface Procedimento {
   id: string;
   nome: string;
@@ -43,6 +48,11 @@ interface Procedimento {
   preparacao: string | null;
   ativo: boolean;
   order_num: number;
+  categoria: string | null;
+  preco: number | null;
+  unidade_medida: string | null;
+  protocolo: string | null;
+  profissional: string | null;
 }
 
 const EMPTY_FORM = {
@@ -51,6 +61,11 @@ const EMPTY_FORM = {
   unidade: "Hospital" as UnidadeKey,
   descricao: "",
   preparacao: "",
+  categoria: "",
+  preco: null as number | null,
+  unidade_medida: "",
+  protocolo: "",
+  profissional: "",
 };
 
 export default function ProcedimentosPage() {
@@ -62,6 +77,7 @@ export default function ProcedimentosPage() {
   const [unidadeAtiva, setUnidadeAtiva] = useState<string>("Hospital");
   const [tipoAtivo, setTipoAtivo] = useState<string>("todos");
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set(["exame", "procedimento"]));
+  const [aviso, setAviso] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -87,6 +103,13 @@ export default function ProcedimentosPage() {
     [unidadeAtiva],
   );
 
+  // Categorias já usadas (para reaproveitar no datalist do formulário)
+  const categoriasExistentes = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of items) if (p.categoria?.trim()) set.add(p.categoria.trim());
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [items]);
+
   const filtrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
     return items.filter(p => {
@@ -96,7 +119,9 @@ export default function ProcedimentosPage() {
       return (
         p.nome.toLowerCase().includes(termo) ||
         (p.descricao ?? "").toLowerCase().includes(termo) ||
-        (p.preparacao ?? "").toLowerCase().includes(termo)
+        (p.preparacao ?? "").toLowerCase().includes(termo) ||
+        (p.categoria ?? "").toLowerCase().includes(termo) ||
+        (p.profissional ?? "").toLowerCase().includes(termo)
       );
     });
   }, [items, unidadeAtiva, tipoAtivo, busca]);
@@ -110,6 +135,28 @@ export default function ProcedimentosPage() {
     }
     return map;
   }, [filtrados]);
+
+  // Sub-agrupa uma lista por categoria; categorias ordenadas pelo menor
+  // order_num contido nelas; itens sem categoria ("Geral") vão por último.
+  const agruparPorCategoria = useCallback((lista: Procedimento[]) => {
+    const map = new Map<string, Procedimento[]>();
+    for (const p of lista) {
+      const cat = p.categoria?.trim() || SEM_CATEGORIA;
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(p);
+    }
+    return Array.from(map.entries())
+      .map(([cat, catItems]) => ({
+        cat,
+        items: catItems,
+        minOrder: Math.min(...catItems.map(i => i.order_num ?? Number.MAX_SAFE_INTEGER)),
+      }))
+      .sort((a, b) => {
+        if (a.cat === SEM_CATEGORIA) return 1;
+        if (b.cat === SEM_CATEGORIA) return -1;
+        return a.minOrder - b.minOrder;
+      });
+  }, []);
 
   const toggleExpandido = (key: string) => {
     setExpandidos(prev => {
@@ -134,6 +181,11 @@ export default function ProcedimentosPage() {
       unidade: p.unidade,
       descricao: p.descricao ?? "",
       preparacao: p.preparacao ?? "",
+      categoria: p.categoria ?? "",
+      preco: p.preco ?? null,
+      unidade_medida: p.unidade_medida ?? "",
+      protocolo: p.protocolo ?? "",
+      profissional: p.profissional ?? "",
     });
     setFormError("");
     setShowForm(true);
@@ -153,15 +205,21 @@ export default function ProcedimentosPage() {
         unidade: form.unidade,
         descricao: form.descricao.trim() || null,
         preparacao: form.preparacao.trim() || null,
+        categoria: form.categoria.trim() || null,
+        preco: form.preco,
+        unidade_medida: form.unidade_medida.trim() || null,
+        protocolo: form.protocolo.trim() || null,
+        profissional: form.profissional.trim() || null,
       };
       const url = editingId ? `/api/procedimentos/${editingId}` : "/api/procedimentos";
       const method = editingId ? "PATCH" : "POST";
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const j = await res.json();
         setFormError(j.error ?? "Erro ao salvar.");
         return;
       }
+      setAviso(j.aviso ?? "");
       setShowForm(false);
       fetchItems();
     } finally {
@@ -178,11 +236,83 @@ export default function ProcedimentosPage() {
     fetchItems();
   };
 
-  const f = (field: keyof typeof EMPTY_FORM) => (
+  // Handler genérico para campos de texto do formulário
+  const f = (field: "nome" | "descricao" | "preparacao" | "categoria" | "unidade_medida" | "protocolo" | "profissional") => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
   const totalUnidade = items.filter(p => p.unidade === unidadeAtiva).length;
+
+  // Renderiza um item (card) — reutilizado dentro de cada categoria
+  const renderItem = (p: Procedimento) => {
+    const tipoInfo = TIPOS.find(t => t.key === p.tipo) ?? TIPOS[0];
+    const Icon = tipoInfo.icon;
+    return (
+      <div
+        key={p.id}
+        className={`px-5 py-4 flex items-start gap-4 ${!p.ativo ? "opacity-50" : ""}`}
+      >
+        <Badge className={`inline-flex items-center gap-1 text-xs shrink-0 mt-0.5 ${tipoInfo.cor}`}>
+          <Icon size={11} />
+          {p.tipo === "exame" ? "Exame" : "Procedimento"}
+        </Badge>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
+            {p.profissional && (
+              <Badge variant="outline" className="text-[10px] font-normal text-gray-500 border-gray-200">
+                {p.profissional}
+              </Badge>
+            )}
+          </div>
+          {p.protocolo && (
+            <p className="text-xs text-gray-400 mt-0.5">{p.protocolo}</p>
+          )}
+          {p.descricao && (
+            <p className="text-xs text-gray-500 mt-0.5 flex items-start gap-1">
+              <Info size={11} className="shrink-0 mt-0.5" />
+              {p.descricao}
+            </p>
+          )}
+          {p.preparacao && (
+            <div className="mt-1.5 bg-yellow-50 border border-yellow-200 rounded-md px-3 py-1.5">
+              <p className="text-xs text-yellow-800 flex items-start gap-1">
+                <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                <span><strong>Preparo:</strong> {p.preparacao}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {p.preco != null && (
+          <div className="shrink-0 text-right">
+            <p className="font-semibold text-gray-900 text-sm whitespace-nowrap">
+              {fmtBRL.format(p.preco)}
+              {p.unidade_medida ? <span className="font-normal text-gray-400"> /{p.unidade_medida}</span> : null}
+            </p>
+          </div>
+        )}
+
+        {podeEditar && (
+          <div className="flex items-center gap-1 shrink-0">
+            <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
+              <Pencil size={13} />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title={p.ativo ? "Desativar" : "Ativar"}
+              onClick={() => toggleAtivo(p)}
+              className={p.ativo ? "text-green-600 hover:text-green-800" : "text-gray-400 hover:text-gray-600"}
+            >
+              {p.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -227,12 +357,23 @@ export default function ProcedimentosPage() {
         </div>
       </div>
 
+      {/* Aviso de migração pendente (preço/categoria não salvos) */}
+      {aviso && (
+        <Alert>
+          <AlertCircle size={16} />
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{aviso}</span>
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setAviso("")}>Fechar</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Barra de busca + filtro de tipo */}
       <div className="flex flex-col sm:flex-row gap-3 items-center">
         <div className="relative flex-1 w-full">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar nome ou descrição..."
+            placeholder="Buscar nome, descrição, categoria ou profissional..."
             value={busca}
             onChange={e => setBusca(e.target.value)}
             className="pl-9"
@@ -269,6 +410,8 @@ export default function ProcedimentosPage() {
           {TIPOS.filter(t => tipoAtivo === "todos" || tipoAtivo === t.key).map(tipo => {
             const lista = porTipo.get(tipo.key) ?? [];
             const Icon = tipo.icon;
+            const grupos = agruparPorCategoria(lista);
+            const semSubgrupos = grupos.length === 1 && grupos[0].cat === SEM_CATEGORIA;
             return (
               <Card key={tipo.key} className="overflow-hidden">
                 <Button
@@ -299,52 +442,22 @@ export default function ProcedimentosPage() {
                           </Button>
                         )}
                       </div>
+                    ) : semSubgrupos ? (
+                      <div className="divide-y">
+                        {grupos[0].items.map(renderItem)}
+                      </div>
                     ) : (
                       <div className="divide-y">
-                        {lista.map(p => (
-                          <div
-                            key={p.id}
-                            className={`px-5 py-4 flex items-start gap-4 ${!p.ativo ? "opacity-50" : ""}`}
-                          >
-                            <Badge className={`inline-flex items-center gap-1 text-xs shrink-0 mt-0.5 ${tipo.cor}`}>
-                              <Icon size={11} />
-                              {p.tipo === "exame" ? "Exame" : "Procedimento"}
-                            </Badge>
-
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
-                              {p.descricao && (
-                                <p className="text-xs text-gray-500 mt-0.5 flex items-start gap-1">
-                                  <Info size={11} className="shrink-0 mt-0.5" />
-                                  {p.descricao}
-                                </p>
-                              )}
-                              {p.preparacao && (
-                                <div className="mt-1.5 bg-yellow-50 border border-yellow-200 rounded-md px-3 py-1.5">
-                                  <p className="text-xs text-yellow-800 flex items-start gap-1">
-                                    <AlertCircle size={11} className="shrink-0 mt-0.5" />
-                                    <span><strong>Preparo:</strong> {p.preparacao}</span>
-                                  </p>
-                                </div>
-                              )}
+                        {grupos.map(g => (
+                          <div key={g.cat}>
+                            <div className="px-5 pt-3 pb-1 bg-gray-50/60">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                {g.cat === SEM_CATEGORIA ? "Geral" : g.cat}
+                              </p>
                             </div>
-
-                            {podeEditar && (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
-                                  <Pencil size={13} />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  title={p.ativo ? "Desativar" : "Ativar"}
-                                  onClick={() => toggleAtivo(p)}
-                                  className={p.ativo ? "text-green-600 hover:text-green-800" : "text-gray-400 hover:text-gray-600"}
-                                >
-                                  {p.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                                </Button>
-                              </div>
-                            )}
+                            <div className="divide-y">
+                              {g.items.map(renderItem)}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -368,7 +481,7 @@ export default function ProcedimentosPage() {
 
       {/* Modal formulário */}
       <Dialog open={showForm} onOpenChange={v => { if (!v) setShowForm(false); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Editar Item" : "Novo Procedimento / Exame"}</DialogTitle>
           </DialogHeader>
@@ -398,6 +511,55 @@ export default function ProcedimentosPage() {
             <div className="space-y-1.5">
               <Label>Nome *</Label>
               <Input placeholder="Ex: Hemograma completo, Ressonância magnética..." value={form.nome} onChange={f("nome")} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Categoria</Label>
+                <Input
+                  list="categorias-existentes"
+                  placeholder="Ex: Peeling, Toxina botulínica..."
+                  value={form.categoria}
+                  onChange={f("categoria")}
+                />
+                <datalist id="categorias-existentes">
+                  {categoriasExistentes.map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Preço</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    className="pl-9"
+                    value={form.preco ?? ""}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setForm(prev => ({ ...prev, preco: v === "" ? null : Number(v) }));
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Unidade de medida</Label>
+                <Input placeholder="sessão, ampola, frasco…" value={form.unidade_medida} onChange={f("unidade_medida")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Profissional</Label>
+                <Input placeholder="Dra. Thais e Dra. Jessica" value={form.profissional} onChange={f("profissional")} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Protocolo</Label>
+              <Input placeholder="Protocolo 3 sessões: R$ 1.200,00" value={form.protocolo} onChange={f("protocolo")} />
             </div>
 
             <div className="space-y-1.5">
