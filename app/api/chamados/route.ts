@@ -3,15 +3,10 @@ import { requireStaff } from "@/lib/auth/staff";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import { computeSlaDeadline } from "@/lib/chamados/sla";
+import { agentTeam, AGENT_ROLES, CHAMADOS_TEAMS } from "@/lib/chamados/equipe";
+import { erroCheckPrioridade, MSG_MIGRACAO_042 } from "@/lib/chamados/migracao";
 
-// Determina a equipe do agente (ti, manutencao ou marketing)
-function agentTeam(role: string): string | null {
-  if (role === "admin") return null; // admin vê tudo
-  if (role === "ti") return "ti";
-  if (role === "manutencao") return "manutencao";
-  if (role === "marketing") return "marketing";
-  return null;
-}
+const VALID_PRIORITIES = ["low", "medium", "high", "critical", "scheduled"];
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,7 +24,7 @@ export async function GET(req: NextRequest) {
     const teamFilter = req.nextUrl.searchParams.get("team") ?? "";
     const patrimonio = req.nextUrl.searchParams.get("patrimonio") ?? "";
 
-    const isAgent = ["admin", "ti", "manutencao", "marketing"].includes(profile.role);
+    const isAgent = AGENT_ROLES.includes(profile.role);
     const supabase = isAgent ? createServiceClient() : createClient();
 
     let query = supabase
@@ -56,13 +51,18 @@ export async function GET(req: NextRequest) {
       query = query.eq("assigned_to", profile.id);
     }
 
-    // Filtro por equipe: ti vê só tickets de ti, manutencao vê só manutencao
+    // Escopo por equipe: agente não-admin NUNCA recebe tickets de outra equipe,
+    // independente de view/parâmetros. Na view "own" ele atua como solicitante
+    // (já restrito por requester_id acima, em qualquer equipe).
     const team = agentTeam(profile.role);
     if (team && isAgent && view !== "own") {
       query = query.eq("team", team);
     }
 
-    if (teamFilter) query = query.eq("team", teamFilter);
+    // O parâmetro ?team= só vale para admin (e para solicitantes comuns, que já
+    // estão restritos aos próprios chamados); para agente não-admin é ignorado
+    // — a equipe dele já foi forçada acima.
+    if (teamFilter && !(isAgent && team)) query = query.eq("team", teamFilter);
     if (status) query = query.eq("status", status);
     if (priority) query = query.eq("priority", priority);
     if (category) query = query.eq("category_id", category);
@@ -99,11 +99,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
+    const body = await req.json();
     const {
-      title, description, category_id, priority = "medium", team: requestedTeam,
+      title, description, category_id, team: requestedTeam,
       mkt_is_alteracao, mkt_prazo_desejado,
       location, urgency, equipment_description, equipment_patrimonio,
-    } = await req.json();
+    } = body;
 
     if (!title?.trim() || !description?.trim()) {
       return NextResponse.json({ error: "Título e descrição são obrigatórios" }, { status: 400 });
@@ -112,24 +113,52 @@ export async function POST(req: NextRequest) {
     const supabase = createClient();
     const svc = createServiceClient();
 
-    const VALID_TEAMS = ["ti", "manutencao", "marketing"];
     let sla_deadline: string | null = null;
-    let ticketTeam = VALID_TEAMS.includes(requestedTeam) ? requestedTeam : "ti";
+    let ticketTeam = (CHAMADOS_TEAMS as readonly string[]).includes(requestedTeam) ? requestedTeam : "ti";
 
     if (ticketTeam === "manutencao" && !location?.trim()) {
       return NextResponse.json({ error: "Localização é obrigatória para chamados de manutenção" }, { status: 400 });
     }
-    let resolvedPriority = priority;
+
+    // Prioridade explícita só conta se veio de fato no request; caso contrário
+    // a prioridade padrão da categoria (se houver) prevalece.
+    const explicitPriority =
+      typeof body.priority === "string" && VALID_PRIORITIES.includes(body.priority)
+        ? body.priority
+        : null;
+    let resolvedPriority = explicitPriority ?? "medium";
 
     if (category_id) {
-      const { data: cat } = await supabase
+      type Cat = {
+        sla_hours: number | null;
+        alteracao_sla_hours?: number | null;
+        team: string | null;
+        default_priority?: string | null;
+      };
+      // Seleção defensiva: default_priority só existe após a migração 042 —
+      // se o select falhar, refaz sem as colunas novas.
+      let cat: Cat | null = null;
+      const comNovas = await supabase
         .from("ticket_categories")
         .select("sla_hours, alteracao_sla_hours, team, default_priority")
         .eq("id", category_id)
         .single();
+      if (comNovas.error) {
+        const fallback = await supabase
+          .from("ticket_categories")
+          .select("sla_hours, alteracao_sla_hours, team")
+          .eq("id", category_id)
+          .single();
+        cat = fallback.data as Cat | null;
+      } else {
+        cat = comNovas.data as Cat | null;
+      }
 
       if (cat?.team) ticketTeam = cat.team;
-      if (cat?.default_priority && priority === "medium") resolvedPriority = cat.default_priority;
+      // Prioridade automática pela categoria (quando o request não definiu uma)
+      if (!explicitPriority && cat?.default_priority && VALID_PRIORITIES.includes(cat.default_priority)) {
+        resolvedPriority = cat.default_priority;
+      }
 
       // Para MKT: usa SLA de alteração se aplicável
       const slaHours = (ticketTeam === "marketing" && mkt_is_alteracao === true && cat?.alteracao_sla_hours)
@@ -142,6 +171,9 @@ export async function POST(req: NextRequest) {
         sla_deadline = deadline.toISOString();
       }
     }
+
+    // "A Programar" (scheduled) não corre SLA
+    if (resolvedPriority === "scheduled") sla_deadline = null;
 
     // Gera protocolo COM-AAAA-XXXX para solicitações MKT
     let mktProtocolo: string | null = null;
@@ -183,6 +215,10 @@ export async function POST(req: NextRequest) {
       .select("id, number, mkt_protocolo")
       .single();
 
+    // Pré-migração 042: prioridade 'scheduled' fora da CHECK constraint
+    if (error && erroCheckPrioridade(error)) {
+      return NextResponse.json({ error: MSG_MIGRACAO_042 }, { status: 400 });
+    }
     if (error) throw error;
 
     return NextResponse.json({ ok: true, id: data.id, number: data.number, mkt_protocolo: data.mkt_protocolo }, { status: 201 });

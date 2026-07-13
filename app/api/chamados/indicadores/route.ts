@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { erroColunaChamados } from "@/lib/chamados/migracao";
 
 // Limite de linhas por consulta — evita carregar volumes gigantes em memória.
 const ROW_LIMIT = 5000;
@@ -10,7 +11,27 @@ const ROW_LIMIT = 5000;
 const TZ_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 interface TimedRow { created_at: string; resolved_at?: string | null; first_response_at?: string | null }
-interface ResolvedRow { id: string; created_at: string; resolved_at: string | null; sla_deadline: string | null; rating: number | null; assigned_to: string | null }
+interface ResolvedRow {
+  id: string;
+  number: number | null;
+  title: string | null;
+  team: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  sla_deadline: string | null;
+  rating: number | null;
+  assigned_to: string | null;
+}
+interface ReceivedRow {
+  id: string;
+  priority: string;
+  status: string;
+  created_at: string;
+  first_response_at: string | null;
+  requester_sector: string | null;
+  assigned_to: string | null;
+  ticket_categories: { id: string; name: string; color: string } | { id: string; name: string; color: string }[] | null;
+}
 
 // Média em minutos entre created_at e o campo final (first_response_at/resolved_at)
 function avgMinutes(rows: TimedRow[], endField: "resolved_at" | "first_response_at"): number | null {
@@ -66,25 +87,56 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
-    const period = req.nextUrl.searchParams.get("period") ?? "month"; // month | quarter | semester | year
+    /* ── Resolução do período ──
+       Prioridade dos parâmetros:
+       1. ?month=YYYY-MM  → mês-calendário específico (dia 1 00:00 até dia 1 do mês seguinte, exclusivo)
+       2. ?months=N       → janela móvel (1..24): mês atual + (N-1) meses-calendário anteriores
+       3. ?period=...     → retrocompatível: month | quarter | semester | year */
+    const searchParams = req.nextUrl.searchParams;
+    const monthParam = searchParams.get("month");   // YYYY-MM
+    const monthsParam = searchParams.get("months"); // N (1..24)
+    const period = searchParams.get("period") ?? "month";
+
     const now = new Date();
     let from: Date;
+    let to: Date = now;          // limite superior (exclusivo nas consultas)
+    let prevFrom: Date;          // início da janela anterior (mesma duração)
+    let periodLabel = period;
 
-    if (period === "quarter") {
-      from = new Date(now); from.setMonth(now.getMonth() - 3);
-    } else if (period === "semester") {
-      from = new Date(now); from.setMonth(now.getMonth() - 6);
-    } else if (period === "year") {
-      from = new Date(now); from.setFullYear(now.getFullYear() - 1);
+    if (monthParam) {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)) {
+        return NextResponse.json({ error: "Parâmetro month inválido — use YYYY-MM" }, { status: 400 });
+      }
+      const [y, m] = monthParam.split("-").map(Number);
+      from = new Date(y, m - 1, 1);
+      to = new Date(y, m, 1);           // 1º dia do mês seguinte (exclusivo)
+      prevFrom = new Date(y, m - 2, 1); // mês-calendário anterior
+      periodLabel = monthParam;
+    } else if (monthsParam) {
+      const n = Number(monthsParam);
+      if (!Number.isInteger(n) || n < 1 || n > 24) {
+        return NextResponse.json({ error: "Parâmetro months inválido — use um inteiro de 1 a 24" }, { status: 400 });
+      }
+      // Janela alinhada ao calendário: do dia 1 de (N-1) meses atrás até agora
+      from = new Date(now.getFullYear(), now.getMonth() - (n - 1), 1);
+      prevFrom = new Date(from.getTime() - (to.getTime() - from.getTime()));
+      periodLabel = `ultimos-${n}-meses`;
     } else {
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (period === "quarter") {
+        from = new Date(now); from.setMonth(now.getMonth() - 3);
+      } else if (period === "semester") {
+        from = new Date(now); from.setMonth(now.getMonth() - 6);
+      } else if (period === "year") {
+        from = new Date(now); from.setFullYear(now.getFullYear() - 1);
+      } else {
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+      }
+      // Janela anterior de mesma duração (para comparativo ▲▼)
+      prevFrom = new Date(from.getTime() - (to.getTime() - from.getTime()));
     }
 
-    // Janela anterior de mesma duração (para comparativo ▲▼)
-    const windowMs = now.getTime() - from.getTime();
-    const prevFrom = new Date(from.getTime() - windowMs);
-
     const fromIso = from.toISOString();
+    const toIso = to.toISOString();
     const prevFromIso = prevFrom.toISOString();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     const sixMonthsIso = sixMonthsAgo.toISOString();
@@ -100,26 +152,30 @@ export async function GET(req: NextRequest) {
       prevReceivedRes, // janela anterior — apenas contagem
       prevResolvedRes, // janela anterior — resolvidos
       prevRespondedRes,// janela anterior — primeira resposta
+      olaCatRes,       // categorias com OLA (migração 042 — coluna pode não existir ainda)
     ] = await Promise.all([
       supabase
         .from("tickets")
-        .select("id, priority, status, created_at, requester_sector, ticket_categories(id, name, color)")
+        .select("id, priority, status, created_at, first_response_at, requester_sector, assigned_to, ticket_categories(id, name, color)")
         .gte("created_at", fromIso)
+        .lt("created_at", toIso)
         .limit(ROW_LIMIT),
       supabase
         .from("tickets")
-        .select("id, created_at, resolved_at, sla_deadline, rating, assigned_to")
+        .select("id, number, title, team, created_at, resolved_at, sla_deadline, rating, assigned_to")
         .gte("resolved_at", fromIso)
+        .lt("resolved_at", toIso)
         .limit(ROW_LIMIT),
       supabase
         .from("tickets")
         .select("created_at, first_response_at")
         .gte("first_response_at", fromIso)
+        .lt("first_response_at", toIso)
         .limit(ROW_LIMIT),
       supabase
         .from("tickets")
         .select("id, status, priority, created_at")
-        .in("status", ["open", "in_progress", "waiting_user"])
+        .in("status", ["open", "in_progress", "waiting_user", "waiting_third_party"])
         .limit(ROW_LIMIT),
       supabase
         .from("tickets")
@@ -143,21 +199,24 @@ export async function GET(req: NextRequest) {
         .gte("first_response_at", prevFromIso)
         .lt("first_response_at", fromIso)
         .limit(ROW_LIMIT),
+      supabase
+        .from("ticket_categories")
+        .select("id, ola_hours"),
     ]);
 
-    const received = receivedRes.data ?? [];
+    const received = (receivedRes.data ?? []) as ReceivedRow[];
     const resolvedRows = (resolvedRes.data ?? []) as ResolvedRow[];
     const responded = (respondedRes.data ?? []) as TimedRow[];
     const backlog = backlogRes.data ?? [];
     const sixMonthsRows = sixMonthsRes.data ?? [];
-    const prevResolved = (prevResolvedRes.data ?? []) as Omit<ResolvedRow, "assigned_to">[];
+    const prevResolved = (prevResolvedRes.data ?? []) as Omit<ResolvedRow, "assigned_to" | "number" | "title" | "team">[];
     const prevResponded = (prevRespondedRes.data ?? []) as TimedRow[];
 
     const truncated =
       [received, resolvedRows, responded, backlog, sixMonthsRows, prevResolved, prevResponded]
         .some(arr => arr.length >= ROW_LIMIT);
     if (truncated) {
-      console.warn(`[indicadores] consulta atingiu o limite de ${ROW_LIMIT} linhas — resultados truncados (period=${period})`);
+      console.warn(`[indicadores] consulta atingiu o limite de ${ROW_LIMIT} linhas — resultados truncados (period=${periodLabel})`);
     }
 
     // ── KPIs ──
@@ -168,10 +227,18 @@ export async function GET(req: NextRequest) {
     const openNow = backlog.filter(t => t.status === "open").length;
     const inProgressNow = backlog.filter(t => t.status === "in_progress").length;
     const waitingUserNow = backlog.filter(t => t.status === "waiting_user").length;
+    const waitingThirdPartyNow = backlog.filter(t => t.status === "waiting_third_party").length;
     const criticalOpen = backlog.filter(t => t.priority === "critical" && ["open", "in_progress"].includes(t.status)).length;
 
     // SLA compliance CORRIGIDO: resolvidos no prazo ÷ resolvidos no período com SLA definido
     const sla = slaStats(resolvedRows);
+
+    // SLA dentro × fora do prazo (sobre os resolvidos no período)
+    const slaBreakdown = {
+      within: sla.numerator,
+      breached: sla.denominator - sla.numerator,
+      no_sla: resolvedCount - sla.denominator,
+    };
 
     // Taxa de resolução (informativa): resolvidos no período ÷ recebidos no período
     const resolutionRate = total > 0 ? Math.round((resolvedCount / total) * 100) : null;
@@ -189,7 +256,7 @@ export async function GET(req: NextRequest) {
       : 0;
     const reopenRate = resolvedCount > 0 ? Math.round((reopenedCount / resolvedCount) * 1000) / 10 : null;
 
-    // ── Aging do backlog (open/in_progress; waiting_user à parte) ──
+    // ── Aging do backlog (open/in_progress; aguardando usuário/terceiros à parte) ──
     const dayMs = 86400000;
     const agingBuckets = [
       { label: "0–3 dias", min: 0, max: 3, count: 0 },
@@ -205,16 +272,44 @@ export async function GET(req: NextRequest) {
         if (bucket) bucket.count++;
       });
 
-    // ── Por agente (resolvidos no período) ──
-    const byAgentMap: Record<string, { resolved: number; ratingSum: number; ratingCount: number }> = {};
+    /* ── Por agente ──
+       - resolved: tickets atribuídos ao agente resolvidos no período
+       - attended (atendidos): tickets DISTINTOS atribuídos ao agente criados OU
+         resolvidos no período. Definição escolhida por ser barata e confiável
+         (reaproveita as duas consultas já feitas), sem varrer a tabela de comentários.
+       - mttr: média em minutos (created_at → resolved_at) dos que ele resolveu no período */
+    interface AgentAgg {
+      resolved: number;
+      attended: Set<string>;
+      ratingSum: number;
+      ratingCount: number;
+      mttrSumMs: number;
+      mttrCount: number;
+    }
+    const byAgentMap: Record<string, AgentAgg> = {};
+    const aggFor = (id: string): AgentAgg => {
+      if (!byAgentMap[id]) {
+        byAgentMap[id] = { resolved: 0, attended: new Set(), ratingSum: 0, ratingCount: 0, mttrSumMs: 0, mttrCount: 0 };
+      }
+      return byAgentMap[id];
+    };
     resolvedRows.forEach(t => {
       if (!t.assigned_to) return;
-      if (!byAgentMap[t.assigned_to]) byAgentMap[t.assigned_to] = { resolved: 0, ratingSum: 0, ratingCount: 0 };
-      byAgentMap[t.assigned_to].resolved++;
+      const agg = aggFor(t.assigned_to);
+      agg.resolved++;
+      agg.attended.add(t.id);
       if (t.rating !== null && t.rating !== undefined) {
-        byAgentMap[t.assigned_to].ratingSum += t.rating;
-        byAgentMap[t.assigned_to].ratingCount++;
+        agg.ratingSum += t.rating;
+        agg.ratingCount++;
       }
+      if (t.resolved_at) {
+        agg.mttrSumMs += new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime();
+        agg.mttrCount++;
+      }
+    });
+    received.forEach(t => {
+      if (!t.assigned_to) return;
+      aggFor(t.assigned_to).attended.add(t.id);
     });
     const agentIds = Object.keys(byAgentMap);
     let agentNames: Record<string, string> = {};
@@ -230,12 +325,95 @@ export async function GET(req: NextRequest) {
         id,
         name: agentNames[id] ?? "Desconhecido",
         resolved: byAgentMap[id].resolved,
+        attended: byAgentMap[id].attended.size,
+        mttr: byAgentMap[id].mttrCount > 0
+          ? Math.round(byAgentMap[id].mttrSumMs / byAgentMap[id].mttrCount / 60000)
+          : null,
         csat: byAgentMap[id].ratingCount > 0
           ? Math.round((byAgentMap[id].ratingSum / byAgentMap[id].ratingCount) * 10) / 10
           : null,
         rated_count: byAgentMap[id].ratingCount,
       }))
-      .sort((a, b) => b.resolved - a.resolved);
+      .sort((a, b) => b.resolved - a.resolved || b.attended - a.attended);
+
+    /* ── SLA estourado — motivos ──
+       Tickets resolvidos no período após o prazo (mais recentes primeiro, até 100).
+       O motivo (sla_breach_reason) é da migração 042: buscado numa consulta separada
+       e defensiva — se a coluna ainda não existir (42703/PGRST204), a seção inteira
+       é omitida (breached_tickets = null). */
+    const breachedRows = resolvedRows
+      .filter(r => r.resolved_at && r.sla_deadline && new Date(r.resolved_at) > new Date(r.sla_deadline))
+      .sort((a, b) => new Date(b.resolved_at!).getTime() - new Date(a.resolved_at!).getTime())
+      .slice(0, 100);
+
+    let breached_tickets:
+      | {
+          number: number | null;
+          title: string | null;
+          team: string | null;
+          assigned_name: string | null;
+          resolved_at: string | null;
+          sla_deadline: string | null;
+          sla_breach_reason: string | null;
+        }[]
+      | null = [];
+    if (breachedRows.length > 0) {
+      const { data: reasonRows, error: reasonErr } = await supabase
+        .from("tickets")
+        .select("id, sla_breach_reason")
+        .in("id", breachedRows.map(r => r.id));
+      if (reasonErr) {
+        if (!erroColunaChamados(reasonErr, ["sla_breach_reason"])) {
+          console.warn("[indicadores] falha ao buscar sla_breach_reason:", reasonErr.message);
+        }
+        breached_tickets = null; // pré-042 (ou erro): seção omitida
+      } else {
+        const reasons = Object.fromEntries(
+          (reasonRows ?? []).map((r: { id: string; sla_breach_reason: string | null }) => [r.id, r.sla_breach_reason]),
+        );
+        breached_tickets = breachedRows.map(r => ({
+          number: r.number,
+          title: r.title,
+          team: r.team,
+          assigned_name: r.assigned_to ? (agentNames[r.assigned_to] ?? null) : null,
+          resolved_at: r.resolved_at,
+          sla_deadline: r.sla_deadline,
+          sla_breach_reason: reasons[r.id] ?? null,
+        }));
+      }
+    }
+
+    /* ── OLA (1ª resposta) — migração 042 ──
+       % de primeiras respostas dentro do ola_hours da categoria (tempo corrido),
+       sobre os tickets criados no período que têm first_response_at E categoria
+       com ola_hours definido. Omitido (null) se a coluna ainda não existir. */
+    let ola: { within: number; total: number; pct: number | null } | null = null;
+    if (olaCatRes.error) {
+      if (!erroColunaChamados(olaCatRes.error, ["ola_hours"])) {
+        console.warn("[indicadores] falha ao buscar ola_hours:", olaCatRes.error.message);
+      }
+    } else {
+      const olaByCat: Record<string, number> = {};
+      (olaCatRes.data ?? []).forEach((c: { id: string; ola_hours: number | string | null }) => {
+        if (c.ola_hours !== null && c.ola_hours !== undefined) olaByCat[c.id] = Number(c.ola_hours);
+      });
+      let olaTotal = 0;
+      let olaWithin = 0;
+      received.forEach(t => {
+        if (!t.first_response_at) return;
+        const cat = Array.isArray(t.ticket_categories) ? t.ticket_categories[0] : t.ticket_categories;
+        const hours = cat ? olaByCat[cat.id] : undefined;
+        if (hours === undefined || !(hours > 0)) return;
+        olaTotal++;
+        const elapsedMs = new Date(t.first_response_at).getTime() - new Date(t.created_at).getTime();
+        if (elapsedMs <= hours * 3600000) olaWithin++;
+      });
+      ola = {
+        within: olaWithin,
+        total: olaTotal,
+        pct: olaTotal > 0 ? Math.round((olaWithin / olaTotal) * 100) : null,
+      };
+    }
 
     // ── Heatmap dia da semana × hora (criados no período, fuso do hospital) ──
     const heatmap: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
@@ -323,15 +501,16 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json({
-      period,
+      period: periodLabel,
       from: fromIso,
-      to: now.toISOString(),
+      to: toIso,
       truncated,
       kpis: {
         total,
         open: openNow,
         in_progress: inProgressNow,
         waiting_user: waitingUserNow,
+        waiting_third_party: waitingThirdPartyNow,
         resolved: resolvedCount,
         critical_open: criticalOpen,
         sla_compliance: sla.pct,
@@ -348,7 +527,17 @@ export async function GET(req: NextRequest) {
       },
       // ONA CORRIGIDO: resolvidos no prazo ÷ resolvidos no período com SLA definido
       ona: { numerator: sla.numerator, denominator: sla.denominator, result: sla.pct },
-      aging: { buckets: agingBuckets.map(b => ({ label: b.label, count: b.count })), waiting_user: waitingUserNow },
+      // SLA dentro × fora do prazo (sobre os resolvidos no período)
+      sla: slaBreakdown,
+      // OLA de 1ª resposta (null antes da migração 042)
+      ola,
+      // Estouros de SLA com motivo (null antes da migração 042)
+      breached_tickets,
+      aging: {
+        buckets: agingBuckets.map(b => ({ label: b.label, count: b.count })),
+        waiting_user: waitingUserNow,
+        waiting_third_party: waitingThirdPartyNow,
+      },
       by_agent,
       heatmap,
       by_category,

@@ -9,6 +9,44 @@ const PATIENT_SECRET = new TextEncoder().encode(
 const DEV_COOKIE = "dev_session";
 const isDev = process.env.NODE_ENV === "development";
 
+// Papéis de equipe com acesso parcial à área /admin (conforme mapa de rotas abaixo)
+const ADMIN_TEAM_ROLES = ["ti", "manutencao", "marketing"];
+
+/** Verifica se o caminho está dentro de um prefixo de rota (ex.: /admin/chamados e subrotas). */
+function isUnderPath(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(prefix + "/");
+}
+
+/**
+ * Mapa de acesso por caminho dentro de /admin:
+ * - /admin/chamados/**  → admin, ti, manutencao, marketing
+ * - /admin/inventario/** → admin, ti
+ * - /admin/chatbot/**    → admin, ti
+ * - /admin/ponto/**      → admin (RH/TI usam /intranet/ponto/rh)
+ * - /admin/usuarios/**   → admin
+ * - demais rotas /admin (incl. dashboard raiz) → admin
+ */
+function adminPathAllowed(pathname: string, role: string): boolean {
+  if (role === "admin") return true;
+  if (isUnderPath(pathname, "/admin/chamados")) {
+    return ADMIN_TEAM_ROLES.includes(role);
+  }
+  if (isUnderPath(pathname, "/admin/inventario") || isUnderPath(pathname, "/admin/chatbot")) {
+    return role === "ti";
+  }
+  return false;
+}
+
+/** Destino do redirect quando o acesso a uma rota /admin é bloqueado (evita loops). */
+function adminBlockedRedirect(pathname: string, role: string, requestUrl: string): NextResponse {
+  // Papéis de equipe vão para o painel de chamados (que lhes é permitido),
+  // exceto se o bloqueio ocorreu dentro do próprio /admin/chamados
+  if (ADMIN_TEAM_ROLES.includes(role) && !isUnderPath(pathname, "/admin/chamados")) {
+    return NextResponse.redirect(new URL("/admin/chamados", requestUrl));
+  }
+  return NextResponse.redirect(new URL("/intranet", requestUrl));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -58,8 +96,8 @@ export async function middleware(request: NextRequest) {
         try {
           const session = JSON.parse(devCookie);
           if (session.type === "staff") {
-            if (pathname.startsWith("/admin") && !["admin", "ti"].includes(session.role)) {
-              return NextResponse.redirect(new URL("/intranet", request.url));
+            if (pathname.startsWith("/admin") && !adminPathAllowed(pathname, session.role)) {
+              return adminBlockedRedirect(pathname, session.role, request.url);
             }
             return NextResponse.next();
           }
@@ -109,8 +147,8 @@ export async function middleware(request: NextRequest) {
           .eq("id", user.id)
           .single();
 
-        if (!profile || !["admin", "ti"].includes(profile.role)) {
-          return NextResponse.redirect(new URL("/intranet", request.url));
+        if (!profile || !adminPathAllowed(pathname, profile.role)) {
+          return adminBlockedRedirect(pathname, profile?.role ?? "", request.url);
         }
       }
     } catch {

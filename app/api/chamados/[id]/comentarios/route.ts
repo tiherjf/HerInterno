@@ -5,22 +5,17 @@ import { apiError } from "@/lib/api/error";
 import { sendEmail } from "@/lib/email/resend";
 import { chamadoComentarioEmail } from "@/lib/email/templates/chamado-atualizado";
 import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
+import { isAgentForTicket } from "@/lib/chamados/equipe";
 
 type Params = { params: { id: string } };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    const isAgent = ["admin", "ti", "manutencao", "marketing"].includes(profile.role);
     const { content, is_internal = false } = await req.json();
 
     if (!content?.trim()) {
       return NextResponse.json({ error: "Conteúdo obrigatório" }, { status: 400 });
-    }
-
-    // Apenas agentes podem criar notas internas
-    if (is_internal && !isAgent) {
-      return NextResponse.json({ error: "Sem permissão para notas internas" }, { status: 403 });
     }
 
     const supabase = createServiceClient();
@@ -28,12 +23,21 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Verifica se o usuário tem acesso ao ticket
     const { data: ticket } = await supabase
       .from("tickets")
-      .select("id, number, title, requester_id, status")
+      .select("id, number, title, requester_id, status, team")
       .eq("id", params.id)
       .single();
 
     if (!ticket) {
       return NextResponse.json({ error: "Chamado não encontrado" }, { status: 404 });
+    }
+
+    // Escopo por equipe: agente só atua como agente em tickets da própria
+    // equipe; fora dela é tratado como solicitante comum
+    const isAgent = isAgentForTicket(profile.role, ticket.team);
+
+    // Apenas agentes da equipe do chamado podem criar notas internas
+    if (is_internal && !isAgent) {
+      return NextResponse.json({ error: "Sem permissão para notas internas" }, { status: 403 });
     }
 
     if (!isAgent && ticket.requester_id !== profile.id) {
@@ -60,7 +64,9 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Solicitante respondeu um chamado em "Aguardando usuário": retoma o atendimento,
     // estende o SLA pelo tempo aguardado e limpa a pausa (melhor esforço — o status
-    // waiting_user só existe após a migração 041, então as colunas estão disponíveis)
+    // waiting_user só existe após a migração 041, então as colunas estão disponíveis).
+    // IMPORTANTE: só vale para waiting_user — "Aguardando Terceiros"
+    // (waiting_third_party) NÃO retoma automaticamente com comentário do solicitante.
     if (!isAgent && ticket.requester_id === profile.id && ticket.status === "waiting_user") {
       try {
         const { data: pausa } = await supabase

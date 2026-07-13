@@ -31,6 +31,7 @@ import {
   CheckSquare,
   MessageCircle,
   CalendarClock,
+  Tags,
   LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -65,32 +66,44 @@ const ICON_MAP: Record<string, LucideIcon> = {
   MessageCircle,
 };
 
-const adminGroups = [
+// Papéis com acesso à área de chamados no /admin
+const TICKET_TEAM_ROLES: StaffRole[] = ["admin", "ti", "manutencao", "marketing"];
+
+interface AdminMenuItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  /** Papéis que enxergam este item (mesmo mapa aplicado no middleware) */
+  roles: StaffRole[];
+}
+
+const adminGroups: { label: string; items: AdminMenuItem[] }[] = [
   {
     label: "Gestão",
     items: [
-      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/admin/usuarios", label: "Usuários", icon: Users },
+      { href: "/admin", label: "Dashboard", icon: LayoutDashboard, roles: ["admin"] },
+      { href: "/admin/usuarios", label: "Usuários", icon: Users, roles: ["admin"] },
     ],
   },
   {
     label: "Capacitação",
     items: [
-      { href: "/admin/chatbot", label: "Base de Conhecimento", icon: MessageSquare },
+      { href: "/admin/chatbot", label: "Base de Conhecimento", icon: MessageSquare, roles: ["admin", "ti"] },
     ],
   },
   {
     label: "Suporte & TI",
     items: [
-      { href: "/admin/chamados", label: "Chamados", icon: Ticket },
-      { href: "/admin/chamados/preventivas", label: "Preventivas", icon: CalendarClock },
-      { href: "/admin/inventario", label: "Inventário TI", icon: Package },
+      { href: "/admin/chamados", label: "Chamados", icon: Ticket, roles: TICKET_TEAM_ROLES },
+      { href: "/admin/chamados/preventivas", label: "Preventivas", icon: CalendarClock, roles: TICKET_TEAM_ROLES },
+      { href: "/admin/chamados/categorias", label: "Categorias & SLA", icon: Tags, roles: TICKET_TEAM_ROLES },
+      { href: "/admin/inventario", label: "Inventário TI", icon: Package, roles: ["admin", "ti"] },
     ],
   },
   {
     label: "RH",
     items: [
-      { href: "/admin/ponto", label: "Ponto / RH", icon: BarChart3 },
+      { href: "/admin/ponto", label: "Ponto / RH", icon: BarChart3, roles: ["admin"] },
     ],
   },
 ];
@@ -116,8 +129,15 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { isOpen: mobileOpen, close } = useMobileSidebar();
-  const isAdmin = ["admin", "ti"].includes(role);
-  const canConfig = ["admin", "ti", "marketing"].includes(role);
+  // Filtra os grupos admin conforme o papel (mesmo mapa do middleware)
+  const visibleAdminGroups = adminGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.roles.includes(role)),
+    }))
+    .filter((group) => group.items.length > 0);
+  // Edição de permissões de menu é exclusiva do admin
+  const canConfig = role === "admin";
 
   // Agrupar itens por categoria na ordem definida
   const grouped = CATEGORY_ORDER.map((cat) => ({
@@ -251,7 +271,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
           </div>
         ))}
 
-        {/* Configurações (ti + marketing + admin) */}
+        {/* Configurações (somente admin) */}
         {canConfig && (
           <div className="mb-2">
             {!collapsed && (
@@ -270,8 +290,8 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
           </div>
         )}
 
-        {/* Seção Admin agrupada por categoria (admin + ti) */}
-        {isAdmin && adminGroups.map((group) => (
+        {/* Seção Admin agrupada por categoria, filtrada por papel */}
+        {visibleAdminGroups.map((group) => (
           <div key={group.label} className="mb-2">
             {!collapsed && (
               <p className="px-4 pt-3 pb-1 text-xs font-semibold text-primary-foreground/50 uppercase tracking-wider">

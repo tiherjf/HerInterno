@@ -15,11 +15,12 @@ import {
   Layers, Info,
 } from "lucide-react";
 
-// Roles editáveis (admin e ti são fixos)
-const EDITABLE_ROLES: StaffRole[] = ["marketing", "rh", "recepcao", "enfermagem", "administrativo", "manutencao", "qualidade"];
+// Roles editáveis (apenas admin é fixo)
+const EDITABLE_ROLES: StaffRole[] = ["ti", "marketing", "rh", "recepcao", "enfermagem", "administrativo", "manutencao", "qualidade"];
 
 // Cores de destaque por role
 const ROLE_ACCENT: Record<string, string> = {
+  ti:        "text-indigo-600",
   marketing: "text-pink-600",
   rh:        "text-violet-600",
   recepcao:  "text-emerald-600",
@@ -71,7 +72,7 @@ export function MenuPermissionsEditor({ items }: Props) {
   }
 
   function toggleView(key: string, role: StaffRole) {
-    if (role === "admin" || role === "ti") return;
+    if (role === "admin") return;
     setState(prev => {
       const s = prev[key];
       const canView = new Set(s.can_view);
@@ -87,7 +88,7 @@ export function MenuPermissionsEditor({ items }: Props) {
   }
 
   function toggleEdit(key: string, role: StaffRole) {
-    if (role === "admin" || role === "ti") return;
+    if (role === "admin") return;
     setState(prev => {
       const s = prev[key];
       if (!s.can_view.has(role)) return prev; // can't edit without view
@@ -212,7 +213,7 @@ export function MenuPermissionsEditor({ items }: Props) {
 
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg">
             <Info size={12} className="text-blue-500 shrink-0" />
-            Admin e TI têm acesso total sempre
+            Apenas o Admin tem acesso total sempre
           </div>
         </div>
 
@@ -367,7 +368,7 @@ export function MenuPermissionsEditor({ items }: Props) {
 
                     {/* Sistema (locked admin+ti) */}
                     <td className="px-3 py-3 text-center border-r">
-                      <div className="flex gap-1 justify-center" title="Admin e TI sempre têm acesso completo">
+                      <div className="flex gap-1 justify-center" title="Admin sempre tem acesso completo">
                         <span className="p-1 bg-gray-100 rounded text-gray-400">
                           <Shield size={12} />
                         </span>
@@ -435,7 +436,7 @@ export function MenuPermissionsEditor({ items }: Props) {
           <PenLine size={12} className="text-amber-500" /> Criar / Editar conteúdo
         </span>
         <span className="flex items-center gap-1.5">
-          <Shield size={12} className="text-gray-400" /> Admin & TI — acesso fixo
+          <Shield size={12} className="text-gray-400" /> Admin — acesso fixo
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />

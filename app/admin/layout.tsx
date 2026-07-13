@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
-import { requireAdmin } from "@/lib/auth/staff";
+import { redirect } from "next/navigation";
+import { requireStaff } from "@/lib/auth/staff";
 import { getMenuForRole } from "@/lib/menu/server";
 import { getMenuPermissionsForUser } from "@/lib/menu/server";
 import type { StaffRole } from "@/lib/menu/types";
@@ -13,7 +14,11 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await requireAdmin();
+  const profile = await requireStaff();
+  // Papéis com acesso a alguma área de /admin; o controle por rota fica no middleware
+  if (!["admin", "ti", "manutencao", "marketing"].includes(profile.role)) {
+    redirect("/intranet");
+  }
   const role = profile.role as StaffRole;
 
   const [menuItems, permissions] = await Promise.all([

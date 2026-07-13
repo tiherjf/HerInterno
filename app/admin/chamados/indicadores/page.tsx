@@ -14,6 +14,7 @@ interface KPIs {
   open: number;
   in_progress: number;
   waiting_user: number;
+  waiting_third_party: number;
   resolved: number;
   critical_open: number;
   sla_compliance: number | null;
@@ -33,7 +34,26 @@ interface MonthBar { month: string; count: number }
 interface OnaData { numerator: number; denominator: number; result: number | null }
 interface MonthOna { month: string; total: number; within: number; pct: number | null }
 interface AgingBucket { label: string; count: number }
-interface AgentRow { id: string; name: string; resolved: number; csat: number | null; rated_count: number }
+interface AgentRow {
+  id: string;
+  name: string;
+  resolved: number;
+  attended: number;
+  mttr: number | null;
+  csat: number | null;
+  rated_count: number;
+}
+interface SlaBreakdown { within: number; breached: number; no_sla: number }
+interface OlaData { within: number; total: number; pct: number | null }
+interface BreachedTicket {
+  number: number | null;
+  title: string | null;
+  team: string | null;
+  assigned_name: string | null;
+  resolved_at: string | null;
+  sla_deadline: string | null;
+  sla_breach_reason: string | null;
+}
 interface Previous {
   from: string;
   to: string;
@@ -47,10 +67,15 @@ interface Previous {
 }
 
 interface IndicatorsData {
+  from: string;
+  to: string;
   truncated: boolean;
   kpis: KPIs;
   ona: OnaData;
-  aging: { buckets: AgingBucket[]; waiting_user: number };
+  sla: SlaBreakdown;
+  ola: OlaData | null;
+  breached_tickets: BreachedTicket[] | null;
+  aging: { buckets: AgingBucket[]; waiting_user: number; waiting_third_party: number };
   by_agent: AgentRow[];
   heatmap: number[][];
   by_category: CategoryBar[];
@@ -68,7 +93,33 @@ const PERIODS = [
   { key: "year",     label: "Ano" },
 ];
 
+const MONTHS_OPTIONS = [1, 2, 3, 4, 5, 6, 9, 12];
+
+// Seleção de período: presets retrocompatíveis, mês específico ou "últimos N meses"
+type PeriodSel =
+  | { type: "preset"; key: string }
+  | { type: "month"; value: string }   // YYYY-MM
+  | { type: "months"; value: number }; // 1..24
+
+function periodQuery(sel: PeriodSel): string {
+  if (sel.type === "month") return `month=${sel.value}`;
+  if (sel.type === "months") return `months=${sel.value}`;
+  return `period=${sel.key}`;
+}
+
+function periodTag(sel: PeriodSel): string {
+  if (sel.type === "month") return sel.value;
+  if (sel.type === "months") return `ultimos-${sel.value}-meses`;
+  return sel.key;
+}
+
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+const TEAM_LABELS: Record<string, string> = {
+  ti: "TI",
+  manutencao: "Manutenção",
+  marketing: "Marketing",
+};
 
 function formatMinutes(mins: number | null): string {
   if (mins === null) return "—";
@@ -76,6 +127,21 @@ function formatMinutes(mins: number | null): string {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+/* Intervalo de datas resolvido pelo servidor. `to` é exclusivo (1º dia do mês
+   seguinte quando ?month=...), então exibimos to − 1ms como fim inclusivo. */
+function rangeLabel(from: string, to: string): string {
+  return `${formatDate(from)} – ${new Date(new Date(to).getTime() - 1).toLocaleDateString("pt-BR")}`;
 }
 
 /* Delta ▲▼ vs período anterior.
@@ -212,13 +278,68 @@ function Heatmap({ matrix }: { matrix: number[][] }) {
   );
 }
 
-function exportCSV(data: IndicatorsData, period: string) {
+/* Barra empilhada dentro × fora do prazo × sem SLA (resolvidos no período) */
+function SlaBreakdownCard({ sla }: { sla: SlaBreakdown }) {
+  const total = sla.within + sla.breached + sla.no_sla;
+  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+  const segments = [
+    { label: "Dentro do prazo", count: sla.within, color: "#22c55e" },
+    { label: "Fora do prazo", count: sla.breached, color: "#ef4444" },
+    { label: "Sem SLA", count: sla.no_sla, color: "#9ca3af" },
+  ];
+  return (
+    <div className="bg-white rounded-xl border p-5">
+      <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+        <ShieldCheck size={16} className="text-gray-500" /> SLA — Dentro × Fora do Prazo
+      </h2>
+      <p className="text-[11px] text-muted-foreground mb-4">Chamados resolvidos no período</p>
+      {total === 0 ? (
+        <p className="text-sm text-muted-foreground py-4">Sem chamados resolvidos no período</p>
+      ) : (
+        <>
+          <div className="flex h-6 rounded-full overflow-hidden bg-gray-100">
+            {segments.filter(s => s.count > 0).map(s => (
+              <div
+                key={s.label}
+                title={`${s.label}: ${s.count}`}
+                className="h-full flex items-center justify-center transition-all duration-700"
+                style={{ width: `${pct(s.count)}%`, backgroundColor: s.color }}
+              >
+                {pct(s.count) > 10 && (
+                  <span className="text-[11px] text-white font-bold">{s.count}</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+            {segments.map(s => (
+              <span key={s.label} className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: s.color }} />
+                {s.label}: <span className="font-semibold text-gray-900">{s.count}</span>
+                {total > 0 && <span className="text-muted-foreground">({Math.round(pct(s.count))}%)</span>}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function exportCSV(data: IndicatorsData, tag: string) {
   const q = (c: string | number) => `"${String(c).replace(/"/g, '""')}"`;
   const rows: (string | number)[][] = [
     ["Indicador", "Valor", "Período anterior"],
+    ["Período", rangeLabel(data.from, data.to), rangeLabel(data.previous.from, data.previous.to)],
     ["Recebidos", data.kpis.total, data.previous.received],
     ["Resolvidos", data.kpis.resolved, data.previous.resolved],
     ["SLA no prazo (%)", data.kpis.sla_compliance ?? "N/A", data.previous.sla_compliance ?? "N/A"],
+    ["Resolvidos dentro do prazo", data.sla.within, ""],
+    ["Resolvidos fora do prazo", data.sla.breached, ""],
+    ["Resolvidos sem SLA", data.sla.no_sla, ""],
+    ...(data.ola && data.ola.total > 0
+      ? [["OLA 1ª resposta (%)", data.ola.pct ?? "N/A", ""] as (string | number)[]]
+      : []),
     ["Taxa de resolução (%)", data.kpis.resolution_rate ?? "N/A", ""],
     ["MTTA", formatMinutes(data.kpis.mtta), formatMinutes(data.previous.mtta)],
     ["MTTR", formatMinutes(data.kpis.mttr), formatMinutes(data.previous.mttr)],
@@ -227,40 +348,58 @@ function exportCSV(data: IndicatorsData, period: string) {
     ["Chamados avaliados", data.kpis.rated_count, ""],
     ["Críticos em aberto (agora)", data.kpis.critical_open, ""],
     ["Backlog aguardando usuário", data.aging.waiting_user, ""],
+    ["Backlog aguardando terceiros", data.aging.waiting_third_party ?? 0, ""],
     ...data.aging.buckets.map(b => [`Backlog ${b.label}`, b.count, ""] as (string | number)[]),
     [],
     ["Categoria", "Chamados"],
     ...data.by_category.map(c => [c.name, c.count] as (string | number)[]),
     [],
-    ["Agente", "Resolvidos", "CSAT médio"],
-    ...data.by_agent.map(a => [a.name, a.resolved, a.csat ?? "N/A"] as (string | number)[]),
+    ["Agente", "Atendidos", "Resolvidos", "MTTR médio", "CSAT médio"],
+    ...data.by_agent.map(a =>
+      [a.name, a.attended, a.resolved, formatMinutes(a.mttr), a.csat ?? "N/A"] as (string | number)[]),
   ];
+
+  if (data.breached_tickets) {
+    rows.push(
+      [],
+      ["SLA estourado — Chamado", "Título", "Equipe", "Agente", "Resolvido em", "Prazo SLA", "Motivo do estouro"],
+      ...data.breached_tickets.map(t => [
+        t.number ?? "—",
+        t.title ?? "—",
+        t.team ? (TEAM_LABELS[t.team] ?? t.team) : "—",
+        t.assigned_name ?? "—",
+        formatDateTime(t.resolved_at),
+        formatDateTime(t.sla_deadline),
+        t.sla_breach_reason ?? "sem motivo registrado",
+      ] as (string | number)[]),
+    );
+  }
 
   const csv = "﻿" + rows.map(r => r.map(q).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `indicadores_chamados_${period}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `indicadores_chamados_${tag}_${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
 export default function IndicadoresPage() {
-  const [period, setPeriod] = useState("month");
+  const [sel, setSel] = useState<PeriodSel>({ type: "preset", key: "month" });
   const [data, setData] = useState<IndicatorsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/chamados/indicadores?period=${period}`);
+      const res = await fetch(`/api/chamados/indicadores?${periodQuery(sel)}`);
       const json = await res.json();
       setData(json);
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [sel]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -269,6 +408,8 @@ export default function IndicadoresPage() {
   const maxPrio = data ? Math.max(...data.by_priority.map(p => p.count), 1) : 1;
   const maxMonth = data ? Math.max(...data.monthly_volume.map(m => m.count), 1) : 1;
   const maxAging = data ? Math.max(...data.aging.buckets.map(b => b.count), 1) : 1;
+
+  const currentMonth = new Date().toISOString().slice(0, 7); // limite do <input type="month">
 
   return (
     <div className="space-y-6">
@@ -294,7 +435,7 @@ export default function IndicadoresPage() {
           </Button>
           {data && (
             <>
-              <Button variant="outline" size="sm" onClick={() => exportCSV(data, period)}>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(data, periodTag(sel))}>
                 <Download size={16} /> Exportar CSV
               </Button>
               <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -305,18 +446,48 @@ export default function IndicadoresPage() {
         </div>
       </div>
 
-      {/* Período */}
-      <div className="flex gap-2 print-hide">
+      {/* Período: presets rápidos + mês específico + últimos N meses */}
+      <div className="flex flex-wrap items-center gap-2 print-hide">
         {PERIODS.map(p => (
           <Button
             key={p.key}
             size="sm"
-            variant={period === p.key ? "default" : "outline"}
-            onClick={() => setPeriod(p.key)}
+            variant={sel.type === "preset" && sel.key === p.key ? "default" : "outline"}
+            onClick={() => setSel({ type: "preset", key: p.key })}
           >
             {p.label}
           </Button>
         ))}
+        <span className="mx-1 h-5 w-px bg-gray-200 hidden sm:block" />
+        <input
+          type="month"
+          aria-label="Mês específico"
+          max={currentMonth}
+          value={sel.type === "month" ? sel.value : ""}
+          onChange={e => { if (e.target.value) setSel({ type: "month", value: e.target.value }); }}
+          className={`h-8 rounded-md border px-2.5 text-sm bg-white shadow-sm ${
+            sel.type === "month" ? "border-gray-900 ring-1 ring-gray-900" : "border-input"
+          }`}
+        />
+        <select
+          aria-label="Últimos N meses"
+          value={sel.type === "months" ? String(sel.value) : ""}
+          onChange={e => { if (e.target.value) setSel({ type: "months", value: Number(e.target.value) }); }}
+          className={`h-8 rounded-md border px-2.5 text-sm bg-white shadow-sm ${
+            sel.type === "months" ? "border-gray-900 ring-1 ring-gray-900" : "border-input"
+          }`}
+        >
+          <option value="">Últimos N meses…</option>
+          {MONTHS_OPTIONS.map(n => (
+            <option key={n} value={n}>{n === 1 ? "Último 1 mês" : `Últimos ${n} meses`}</option>
+          ))}
+        </select>
+        {data && !loading && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1.5 ml-1">
+            <CalendarClock size={13} />
+            {rangeLabel(data.from, data.to)}
+          </span>
+        )}
       </div>
 
       {loading ? (
@@ -555,6 +726,27 @@ export default function IndicadoresPage() {
             )}
           </div>
 
+          {/* ── SLA dentro × fora + OLA ── */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={data.ola && data.ola.total > 0 ? "md:col-span-2" : "md:col-span-3"}>
+              <SlaBreakdownCard sla={data.sla} />
+            </div>
+            {data.ola && data.ola.total > 0 && (
+              <KpiCard
+                icon={<Timer size={16} />}
+                label="OLA (1ª resposta)"
+                value={data.ola.pct !== null ? `${data.ola.pct}%` : "—"}
+                sublabel={`${data.ola.within}/${data.ola.total} respondidos dentro do OLA da categoria`}
+                color={
+                  data.ola.pct === null ? "blue"
+                  : data.ola.pct >= 90 ? "green"
+                  : data.ola.pct >= 70 ? "yellow"
+                  : "red"
+                }
+              />
+            )}
+          </div>
+
           {/* ── Aging do backlog + Por agente ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Aging */}
@@ -582,6 +774,12 @@ export default function IndicadoresPage() {
               </div>
               <div className="mt-2 flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Clock size={14} /> Aguardando terceiros (SLA pausado)
+                </span>
+                <span className="font-bold text-gray-900 bg-gray-100 rounded-full px-3 py-0.5">{data.aging.waiting_third_party ?? 0}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1.5">
                   <AlertTriangle size={14} className={data.kpis.critical_open > 0 ? "text-red-500" : ""} /> Críticos em aberto
                 </span>
                 <span className={`font-bold rounded-full px-3 py-0.5 ${data.kpis.critical_open > 0 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-900"}`}>
@@ -592,42 +790,106 @@ export default function IndicadoresPage() {
 
             {/* Por agente */}
             <div className="bg-white rounded-xl border p-5">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <Users size={16} className="text-gray-500" /> Por Agente (resolvidos no período)
+              <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+                <Users size={16} className="text-gray-500" /> Por Agente
               </h2>
+              <p className="text-[11px] text-muted-foreground mb-4">
+                Atendidos = tickets atribuídos criados ou resolvidos no período · MTTR sobre os resolvidos
+              </p>
               {data.by_agent.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4">Sem dados no período</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-muted-foreground border-b">
-                      <th className="pb-2 font-medium">Agente</th>
-                      <th className="pb-2 font-medium text-right">Resolvidos</th>
-                      <th className="pb-2 font-medium text-right">CSAT médio</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.by_agent.map(a => (
-                      <tr key={a.id} className="border-b last:border-0">
-                        <td className="py-2 text-gray-800 truncate max-w-[180px]">{a.name}</td>
-                        <td className="py-2 text-right font-semibold text-gray-900">{a.resolved}</td>
-                        <td className="py-2 text-right">
-                          {a.csat !== null ? (
-                            <span className={`font-semibold ${a.csat >= 4 ? "text-green-600" : a.csat >= 3 ? "text-yellow-600" : "text-red-600"}`}>
-                              {a.csat}/5
-                              <span className="text-[10px] text-muted-foreground font-normal ml-1">({a.rated_count})</span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground border-b">
+                        <th className="pb-2 font-medium">Agente</th>
+                        <th className="pb-2 font-medium text-right">Atendidos</th>
+                        <th className="pb-2 font-medium text-right">Resolvidos</th>
+                        <th className="pb-2 font-medium text-right">MTTR médio</th>
+                        <th className="pb-2 font-medium text-right">CSAT médio</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {data.by_agent.map(a => (
+                        <tr key={a.id} className="border-b last:border-0">
+                          <td className="py-2 text-gray-800 truncate max-w-[160px]">{a.name}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">{a.attended}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">{a.resolved}</td>
+                          <td className="py-2 text-right text-gray-700">{formatMinutes(a.mttr)}</td>
+                          <td className="py-2 text-right">
+                            {a.csat !== null ? (
+                              <span className={`font-semibold ${a.csat >= 4 ? "text-green-600" : a.csat >= 3 ? "text-yellow-600" : "text-red-600"}`}>
+                                {a.csat}/5
+                                <span className="text-[10px] text-muted-foreground font-normal ml-1">({a.rated_count})</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
+
+          {/* ── SLA estourado — motivos (omitido antes da migração 042) ── */}
+          {data.breached_tickets !== null && (
+            <div className="bg-white rounded-xl border p-5">
+              <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+                <AlertTriangle size={16} className="text-red-500" /> SLA Estourado — Motivos
+              </h2>
+              <p className="text-[11px] text-muted-foreground mb-4">
+                Chamados resolvidos no período após o prazo de SLA (até 100, mais recentes primeiro)
+              </p>
+              {data.breached_tickets.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">Nenhum SLA estourado no período 🎉</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[720px]">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground border-b">
+                        <th className="pb-2 font-medium">Nº</th>
+                        <th className="pb-2 font-medium">Título</th>
+                        <th className="pb-2 font-medium">Equipe</th>
+                        <th className="pb-2 font-medium">Agente</th>
+                        <th className="pb-2 font-medium">Resolvido em</th>
+                        <th className="pb-2 font-medium">Prazo SLA</th>
+                        <th className="pb-2 font-medium">Motivo do estouro</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.breached_tickets.map((t, i) => (
+                        <tr key={`${t.number ?? "s"}-${i}`} className="border-b last:border-0 align-top">
+                          <td className="py-2 text-gray-500 whitespace-nowrap">#{t.number ?? "—"}</td>
+                          <td className="py-2 text-gray-800 max-w-[240px]"><span className="line-clamp-2">{t.title ?? "—"}</span></td>
+                          <td className="py-2 text-gray-700 whitespace-nowrap">{t.team ? (TEAM_LABELS[t.team] ?? t.team) : "—"}</td>
+                          <td className="py-2 text-gray-700 truncate max-w-[140px]">{t.assigned_name ?? "—"}</td>
+                          <td className="py-2 text-gray-700 whitespace-nowrap">{formatDateTime(t.resolved_at)}</td>
+                          <td className="py-2 text-gray-700 whitespace-nowrap">{formatDateTime(t.sla_deadline)}</td>
+                          <td className="py-2 text-gray-700 max-w-[260px]">
+                            {t.sla_breach_reason ? (
+                              <span className="line-clamp-3">{t.sla_breach_reason}</span>
+                            ) : (
+                              <span
+                                className="inline-block text-[11px] font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-0.5"
+                                title="Chamado resolvido antes da regra de registro de motivo"
+                              >
+                                sem motivo registrado
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Heatmap dia × hora ── */}
           <div className="bg-white rounded-xl border p-5">

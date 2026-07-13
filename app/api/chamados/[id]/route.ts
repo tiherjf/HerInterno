@@ -1,24 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import { sendEmail } from "@/lib/email/resend";
 import { chamadoStatusEmail } from "@/lib/email/templates/chamado-atualizado";
 import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
-import { erroColunaChamados, erroCheckStatus } from "@/lib/chamados/migracao";
+import { erroColunaChamados, erroCheckStatus, erroCheckPrioridade, MSG_MIGRACAO_042 } from "@/lib/chamados/migracao";
+import { isAgentForTicket } from "@/lib/chamados/equipe";
 
 type Params = { params: { id: string } };
 
-const IS_AGENT = ["admin", "ti", "manutencao", "marketing"];
-
 const STATUS_PT: Record<string, string> = {
   open: "Aberto", in_progress: "Em Atendimento", waiting_user: "Aguardando Usuário",
+  waiting_third_party: "Aguardando Terceiros",
   resolved: "Resolvido", closed: "Encerrado", cancelled: "Cancelado",
 };
 
+// Status que pausam o SLA (waiting_since ativo; só um por vez)
+const WAITING_STATUSES = ["waiting_user", "waiting_third_party"];
+
 const MSG_MIGRACAO_041 = "Execute a migração 041 no Supabase (041_chamados_melhorias.sql) para habilitar este recurso.";
 const PRIORITY_PT: Record<string, string> = {
-  low: "Baixa", medium: "Média", high: "Alta", critical: "Crítica",
+  low: "Baixa", medium: "Média", high: "Alta", critical: "Crítica", scheduled: "A Programar",
 };
 
 async function log(
@@ -44,8 +47,7 @@ async function log(
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    const isAgent = IS_AGENT.includes(profile.role);
-    const supabase = isAgent ? createServiceClient() : createClient();
+    const supabase = createServiceClient();
 
     const { data: ticket, error } = await supabase
       .from("tickets")
@@ -63,6 +65,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .single();
 
     if (error || !ticket) {
+      return NextResponse.json({ error: "Chamado não encontrado" }, { status: 404 });
+    }
+
+    // Escopo por equipe: agente só atua como agente em tickets da própria equipe;
+    // fora dela é tratado como solicitante comum (só vê se for o requester)
+    const isAgent = isAgentForTicket(profile.role, ticket.team);
+    if (!isAgent && ticket.requester_id !== profile.id) {
       return NextResponse.json({ error: "Chamado não encontrado" }, { status: 404 });
     }
 
@@ -87,7 +96,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
-    const isAgent = IS_AGENT.includes(profile.role);
     const body = await req.json();
     const { action, ...rest } = body;
 
@@ -95,13 +103,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { data: current, error: fetchErr } = await supabase
       .from("tickets")
-      .select("id, number, title, status, priority, requester_id, assigned_to, solution, sla_deadline")
+      .select("id, number, title, status, priority, requester_id, assigned_to, solution, sla_deadline, team")
       .eq("id", params.id)
       .single();
 
     if (fetchErr || !current) {
       return NextResponse.json({ error: "Chamado não encontrado" }, { status: 404 });
     }
+
+    // Escopo por equipe: agente só atua como agente em tickets da própria
+    // equipe; fora dela cai nas ações de solicitante (cancel/reopen próprios)
+    const isAgent = isAgentForTicket(profile.role, current.team);
 
     // Ações do solicitante (não-agente)
     if (!isAgent) {
@@ -150,8 +162,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       updates.resolved_at = null;
       await log(supabase, params.id, profile.id, profile.full_name, "reopened", current.status, "open");
     } else if (action === "set_status") {
-      const allowed = ["open", "in_progress", "waiting_user", "resolved", "closed", "cancelled"];
+      const allowed = ["open", "in_progress", "waiting_user", "waiting_third_party", "resolved", "closed", "cancelled"];
       if (!allowed.includes(rest.status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
+
+      // Pausa de SLA: saindo de um status de espera (ou trocando entre
+      // waiting_user ↔ waiting_third_party), estende o SLA pelo tempo já
+      // aguardado e limpa a pausa. Só há um waiting_since ativo por vez.
+      if (WAITING_STATUSES.includes(current.status) && rest.status !== current.status) {
+        const { data: pausa } = await supabase
+          .from("tickets")
+          .select("waiting_since")
+          .eq("id", params.id)
+          .maybeSingle();
+        if (pausa?.waiting_since) {
+          const aguardadoMs = Date.now() - new Date(pausa.waiting_since).getTime();
+          if (current.sla_deadline && aguardadoMs > 0) {
+            updates.sla_deadline = new Date(new Date(current.sla_deadline).getTime() + aguardadoMs).toISOString();
+          }
+          updates.waiting_since = null;
+        }
+      }
+
+      // Entrando em um status de espera: (re)marca o início da pausa do SLA
+      // (na troca entre esperas, sobrescreve o null acima com o novo início)
+      if (WAITING_STATUSES.includes(rest.status) && rest.status !== current.status) {
+        updates.waiting_since = new Date().toISOString();
+      }
 
       // Validações obrigatórias para resolver
       if (rest.status === "resolved") {
@@ -168,6 +204,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           if (!current.assigned_to) updates.first_response_at = new Date().toISOString();
         }
 
+        // Motivo de estouro de SLA: obrigatório ao resolver fora do prazo
+        // (considera o prazo já estendido pela pausa, se for o caso)
+        const breachReason = typeof rest.sla_breach_reason === "string" ? rest.sla_breach_reason.trim() : "";
+        if (breachReason.length > 1000) {
+          return NextResponse.json({ error: "Motivo do estouro do SLA: máximo de 1000 caracteres" }, { status: 400 });
+        }
+        const effectiveDeadline = (updates.sla_deadline as string | undefined) ?? current.sla_deadline;
+        const slaEstourado = !!effectiveDeadline && Date.now() > new Date(effectiveDeadline).getTime();
+        if (slaEstourado && !breachReason) {
+          return NextResponse.json({ error: "Informe o motivo do estouro do SLA para resolver este chamado." }, { status: 400 });
+        }
+        if (breachReason) updates.sla_breach_reason = breachReason;
+
         // Materiais e custo (manutenção) — opcionais
         if (typeof rest.materials === "string" && rest.materials.trim()) {
           if (rest.materials.trim().length > 2000) {
@@ -181,27 +230,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             return NextResponse.json({ error: "Custo inválido — informe um valor maior ou igual a zero" }, { status: 400 });
           }
           updates.cost = cost;
-        }
-      }
-
-      // Entrando em "Aguardando usuário": marca o início da pausa do SLA
-      if (rest.status === "waiting_user" && current.status !== "waiting_user") {
-        updates.waiting_since = new Date().toISOString();
-      }
-
-      // Saindo de "Aguardando usuário": estende o SLA pelo tempo aguardado e limpa a pausa
-      if (current.status === "waiting_user" && rest.status !== "waiting_user") {
-        const { data: pausa } = await supabase
-          .from("tickets")
-          .select("waiting_since")
-          .eq("id", params.id)
-          .maybeSingle();
-        if (pausa?.waiting_since) {
-          const aguardadoMs = Date.now() - new Date(pausa.waiting_since).getTime();
-          if (current.sla_deadline && aguardadoMs > 0) {
-            updates.sla_deadline = new Date(new Date(current.sla_deadline).getTime() + aguardadoMs).toISOString();
-          }
-          updates.waiting_since = null;
         }
       }
 
@@ -229,24 +257,40 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let { error } = await supabase.from("tickets").update(updates).eq("id", params.id);
     let aviso: string | undefined;
 
-    // Pré-migração 041: materials/cost inexistentes — tenta de novo sem eles
-    // para não bloquear a resolução do chamado
+    // Pré-migração 041/042: materials/cost (041) ou sla_breach_reason (042)
+    // inexistentes — tenta de novo sem eles para não bloquear a resolução
+    const COLUNAS_041 = ["materials", "cost"];
+    const COLUNAS_042 = ["sla_breach_reason"];
+    const colunasNovas = [...COLUNAS_041, ...COLUNAS_042];
     if (
       error &&
-      erroColunaChamados(error, ["materials", "cost"]) &&
-      ("materials" in updates || "cost" in updates)
+      erroColunaChamados(error, colunasNovas) &&
+      colunasNovas.some(c => c in updates)
     ) {
       const semNovas = { ...updates };
-      delete semNovas.materials;
-      delete semNovas.cost;
+      for (const c of colunasNovas) delete semNovas[c];
       const retry = await supabase.from("tickets").update(semNovas).eq("id", params.id);
       error = retry.error;
-      if (!error) aviso = "Execute a migração 041 para salvar materiais/custo";
+      if (!error) {
+        const avisos: string[] = [];
+        if (COLUNAS_041.some(c => c in updates)) avisos.push("Execute a migração 041 para salvar materiais/custo");
+        if (COLUNAS_042.some(c => c in updates)) {
+          avisos.push("Execute a migração 042 no Supabase (042_chamados_categorias_ola.sql) para salvar o motivo do estouro do SLA");
+        }
+        aviso = avisos.join(" · ");
+      }
     }
 
-    // Pré-migração 041: waiting_since inexistente ou status 'waiting_user' fora da CHECK constraint
+    // Pré-migração: waiting_since inexistente (041) ou status fora da CHECK
+    // constraint ('waiting_user' → 041; 'waiting_third_party' → 042)
     if (error && (erroColunaChamados(error, ["waiting_since"]) || erroCheckStatus(error))) {
-      return NextResponse.json({ error: MSG_MIGRACAO_041 }, { status: 400 });
+      const precisa042 = action === "set_status" && rest.status === "waiting_third_party";
+      return NextResponse.json({ error: precisa042 ? MSG_MIGRACAO_042 : MSG_MIGRACAO_041 }, { status: 400 });
+    }
+
+    // Pré-migração 042: prioridade 'scheduled' fora da CHECK constraint
+    if (error && erroCheckPrioridade(error)) {
+      return NextResponse.json({ error: MSG_MIGRACAO_042 }, { status: 400 });
     }
 
     if (error) throw error;

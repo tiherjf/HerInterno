@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -16,21 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Search, RefreshCw, Clock, CheckCircle2, XCircle, AlertTriangle,
   User, BarChart2, SlidersHorizontal, ChevronDown, ChevronUp,
   ListChecks, BookOpen, Check, Square, X, Plus, Trash2, RotateCcw,
-  UserCheck, GripVertical, List, Columns, Tag, Pencil, ToggleLeft, ToggleRight,
-  Loader2, Hourglass, Wrench, History,
+  UserCheck, GripVertical, List, Columns, Tag,
+  Loader2, Hourglass, Users, Wrench, History,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -52,6 +43,7 @@ const KANBAN_COLS: { key: string; label: string; header: string; bg: string }[] 
   { key: "open",         label: "Aberto",             header: "bg-gray-200 text-gray-700",  bg: "bg-gray-50" },
   { key: "in_progress",  label: "Em Atendimento",      header: "bg-blue-100 text-blue-800",  bg: "bg-blue-50/40" },
   { key: "waiting_user", label: "Aguardando Usuário",  header: "bg-amber-100 text-amber-800",bg: "bg-amber-50/40" },
+  { key: "waiting_third_party", label: "Aguardando Terceiros", header: "bg-orange-100 text-orange-800", bg: "bg-orange-50/40" },
   { key: "resolved",     label: "Resolvido",           header: "bg-green-100 text-green-800",bg: "bg-green-50/40" },
   { key: "closed",       label: "Encerrado",           header: "bg-slate-200 text-slate-700",bg: "bg-slate-50" },
 ];
@@ -60,12 +52,6 @@ interface HistoryEntry { id: string; user_name: string; action: string; old_valu
 interface ChecklistItem { id: string; text: string; completed: boolean; completed_at: string | null; completer?: { full_name: string } | null }
 interface Template { id: string; name: string; content: string; team: string }
 interface AgentUser { id: string; full_name: string; role: string }
-interface Category {
-  id: string; name: string; color: string; sla_hours: number;
-  team: string; default_priority: string | null; active: boolean;
-}
-
-const EMPTY_CAT = { name: "", color: "#3b82f6", sla_hours: "24", team: "ti", default_priority: "" };
 
 type TimelineItem =
   | ({ kind: "comment" } & Comment)
@@ -77,11 +63,13 @@ const PRIORITY: Record<string, { label: string; color: string }> = {
   medium:   { label: "Média",   color: "bg-yellow-100 text-yellow-700" },
   high:     { label: "Alta",    color: "bg-orange-100 text-orange-700" },
   critical: { label: "Crítica", color: "bg-red-100 text-red-700 font-bold" },
+  scheduled: { label: "A Programar", color: "bg-gray-200 text-gray-600" },
 };
 const STATUS: Record<string, { label: string; color: string }> = {
   open:        { label: "Aberto",         color: "bg-gray-100 text-gray-700" },
   in_progress: { label: "Em Atendimento", color: "bg-blue-100 text-blue-700" },
   waiting_user: { label: "Aguardando Usuário", color: "bg-amber-100 text-amber-700" },
+  waiting_third_party: { label: "Aguardando Terceiros", color: "bg-orange-100 text-orange-700" },
   resolved:    { label: "Resolvido",      color: "bg-green-100 text-green-700" },
   closed:      { label: "Encerrado",      color: "bg-green-100 text-green-700" },
   cancelled:   { label: "Cancelado",      color: "bg-red-100 text-red-700" },
@@ -98,7 +86,6 @@ const TABS = [
   { key: "unassigned",  label: "Não Atribuídos" },
   { key: "my_assigned", label: "Meus" },
   { key: "resolved",    label: "Resolvidos" },
-  { key: "categorias",  label: "Categorias" },
 ];
 const TEAM_TABS = [
   { key: "",           label: "Todas" },
@@ -109,7 +96,7 @@ const TEAM_TABS = [
 
 // ── SLA chip com alerta visual ──────────────────────────────────────────────
 function SlaChip({ deadline, status }: { deadline: string | null; status: string }) {
-  if (status === "waiting_user") return (
+  if (status === "waiting_user" || status === "waiting_third_party") return (
     <span className="text-xs text-amber-600 font-medium flex items-center gap-0.5">
       <Hourglass size={11} /> SLA pausado
     </span>
@@ -150,7 +137,7 @@ export default function AdminChamadosPage() {
 
   // Modal detalhe
   const [selected, setSelected] = useState<Ticket | null>(null);
-  const [detail, setDetail] = useState<{ ticket: Ticket & { description: string; materials?: string | null; cost?: number | null; ticket_comments: Comment[]; ticket_history: HistoryEntry[] } } | null>(null);
+  const [detail, setDetail] = useState<{ ticket: Ticket & { description: string; materials?: string | null; cost?: number | null; sla_breach_reason?: string | null; ticket_comments: Comment[]; ticket_history: HistoryEntry[] } } | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [comment, setComment] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -174,14 +161,6 @@ export default function AdminChamadosPage() {
   const [newChecklistText, setNewChecklistText] = useState("");
   const [addingChecklist, setAddingChecklist] = useState(false);
 
-  // Gestão de categorias
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loadingCats, setLoadingCats] = useState(false);
-  const [showCatForm, setShowCatForm] = useState(false);
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [catForm, setCatForm] = useState(EMPTY_CAT);
-  const [savingCat, setSavingCat] = useState(false);
-
   // View mode e Kanban
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [dragId, setDragId] = useState<string | null>(null);
@@ -194,6 +173,9 @@ export default function AdminChamadosPage() {
   // Materiais e custo (manutenção) — opcionais ao resolver
   const [resolveMaterials, setResolveMaterials] = useState("");
   const [resolveCost, setResolveCost] = useState("");
+  // Motivo do estouro de SLA — obrigatório ao resolver chamado com prazo vencido
+  const [resolveBreachReason, setResolveBreachReason] = useState("");
+  const [resolveError, setResolveError] = useState("");
 
   // Histórico de chamados do mesmo patrimônio (manutenção)
   const [patrHistory, setPatrHistory] = useState<Ticket[]>([]);
@@ -299,66 +281,6 @@ export default function AdminChamadosPage() {
     return () => { active = false; };
   }, [detail?.ticket?.id, detail?.ticket?.equipment_patrimonio]);
 
-  const fetchCategories = useCallback(async () => {
-    setLoadingCats(true);
-    const res = await fetch("/api/chamados/categorias?all=true");
-    const json = await res.json();
-    setCategories(json.categories ?? []);
-    setLoadingCats(false);
-  }, []);
-
-  useEffect(() => {
-    if (tab === "categorias") fetchCategories();
-  }, [tab, fetchCategories]);
-
-  const openCreateCat = () => {
-    setEditingCatId(null);
-    setCatForm(EMPTY_CAT);
-    setShowCatForm(true);
-  };
-
-  const openEditCat = (cat: Category) => {
-    setEditingCatId(cat.id);
-    setCatForm({
-      name: cat.name,
-      color: cat.color,
-      sla_hours: String(cat.sla_hours),
-      team: cat.team,
-      default_priority: cat.default_priority ?? "",
-    });
-    setShowCatForm(true);
-  };
-
-  const saveCat = async () => {
-    if (!catForm.name.trim()) return;
-    setSavingCat(true);
-    const body = {
-      name: catForm.name.trim(),
-      color: catForm.color,
-      sla_hours: Number(catForm.sla_hours) || 24,
-      team: catForm.team,
-      default_priority: catForm.default_priority || null,
-    };
-    const url = editingCatId ? `/api/chamados/categorias/${editingCatId}` : "/api/chamados/categorias";
-    const method = editingCatId ? "PATCH" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    setSavingCat(false);
-    if (res.ok) { setShowCatForm(false); fetchCategories(); }
-  };
-
-  const toggleCatActive = async (cat: Category) => {
-    await fetch(`/api/chamados/categorias/${cat.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: !cat.active }),
-    });
-    fetchCategories();
-  };
-
-  const fc = (field: keyof typeof EMPTY_CAT) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => setCatForm(prev => ({ ...prev, [field]: e.target.value }));
-
   const quickStatusChange = async (ticketId: string, status: string) => {
     const res = await fetch(`/api/chamados/${ticketId}`, {
       method: "PATCH",
@@ -378,6 +300,8 @@ export default function AdminChamadosPage() {
     setResolveAssignTo(ticket.assigned?.id ?? "");
     setResolveMaterials("");
     setResolveCost("");
+    setResolveBreachReason("");
+    setResolveError("");
   };
 
   const closeResolveModal = () => {
@@ -386,13 +310,21 @@ export default function AdminChamadosPage() {
     setResolveAssignTo("");
     setResolveMaterials("");
     setResolveCost("");
+    setResolveBreachReason("");
+    setResolveError("");
   };
+
+  // SLA vencido no momento da resolução → motivo do estouro é obrigatório
+  const resolveSlaBreached = !!(resolveModal?.sla_deadline &&
+    new Date(resolveModal.sla_deadline).getTime() < Date.now());
 
   const doResolve = async () => {
     if (!resolveModal || !resolveSolution.trim()) return;
     const assignee = resolveAssignTo || resolveModal.assigned?.id;
     if (!assignee) return;
+    if (resolveSlaBreached && !resolveBreachReason.trim()) return;
     const isManutencao = resolveModal.team === "manutencao";
+    setResolveError("");
     setActioning(true);
     const res = await fetch(`/api/chamados/${resolveModal.id}`, {
       method: "PATCH",
@@ -403,6 +335,9 @@ export default function AdminChamadosPage() {
         assigned_to: assignee,
         materials: isManutencao && resolveMaterials.trim() ? resolveMaterials.trim() : undefined,
         cost: isManutencao && resolveCost !== "" ? Number(resolveCost) : undefined,
+        sla_breach_reason: resolveSlaBreached && resolveBreachReason.trim()
+          ? resolveBreachReason.trim().slice(0, 1000)
+          : undefined,
       }),
     });
     setActioning(false);
@@ -419,7 +354,7 @@ export default function AdminChamadosPage() {
         setSelected(detailJson.ticket);
       }
     } else {
-      alert(json?.error ?? "Erro ao resolver chamado");
+      setResolveError(json?.error ?? "Erro ao resolver chamado");
     }
   };
 
@@ -514,7 +449,6 @@ export default function AdminChamadosPage() {
           <p className="text-sm text-muted-foreground">Gestão de solicitações de suporte</p>
         </div>
         <div className="flex items-center gap-2">
-          {tab !== "categorias" && (
           <div className="flex rounded-lg border overflow-hidden">
             <Button
               size="sm"
@@ -533,29 +467,29 @@ export default function AdminChamadosPage() {
               <Columns size={14} /> Kanban
             </Button>
           </div>
-        )}
+          <Link href="/admin/chamados/categorias">
+            <Button variant="outline" size="sm"><Tag size={16} /> Categorias &amp; SLA</Button>
+          </Link>
           <Link href="/admin/chamados/indicadores">
             <Button variant="outline" size="sm"><BarChart2 size={16} /> Indicadores ONA</Button>
           </Link>
         </div>
       </div>
 
-      {/* Filtro de equipe — oculto em categorias */}
-      {tab !== "categorias" && (
-        <div className="flex gap-2 flex-wrap">
-          {TEAM_TABS.map(t => (
-            <Button
-              key={t.key}
-              size="sm"
-              variant={teamFilter === t.key ? "default" : "outline"}
-              onClick={() => setTeamFilter(t.key)}
-              className="rounded-full"
-            >
-              {t.label}
-            </Button>
-          ))}
-        </div>
-      )}
+      {/* Filtro de equipe */}
+      <div className="flex gap-2 flex-wrap">
+        {TEAM_TABS.map(t => (
+          <Button
+            key={t.key}
+            size="sm"
+            variant={teamFilter === t.key ? "default" : "outline"}
+            onClick={() => setTeamFilter(t.key)}
+            className="rounded-full"
+          >
+            {t.label}
+          </Button>
+        ))}
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b">
@@ -574,8 +508,8 @@ export default function AdminChamadosPage() {
         ))}
       </div>
 
-      {/* Busca + filtros avançados — ocultos na aba de categorias */}
-      {tab !== "categorias" && <div className="space-y-3">
+      {/* Busca + filtros avançados */}
+      <div className="space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1 max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -627,90 +561,10 @@ export default function AdminChamadosPage() {
             </div>
           </div>
         )}
-      </div>}
-
-      {/* ── Painel de Categorias ─────────────────────────────────────────── */}
-      {tab === "categorias" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Gerencie as categorias de chamados, SLA e prioridade padrão.
-            </p>
-            <Button onClick={openCreateCat} className="gap-2">
-              <Plus size={14} /> Nova Categoria
-            </Button>
-          </div>
-
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">Categoria</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">Equipe</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">SLA</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">Prioridade Padrão</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {loadingCats ? (
-                  <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Carregando...</td></tr>
-                ) : categories.length === 0 ? (
-                  <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Nenhuma categoria cadastrada</td></tr>
-                ) : categories.map(cat => (
-                  <tr key={cat.id} className={`transition-colors ${cat.active ? "hover:bg-gray-50" : "opacity-50 bg-gray-50"}`}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                        <span className="font-medium">{cat.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {cat.team === "ti"
-                        ? <Badge className="text-xs bg-blue-100 text-blue-700 border-0">TI</Badge>
-                        : cat.team === "marketing"
-                          ? <Badge className="text-xs bg-pink-100 text-pink-700 border-0">MKT</Badge>
-                          : <Badge className="text-xs bg-orange-100 text-orange-700 border-0">Manutenção</Badge>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-1 text-sm"><Clock size={12} />{cat.sla_hours}h</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {cat.default_priority
-                        ? <Badge className={`text-xs border-0 ${PRIORITY[cat.default_priority]?.color}`}>{PRIORITY[cat.default_priority]?.label}</Badge>
-                        : <span className="text-xs text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className={`text-xs border-0 ${cat.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                        {cat.active ? "Ativa" : "Inativa"}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button size="sm" variant="ghost" onClick={() => openEditCat(cat)} title="Editar">
-                          <Pencil size={13} />
-                        </Button>
-                        <Button
-                          size="sm" variant="ghost"
-                          className={cat.active ? "text-gray-400 hover:text-red-500" : "text-gray-400 hover:text-green-600"}
-                          onClick={() => toggleCatActive(cat)}
-                          title={cat.active ? "Desativar" : "Reativar"}
-                        >
-                          {cat.active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Tabela (modo lista) */}
-      {tab !== "categorias" && viewMode === "list" && (
+      {viewMode === "list" && (
         <div className="bg-white rounded-xl border overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -780,7 +634,7 @@ export default function AdminChamadosPage() {
       )}
 
       {/* Kanban */}
-      {tab !== "categorias" && viewMode === "kanban" && (
+      {viewMode === "kanban" && (
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {KANBAN_COLS.map(col => {
@@ -893,7 +747,7 @@ export default function AdminChamadosPage() {
               </DialogHeader>
 
               {/* Atribuição manual */}
-              {["open","in_progress","waiting_user"].includes(selected.status) && (
+              {["open","in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
                 <div className="flex gap-2 items-center border rounded-lg px-3 py-2 bg-muted/50">
                   <UserCheck size={15} className="text-muted-foreground shrink-0" />
                   <Select value={assignToId || "__none__"} onValueChange={v => setAssignToId(v === "__none__" ? "" : v)}>
@@ -927,18 +781,24 @@ export default function AdminChamadosPage() {
                     <Hourglass size={14} /> Aguardar Usuário
                   </Button>
                 )}
-                {selected.status === "waiting_user" && (
+                {["open","in_progress","waiting_user"].includes(selected.status) && (
+                  <Button size="sm" variant="outline" className="text-orange-700 border-orange-300 hover:bg-orange-50"
+                    onClick={() => doAction("set_status", { status: "waiting_third_party" })} disabled={actioning}>
+                    <Users size={14} /> Aguardar Terceiros
+                  </Button>
+                )}
+                {["waiting_user","waiting_third_party"].includes(selected.status) && (
                   <Button size="sm" onClick={() => doAction("set_status", { status: "in_progress" })} disabled={actioning}>
                     <RefreshCw size={14} /> Retomar Atendimento
                   </Button>
                 )}
-                {["in_progress","waiting_user"].includes(selected.status) && (
+                {["in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
                   <Button size="sm" className="bg-green-600 hover:bg-green-700"
                     onClick={() => openResolveModal(selected)} disabled={actioning}>
                     <CheckCircle2 size={14} /> Resolver
                   </Button>
                 )}
-                {["open","in_progress","waiting_user"].includes(selected.status) && (
+                {["open","in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
                   <Button size="sm" variant="outline" className="text-red-600 border-red-200"
                     onClick={() => doAction("set_status", { status: "cancelled" })} disabled={actioning}>
                     <XCircle size={14} /> Cancelar
@@ -1012,6 +872,16 @@ export default function AdminChamadosPage() {
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <p className="text-xs font-bold text-green-700 mb-1 flex items-center gap-1"><CheckCircle2 size={12} /> Solução aplicada</p>
                       <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.solution}</p>
+                    </div>
+                  )}
+
+                  {/* Motivo do estouro de SLA */}
+                  {detail.ticket.sla_breach_reason && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="text-xs font-bold text-red-700 mb-1 flex items-center gap-1">
+                        <AlertTriangle size={12} /> SLA estourado — motivo:
+                      </p>
+                      <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.sla_breach_reason}</p>
                     </div>
                   )}
 
@@ -1222,6 +1092,13 @@ export default function AdminChamadosPage() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">Preencha os campos obrigatórios antes de marcar como resolvido.</p>
 
+              {resolveError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700 flex items-start gap-2">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  <span>{resolveError}</span>
+                </div>
+              )}
+
               {/* Atribuição — obrigatória se não atribuído */}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
@@ -1260,6 +1137,29 @@ export default function AdminChamadosPage() {
                   <p className="text-xs text-destructive">Obrigatório para resolver</p>
                 )}
               </div>
+
+              {/* Motivo do estouro de SLA — obrigatório quando o prazo já venceu */}
+              {resolveSlaBreached && (
+                <div className="space-y-1.5 rounded-lg border border-red-200 bg-red-50 p-3">
+                  <Label className="flex items-center gap-1 text-red-700">
+                    <AlertTriangle size={14} /> Motivo do estouro do SLA *
+                  </Label>
+                  <p className="text-xs text-red-600">
+                    O prazo de SLA deste chamado já venceu. Informe o motivo do estouro para registrar a resolução.
+                  </p>
+                  <Textarea
+                    rows={3}
+                    placeholder="Ex: aguardando peça do fornecedor, indisponibilidade do setor..."
+                    value={resolveBreachReason}
+                    onChange={e => setResolveBreachReason(e.target.value)}
+                    maxLength={1000}
+                    className="resize-none bg-white"
+                  />
+                  {!resolveBreachReason.trim() && (
+                    <p className="text-xs text-destructive">Obrigatório para resolver chamado com SLA vencido</p>
+                  )}
+                </div>
+              )}
 
               {/* Materiais e custo — apenas manutenção, opcionais */}
               {resolveModal.team === "manutencao" && (
@@ -1300,7 +1200,7 @@ export default function AdminChamadosPage() {
                 </Button>
                 <Button
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={!resolveSolution.trim() || (!resolveAssignTo && !resolveModal.assigned) || actioning}
+                  disabled={!resolveSolution.trim() || (!resolveAssignTo && !resolveModal.assigned) || (resolveSlaBreached && !resolveBreachReason.trim()) || actioning}
                   onClick={doResolve}
                 >
                   <CheckCircle2 size={14} /> {actioning ? "Resolvendo..." : "Marcar como Resolvido"}
@@ -1308,77 +1208,6 @@ export default function AdminChamadosPage() {
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Categoria */}
-      <Dialog open={showCatForm} onOpenChange={v => { if (!v) setShowCatForm(false); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Tag size={16} /> {editingCatId ? "Editar Categoria" : "Nova Categoria"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Nome *</Label>
-              <Input placeholder="Ex: Suporte a Sistemas" value={catForm.name} onChange={fc("name")} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Equipe</Label>
-                <Select value={catForm.team} onValueChange={v => setCatForm(p => ({ ...p, team: v }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ti">TI</SelectItem>
-                    <SelectItem value="manutencao">Manutenção</SelectItem>
-                    <SelectItem value="marketing">Marketing (MKT)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Cor</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="color" className="h-9 w-12 p-0.5 cursor-pointer" value={catForm.color} onChange={fc("color")} />
-                  <span className="text-xs font-mono text-muted-foreground">{catForm.color}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>SLA (horas)</Label>
-                <Input type="number" min="1" step="1" placeholder="24" value={catForm.sla_hours} onChange={fc("sla_hours")} />
-                <p className="text-[10px] text-muted-foreground">Prazo máximo de atendimento</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Prioridade Padrão</Label>
-                <Select value={catForm.default_priority || "__none__"} onValueChange={v => setCatForm(p => ({ ...p, default_priority: v === "__none__" ? "" : v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Nenhuma (manual)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Nenhuma (manual)</SelectItem>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="critical">Crítica</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">Pré-preenche ao abrir chamado</p>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCatForm(false)}>Cancelar</Button>
-              <Button onClick={saveCat} disabled={!catForm.name.trim() || savingCat}>
-                {savingCat ? <><Loader2 size={13} className="animate-spin" /> Salvando...</> : editingCatId ? "Salvar" : "Criar Categoria"}
-              </Button>
-            </DialogFooter>
-          </div>
         </DialogContent>
       </Dialog>
 

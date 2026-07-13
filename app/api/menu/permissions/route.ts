@@ -14,7 +14,8 @@ async function getAuthorizedUser() {
     .eq("active", true)
     .single();
 
-  if (!profile || !["admin", "ti"].includes(profile.role)) return null;
+  // Somente admin pode alterar permissões de menu
+  if (!profile || profile.role !== "admin") return null;
   return profile as { id: string; role: StaffRole };
 }
 
@@ -38,8 +39,9 @@ export async function PUT(req: NextRequest) {
   await Promise.all(
     items.map(async ({ key, can_view, can_edit, active }) => {
       if (!key) return;
-      const safeView = Array.from(new Set([...can_view, "admin", "ti"])) as StaffRole[];
-      const safeEdit = Array.from(new Set([...can_edit, "admin", "ti"])) as StaffRole[];
+      // Apenas "admin" é forçado; TI é configurável como os demais perfis
+      const safeView = Array.from(new Set([...can_view, "admin"])) as StaffRole[];
+      const safeEdit = Array.from(new Set([...can_edit, "admin"])) as StaffRole[];
 
       const { error } = await svc
         .from("menu_permissions")

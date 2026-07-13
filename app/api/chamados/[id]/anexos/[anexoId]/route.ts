@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { isAgentForTicket } from "@/lib/chamados/equipe";
 
 type Params = { params: { id: string; anexoId: string } };
 
-const AGENT_ROLES = ["admin", "ti", "manutencao", "marketing"];
-
 // Serve o anexo do chamado via URL assinada (bucket privado).
-// Acesso: solicitante do chamado ou agente.
+// Acesso: solicitante do chamado ou agente da equipe do chamado.
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
@@ -24,16 +23,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Anexo não encontrado" }, { status: 404 });
     }
 
-    const isAgent = AGENT_ROLES.includes(profile.role);
-    if (!isAgent) {
-      const { data: ticket } = await svc
-        .from("tickets")
-        .select("requester_id")
-        .eq("id", params.id)
-        .maybeSingle();
-      if (ticket?.requester_id !== profile.id) {
-        return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
-      }
+    const { data: ticket } = await svc
+      .from("tickets")
+      .select("requester_id, team")
+      .eq("id", params.id)
+      .maybeSingle();
+    const isAgent = isAgentForTicket(profile.role, ticket?.team);
+    if (!isAgent && ticket?.requester_id !== profile.id) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
 
     // Anexos antigos guardavam URL pública absoluta; os novos guardam o caminho no bucket

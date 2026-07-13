@@ -18,7 +18,7 @@ import {
   Plus, TicketCheck, Clock, AlertTriangle, CheckCircle2, XCircle,
   RefreshCw, RotateCcw, Monitor, Wrench, Megaphone, Lock, Loader2,
   Pencil, Sparkles, CalendarClock, User, FileText, MapPin, Paperclip,
-  ExternalLink, X, Hourglass,
+  ExternalLink, X, Hourglass, Users,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -30,6 +30,8 @@ type BrowserSupabase = ReturnType<typeof createClient>;
 interface Category {
   id: string; name: string; color: string;
   sla_hours: number; alteracao_sla_hours: number | null; team: string;
+  ola_hours?: number | null;
+  default_priority?: string | null;
 }
 
 interface Attachment {
@@ -82,12 +84,14 @@ const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
   medium:   { label: "Média",   color: "bg-yellow-100 text-yellow-700" },
   high:     { label: "Alta",    color: "bg-orange-100 text-orange-700" },
   critical: { label: "Crítica", color: "bg-red-100 text-red-700" },
+  scheduled: { label: "A Programar", color: "bg-gray-200 text-gray-600" },
 };
 
 const STATUS_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   open:        { label: "Aberto",         icon: <Clock size={12} />,        color: "bg-gray-100 text-gray-700" },
   in_progress: { label: "Em Atendimento", icon: <RefreshCw size={12} />,    color: "bg-blue-100 text-blue-700" },
   waiting_user: { label: "Aguardando Usuário", icon: <Hourglass size={12} />, color: "bg-amber-100 text-amber-700" },
+  waiting_third_party: { label: "Aguardando Terceiros", icon: <Users size={12} />, color: "bg-orange-100 text-orange-700" },
   resolved:    { label: "Resolvido",      icon: <CheckCircle2 size={12} />, color: "bg-green-100 text-green-700" },
   closed:      { label: "Encerrado",      icon: <CheckCircle2 size={12} />, color: "bg-green-100 text-green-700" },
   cancelled:   { label: "Cancelado",      icon: <XCircle size={12} />,      color: "bg-red-100 text-red-700" },
@@ -108,13 +112,14 @@ const FILTERS = [
   { key: "open",            label: "Abertos" },
   { key: "in_progress",     label: "Em Atendimento" },
   { key: "waiting_user",    label: "Aguardando usuário" },
+  { key: "waiting_third_party", label: "Aguardando terceiros" },
   { key: "resolved,closed", label: "Resolvidos" },
   { key: "cancelled",       label: "Cancelados" },
 ];
 
 // ─── Sub-components ──────────────────────────────────────────
 function SlaIndicator({ deadline, status }: { deadline: string | null; status: string }) {
-  if (status === "waiting_user") return (
+  if (status === "waiting_user" || status === "waiting_third_party") return (
     <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
       <Hourglass size={11} /> SLA pausado
     </span>
@@ -165,6 +170,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
     ticket: Ticket & {
       description: string;
       rating_comment: string | null;
+      sla_breach_reason?: string | null;
       ticket_comments: Array<{ id: string; author_name: string; content: string; is_internal: boolean; created_at: string }>;
       ticket_history: HistoryEntry[];
       ticket_attachments: Attachment[];
@@ -336,10 +342,13 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
           title: form.title,
           description: form.description,
           category_id: form.category_id || undefined,
-          priority: isManutencao ? (URGENCY_TO_PRIORITY[mntUrgency] ?? "medium") : form.priority,
+          // Se a categoria define prioridade padrão, não envia — o servidor aplica
+          priority: catDefaultPriority
+            ? undefined
+            : isManutencao ? (URGENCY_TO_PRIORITY[mntUrgency] ?? "medium") : form.priority,
           team: form.team,
           location: isManutencao ? mntLocation.trim() : undefined,
-          urgency: isManutencao ? mntUrgency : undefined,
+          urgency: isManutencao && !catDefaultPriority ? mntUrgency : undefined,
           equipment_description: isManutencao && mntEquipDesc.trim() ? mntEquipDesc.trim() : undefined,
           equipment_patrimonio: isManutencao && mntEquipPatr.trim() ? mntEquipPatr.trim() : undefined,
           mkt_is_alteracao: isMkt ? mktIsAlteracao : undefined,
@@ -431,6 +440,22 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
   const filtered = tickets.filter(t => !filter || filter.split(",").includes(t.status));
   const catsForTeam = categoriasByTeam[form.team] ?? [];
+  // Prioridade definida pela categoria: quando presente, substitui a escolha manual
+  const selectedCat = catsForTeam.find(c => c.id === form.category_id) ?? null;
+  const catDefaultPriority = selectedCat?.default_priority && PRIORITY_LABELS[selectedCat.default_priority]
+    ? selectedCat.default_priority
+    : null;
+  const catPriorityBadge = catDefaultPriority ? (
+    <div className="flex items-center gap-2 rounded-lg border bg-gray-50 px-3 py-2">
+      <Lock size={12} className="text-muted-foreground shrink-0" />
+      <span className="text-xs text-muted-foreground">
+        Prioridade definida pela categoria:{" "}
+        <span className={`px-2 py-0.5 rounded-full font-medium ${PRIORITY_LABELS[catDefaultPriority].color}`}>
+          {PRIORITY_LABELS[catDefaultPriority].label}
+        </span>
+      </span>
+    </div>
+  ) : null;
   const selectedTeamInfo = TEAM_OPTIONS.find(t => t.key === form.team) ?? TEAM_OPTIONS[0];
   const teamTitle = defaultTeam ? TEAM_OPTIONS.find(t => t.key === defaultTeam)?.label : undefined;
   const selectedMktCat = isMkt ? catsForTeam.find(c => c.id === form.category_id) ?? null : null;
@@ -650,6 +675,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                         ))}
                       </SelectContent>
                     </Select>
+                    {catPriorityBadge}
                   </div>
 
                   <div className="space-y-2">
@@ -734,15 +760,17 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                   {!isManutencao && (
                     <div className="space-y-2">
                       <Label>Prioridade</Label>
-                      <Select value={form.priority} onValueChange={v => setForm(p => ({ ...p, priority: v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Baixa</SelectItem>
-                          <SelectItem value="medium">Média</SelectItem>
-                          <SelectItem value="high">Alta</SelectItem>
-                          <SelectItem value="critical">Crítica</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {catDefaultPriority ? catPriorityBadge : (
+                        <Select value={form.priority} onValueChange={v => setForm(p => ({ ...p, priority: v }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Baixa</SelectItem>
+                            <SelectItem value="medium">Média</SelectItem>
+                            <SelectItem value="high">Alta</SelectItem>
+                            <SelectItem value="critical">Crítica</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   )}
                 </div>
@@ -763,24 +791,31 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                     />
                   </div>
 
-                  {/* Urgência */}
-                  <div className="space-y-2">
-                    <Label>Urgência *</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {URGENCY_OPTIONS.map(u => (
-                        <button
-                          key={u.key}
-                          type="button"
-                          onClick={() => setMntUrgency(u.key)}
-                          className={`py-2.5 px-3 rounded-lg border-2 text-center transition-all text-sm font-medium ${
-                            mntUrgency === u.key ? u.activeColor : "border-gray-200 text-gray-500 hover:border-gray-300"
-                          }`}
-                        >
-                          {u.label}
-                        </button>
-                      ))}
+                  {/* Urgência — oculta quando a categoria define a prioridade */}
+                  {catDefaultPriority ? (
+                    <div className="space-y-2">
+                      <Label>Prioridade</Label>
+                      {catPriorityBadge}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Urgência *</Label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {URGENCY_OPTIONS.map(u => (
+                          <button
+                            key={u.key}
+                            type="button"
+                            onClick={() => setMntUrgency(u.key)}
+                            className={`py-2.5 px-3 rounded-lg border-2 text-center transition-all text-sm font-medium ${
+                              mntUrgency === u.key ? u.activeColor : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            }`}
+                          >
+                            {u.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Equipamento */}
                   <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
@@ -885,12 +920,15 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
               </div>
 
               {/* SLA preview não-MKT */}
-              {!isMkt && form.category_id && (() => {
-                const cat = catsForTeam.find(c => c.id === form.category_id);
-                return cat ? (
-                  <p className="text-xs text-muted-foreground">SLA desta categoria: <strong>{cat.sla_hours}h</strong></p>
-                ) : null;
-              })()}
+              {!isMkt && selectedCat && (
+                catDefaultPriority === "scheduled" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Categoria <strong>A Programar</strong> — sem prazo de SLA
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">SLA desta categoria: <strong>{selectedCat.sla_hours}h</strong></p>
+                )
+              )}
 
               <DialogFooter className="flex-row items-center justify-between gap-2 pt-2">
                 {isMkt ? (
@@ -1033,6 +1071,16 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                   <div className="bg-muted/50 rounded-lg p-4 text-sm whitespace-pre-wrap">
                     {detail.ticket.description}
                   </div>
+
+                  {/* Motivo do estouro de SLA */}
+                  {detail.ticket.sla_breach_reason && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="text-xs font-bold text-red-700 mb-1 flex items-center gap-1">
+                        <AlertTriangle size={12} /> SLA estourado — motivo:
+                      </p>
+                      <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.sla_breach_reason}</p>
+                    </div>
+                  )}
 
                   {/* Anexos */}
                   {detail.ticket.ticket_attachments?.length > 0 && (

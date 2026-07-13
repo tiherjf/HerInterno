@@ -56,9 +56,10 @@ export async function requireStaff() {
   return profile;
 }
 
+/** Exige perfil admin. TI NÃO é admin: acessa apenas conforme permissões (como os demais perfis). */
 export async function requireAdmin() {
   const profile = await requireStaff();
-  if (!["admin", "ti"].includes(profile.role)) redirect("/intranet");
+  if (profile.role !== "admin") redirect("/intranet");
   return profile;
 }
 
@@ -87,7 +88,7 @@ export function canManageDocuments(role: StaffRole): boolean {
 }
 
 export function canManageUsers(role: StaffRole): boolean {
-  return ["admin", "ti"].includes(role);
+  return role === "admin";
 }
 
 export function canViewTrainingReports(role: StaffRole): boolean {

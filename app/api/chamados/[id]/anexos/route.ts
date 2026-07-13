@@ -3,26 +3,25 @@ import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
+import { isAgentForTicket } from "@/lib/chamados/equipe";
 
 type Params = { params: { id: string } };
-
-const AGENT_ROLES = ["admin", "ti", "manutencao", "marketing"];
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const profile = await requireStaff();
     const svc = createServiceClient();
 
-    // Só o solicitante do chamado ou um agente pode anexar
+    // Só o solicitante do chamado ou um agente da equipe do chamado pode anexar
     const { data: ticket } = await svc
       .from("tickets")
-      .select("id, requester_id")
+      .select("id, requester_id, team")
       .eq("id", params.id)
       .maybeSingle();
     if (!ticket) {
       return NextResponse.json({ error: "Chamado não encontrado" }, { status: 404 });
     }
-    const isAgent = AGENT_ROLES.includes(profile.role);
+    const isAgent = isAgentForTicket(profile.role, ticket.team);
     if (!isAgent && ticket.requester_id !== profile.id) {
       return NextResponse.json({ error: "Sem permissão para anexar neste chamado" }, { status: 403 });
     }

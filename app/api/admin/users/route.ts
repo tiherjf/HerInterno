@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { requireStaff } from "@/lib/auth/staff";
+import { canManageUsers, requireStaff } from "@/lib/auth/staff";
 import { apiError } from "@/lib/api/error";
 
 export async function GET() {
   try {
     const profile = await requireStaff();
-    if (!["admin", "ti", "rh"].includes(profile.role)) {
+    // Listagem (somente leitura): usada também pelos painéis de chamados/inventário
+    if (!["admin", "ti", "rh", "manutencao", "marketing"].includes(profile.role)) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
     const supabase = createServiceClient();
@@ -24,7 +25,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    if (!["admin", "ti"].includes(profile.role)) {
+    // Criação de usuários é exclusiva do admin
+    if (!canManageUsers(profile.role)) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
@@ -76,7 +78,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const profile = await requireStaff();
-    if (!["admin", "ti", "rh"].includes(profile.role)) {
+    // Edição: admin (completo) ou RH (apenas gestor/gerente); TI não gerencia usuários
+    if (!canManageUsers(profile.role) && profile.role !== "rh") {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
