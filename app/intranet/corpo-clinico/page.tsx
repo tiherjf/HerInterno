@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search, AlertTriangle, Clock, CalendarDays, Stethoscope,
-  ChevronDown, ChevronUp, Plus, Pencil, Trash2,
+  ChevronDown, ChevronUp, Plus, Pencil, Trash2, MapPin, Wallet, Baby,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,17 @@ function unidadeInfo(key: string) {
   return UNIDADES.find(u => u.key === key) ?? { label: key, emoji: "🏥", cor: "bg-gray-100 text-gray-700 border-gray-200" };
 }
 
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Monta o bloco compacto de valores, omitindo os que estão nulos. */
+function blocoValores(p: Profissional): string[] {
+  const partes: string[] = [];
+  if (p.valor_particular != null) partes.push(`Particular ${BRL.format(p.valor_particular)}`);
+  if (p.valor_convenio != null) partes.push(`Convênio ${BRL.format(p.valor_convenio)}`);
+  if (p.valor_desconto != null) partes.push(`Desconto ${BRL.format(p.valor_desconto)}`);
+  return partes;
+}
+
 interface Profissional {
   id: string;
   nome: string;
@@ -45,6 +56,13 @@ interface Profissional {
   observacoes?: string | null;
   sem_agenda: boolean;
   agenda?: AgendaEntry[] | null;
+  valor_particular?: number | null;
+  valor_convenio?: number | null;
+  valor_desconto?: number | null;
+  convenios?: string[] | null;
+  idade_minima?: number | null;
+  local?: string | null;
+  subespecialidade?: string | null;
 }
 
 interface Grupo {
@@ -52,17 +70,44 @@ interface Grupo {
   profissionais: Profissional[];
 }
 
-const EMPTY_FORM = {
+interface FormState {
+  nome: string;
+  especialidade: string;
+  grupo: string;
+  grupo_novo: string;
+  unidade: UnidadeKey | string;
+  dias: string;
+  horarios: string;
+  observacoes: string;
+  sem_agenda: boolean;
+  agenda: AgendaEntry[];
+  valor_particular: number | null;
+  valor_convenio: number | null;
+  valor_desconto: number | null;
+  convenios: string[];
+  idade_minima: number | null;
+  local: string;
+  subespecialidade: string;
+}
+
+const EMPTY_FORM: FormState = {
   nome: "",
   especialidade: "",
   grupo: "",
   grupo_novo: "",
-  unidade: "Clínica da Criança" as UnidadeKey | string,
+  unidade: "Clínica da Criança",
   dias: "",
   horarios: "",
   observacoes: "",
   sem_agenda: false,
-  agenda: [] as AgendaEntry[],
+  agenda: [],
+  valor_particular: null,
+  valor_convenio: null,
+  valor_desconto: null,
+  convenios: [],
+  idade_minima: null,
+  local: "",
+  subespecialidade: "",
 };
 
 export default function CorpoClinicoPage() {
@@ -81,6 +126,7 @@ export default function CorpoClinicoPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [aviso, setAviso] = useState("");
 
   const fetchProfissionais = useCallback(async () => {
     setLoading(true);
@@ -108,6 +154,13 @@ export default function CorpoClinicoPage() {
 
   const nomesGrupos = useMemo(() => grupos.map(g => g.nome), [grupos]);
 
+  // Convênios distintos já cadastrados (para o datalist do formulário)
+  const conveniosExistentes = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of profissionais) for (const c of p.convenios ?? []) set.add(c);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [profissionais]);
+
   const gruposFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
     const hoje = new Date().getDay();
@@ -124,7 +177,10 @@ export default function CorpoClinicoPage() {
           p.nome.toLowerCase().includes(termo) ||
           p.especialidade.toLowerCase().includes(termo) ||
           p.dias.toLowerCase().includes(termo) ||
-          p.unidade.toLowerCase().includes(termo)
+          p.unidade.toLowerCase().includes(termo) ||
+          (p.subespecialidade?.toLowerCase().includes(termo) ?? false) ||
+          (p.local?.toLowerCase().includes(termo) ?? false) ||
+          (p.convenios?.some(c => c.toLowerCase().includes(termo)) ?? false)
         );
       }),
     })).filter(g => g.profissionais.length > 0);
@@ -163,6 +219,13 @@ export default function CorpoClinicoPage() {
       observacoes: p.observacoes ?? "",
       sem_agenda: p.sem_agenda,
       agenda: Array.from(porDia.values()).sort((a, b) => a.dia - b.dia),
+      valor_particular: p.valor_particular ?? null,
+      valor_convenio: p.valor_convenio ?? null,
+      valor_desconto: p.valor_desconto ?? null,
+      convenios: p.convenios ?? [],
+      idade_minima: p.idade_minima ?? null,
+      local: p.local ?? "",
+      subespecialidade: p.subespecialidade ?? "",
     });
     setFormError("");
     setShowForm(true);
@@ -195,6 +258,14 @@ export default function CorpoClinicoPage() {
         unidade: form.unidade || "Clínica da Criança",
         observacoes: form.observacoes.trim() || null,
         sem_agenda: form.sem_agenda,
+        // Valores & convênios (migração 045)
+        valor_particular: form.valor_particular,
+        valor_convenio: form.valor_convenio,
+        valor_desconto: form.valor_desconto,
+        convenios: form.convenios.map(c => c.trim()).filter(Boolean),
+        idade_minima: form.idade_minima,
+        local: form.local.trim() || null,
+        subespecialidade: form.subespecialidade.trim() || null,
       };
       if (temAgenda) {
         // O servidor gera dias/horarios legíveis a partir da agenda
@@ -218,6 +289,8 @@ export default function CorpoClinicoPage() {
         setFormError(msg);
         return;
       }
+      const j = await res.json().catch(() => null);
+      setAviso(j?.aviso ?? "");
       setShowForm(false);
       fetchProfissionais();
     } catch {
@@ -314,6 +387,19 @@ export default function CorpoClinicoPage() {
           ))}
         </div>
       </div>
+
+      {/* Aviso de migração 045 pendente */}
+      {aviso && (
+        <Alert className="border-amber-300 bg-amber-50 text-amber-800">
+          <AlertTriangle size={15} className="text-amber-500" />
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{aviso}</span>
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-amber-800" onClick={() => setAviso("")}>
+              Dispensar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -427,6 +513,7 @@ export default function CorpoClinicoPage() {
                       {g.profissionais.map(prof => {
                         const ud = unidadeInfo(prof.unidade);
                         const entradasHoje = agendaDoDia(prof.agenda, hoje);
+                        const valores = blocoValores(prof);
                         return (
                           <tr
                             key={prof.id}
@@ -438,6 +525,11 @@ export default function CorpoClinicoPage() {
                               <div className="flex items-center gap-2 flex-wrap">
                                 {prof.sem_agenda && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
                                 {prof.nome}
+                                {prof.subespecialidade && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium shrink-0">
+                                    {prof.subespecialidade}
+                                  </Badge>
+                                )}
                                 {entradasHoje.length > 0 && (
                                   <Badge
                                     variant="outline"
@@ -446,7 +538,43 @@ export default function CorpoClinicoPage() {
                                     Hoje · {entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}
                                   </Badge>
                                 )}
+                                {prof.idade_minima != null && (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] px-1.5 py-0 font-medium shrink-0"
+                                  >
+                                    <Baby size={10} className="mr-0.5" /> a partir de {prof.idade_minima} anos
+                                  </Badge>
+                                )}
                               </div>
+
+                              {valores.length > 0 && (
+                                <div className="flex items-center gap-1 text-xs font-medium text-emerald-700 mt-1">
+                                  <Wallet size={11} className="shrink-0" />
+                                  <span>{valores.join(" · ")}</span>
+                                </div>
+                              )}
+
+                              {prof.convenios && prof.convenios.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {prof.convenios.map(c => (
+                                    <Badge
+                                      key={c}
+                                      variant="outline"
+                                      className="text-[10px] px-1.5 py-0 font-normal text-gray-600 border-gray-300"
+                                    >
+                                      {c}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+
+                              {prof.local && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                  <MapPin size={11} className="shrink-0" /> {prof.local}
+                                </div>
+                              )}
+
                               <div className="sm:hidden mt-1">
                                 <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${ud.cor}`}>
                                   {ud.emoji} {ud.label}
@@ -530,7 +658,7 @@ export default function CorpoClinicoPage() {
 
       {/* Modal formulário */}
       <Dialog open={showForm} onOpenChange={v => { if (!v) setShowForm(false); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Editar Profissional" : "Novo Profissional"}</DialogTitle>
           </DialogHeader>
@@ -615,6 +743,83 @@ export default function CorpoClinicoPage() {
                 />
               </>
             )}
+
+            {/* Valores & Convênios */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+              <p className="text-sm font-medium flex items-center gap-1.5">
+                <Wallet size={14} /> Valores & Convênios
+              </p>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Particular (R$)</Label>
+                  <Input
+                    type="number" min={0} step="0.01" inputMode="decimal" placeholder="0,00"
+                    value={form.valor_particular ?? ""}
+                    onChange={e => setForm(prev => ({ ...prev, valor_particular: e.target.value === "" ? null : Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Convênio (R$)</Label>
+                  <Input
+                    type="number" min={0} step="0.01" inputMode="decimal" placeholder="0,00"
+                    value={form.valor_convenio ?? ""}
+                    onChange={e => setForm(prev => ({ ...prev, valor_convenio: e.target.value === "" ? null : Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Desconto (R$)</Label>
+                  <Input
+                    type="number" min={0} step="0.01" inputMode="decimal" placeholder="0,00"
+                    value={form.valor_desconto ?? ""}
+                    onChange={e => setForm(prev => ({ ...prev, valor_desconto: e.target.value === "" ? null : Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Convênios</Label>
+                <Input
+                  list="convenios-existentes"
+                  placeholder="Ex: Unimed, Bradesco Saúde, Amil"
+                  value={form.convenios.join(", ")}
+                  onChange={e => setForm(prev => ({ ...prev, convenios: e.target.value.split(",").map(s => s.trimStart()) }))}
+                />
+                <datalist id="convenios-existentes">
+                  {conveniosExistentes.map(c => <option key={c} value={c} />)}
+                </datalist>
+                <p className="text-xs text-muted-foreground">Separe vários convênios por vírgula.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Idade mínima</Label>
+                  <Input
+                    type="number" min={0} step={1} inputMode="numeric" placeholder="Ex: 12"
+                    value={form.idade_minima ?? ""}
+                    onChange={e => setForm(prev => ({ ...prev, idade_minima: e.target.value === "" ? null : Number(e.target.value) }))}
+                  />
+                  <p className="text-xs text-muted-foreground">Deixe vazio se todas as idades.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Subespecialidade</Label>
+                  <Input
+                    placeholder="Joelho, Mastologista…"
+                    value={form.subespecialidade}
+                    onChange={f("subespecialidade")}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Local</Label>
+                <Input
+                  placeholder="2º Andar · Ramal 4983"
+                  value={form.local}
+                  onChange={f("local")}
+                />
+              </div>
+            </div>
 
             <div className="space-y-1.5">
               <Label>Observações</Label>

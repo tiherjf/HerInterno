@@ -4,7 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import { canEditMenuItem } from "@/lib/menu/server";
 import type { StaffRole } from "@/lib/menu/types";
-import { validarAgenda, formatarDias, formatarHorarios, erroColunaAgenda } from "@/components/corpo-clinico/agenda";
+import { validarAgenda, formatarDias, formatarHorarios, erroColunaAgenda, coerceCampos045, erroColuna045, COLUNAS_045, AVISO_045 } from "@/components/corpo-clinico/agenda";
 
 export async function GET() {
   try {
@@ -45,6 +45,12 @@ export async function POST(req: NextRequest) {
     }
     const agendaFinal = validacao.agenda;
 
+    // Campos da migração 045 (valores, convênios, idade mínima, local, subespecialidade)
+    const validacao045 = coerceCampos045(body);
+    if (!validacao045.ok) {
+      return NextResponse.json({ error: validacao045.error }, { status: 400 });
+    }
+
     const supabase = createServiceClient();
 
     // order_num = próximo dentro do grupo
@@ -68,6 +74,8 @@ export async function POST(req: NextRequest) {
     };
     // Só envia a coluna agenda quando há valor, para não quebrar antes da migração 039
     if (agendaFinal) registro.agenda = agendaFinal;
+    // Campos da 045 (podem não existir ainda no banco — degradação graciosa abaixo)
+    Object.assign(registro, validacao045.campos);
 
     const { data, error } = await supabase
       .from("corpo_clinico")
@@ -81,6 +89,18 @@ export async function POST(req: NextRequest) {
           { error: "Execute a migração 039 no Supabase para habilitar a agenda estruturada." },
           { status: 400 }
         );
+      }
+      // Migração 045 não aplicada: tenta novamente sem os campos de valores/convênios
+      if (erroColuna045(error)) {
+        const registroSem045 = { ...registro };
+        for (const c of COLUNAS_045) delete registroSem045[c];
+        const retry = await supabase
+          .from("corpo_clinico")
+          .insert(registroSem045)
+          .select()
+          .single();
+        if (retry.error) throw retry.error;
+        return NextResponse.json({ ok: true, profissional: retry.data, aviso: AVISO_045 }, { status: 201 });
       }
       throw error;
     }

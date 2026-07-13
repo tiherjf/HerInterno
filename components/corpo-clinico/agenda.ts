@@ -98,3 +98,104 @@ export function erroColunaAgenda(error: unknown): boolean {
   const msg = (e.message ?? "").toLowerCase();
   return (e.code === "42703" || e.code === "PGRST204") && msg.includes("agenda");
 }
+
+// ---------------------------------------------------------------------------
+// Campos da migração 045 (valores, convênios, idade mínima e localização).
+// Degradação graciosa igual à da agenda: se a migração não foi aplicada, a
+// rota tenta salvar novamente sem estas colunas e devolve um aviso.
+// ---------------------------------------------------------------------------
+
+export const COLUNAS_045 = [
+  "valor_particular",
+  "valor_convenio",
+  "valor_desconto",
+  "convenios",
+  "idade_minima",
+  "local",
+  "subespecialidade",
+] as const;
+
+export const AVISO_045 = "Execute a migração 045 no Supabase para salvar valores/convênios.";
+
+export type Campos045Validacao =
+  | { ok: true; campos: Record<string, unknown> }
+  | { ok: false; error: string };
+
+const LABEL_VALOR: Record<string, string> = {
+  valor_particular: "Valor particular",
+  valor_convenio: "Valor convênio",
+  valor_desconto: "Valor desconto",
+};
+
+/** Número ≥ 0 ou null. String vazia → null; string numérica é aceita (vírgula → ponto). */
+function coerceValor(value: unknown): { ok: true; value: number | null } | { ok: false } {
+  if (value === null || value === undefined || value === "") return { ok: true, value: null };
+  const n = typeof value === "string" ? Number(value.replace(",", ".")) : value;
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return { ok: false };
+  return { ok: true, value: n };
+}
+
+/** Convênios: array ou string separada por vírgulas → array de textos não-vazios (ou null). */
+function coerceConvenios(value: unknown): { ok: true; value: string[] | null } | { ok: false } {
+  if (value === null || value === undefined || value === "") return { ok: true, value: null };
+  let bruto: unknown[];
+  if (typeof value === "string") bruto = value.split(",");
+  else if (Array.isArray(value)) bruto = value;
+  else return { ok: false };
+  const limpos = bruto.map(x => (typeof x === "string" ? x.trim() : "")).filter(Boolean);
+  return { ok: true, value: limpos.length ? limpos : null };
+}
+
+/**
+ * Valida/normaliza somente os campos da 045 presentes no corpo da requisição.
+ * Retorna apenas as chaves enviadas, para servir tanto ao POST quanto ao PATCH.
+ */
+export function coerceCampos045(body: Record<string, unknown>): Campos045Validacao {
+  const campos: Record<string, unknown> = {};
+
+  for (const key of ["valor_particular", "valor_convenio", "valor_desconto"] as const) {
+    if (key in body) {
+      const r = coerceValor(body[key]);
+      if (!r.ok) return { ok: false, error: `${LABEL_VALOR[key]} deve ser um número maior ou igual a zero.` };
+      campos[key] = r.value;
+    }
+  }
+
+  if ("idade_minima" in body) {
+    const v = body.idade_minima;
+    if (v === null || v === undefined || v === "") {
+      campos.idade_minima = null;
+    } else {
+      const n = typeof v === "string" ? Number(v) : v;
+      if (typeof n !== "number" || !Number.isInteger(n) || n < 0) {
+        return { ok: false, error: "Idade mínima deve ser um número inteiro maior ou igual a zero." };
+      }
+      campos.idade_minima = n;
+    }
+  }
+
+  if ("convenios" in body) {
+    const r = coerceConvenios(body.convenios);
+    if (!r.ok) return { ok: false, error: "Convênios deve ser uma lista ou texto separado por vírgulas." };
+    campos.convenios = r.value;
+  }
+
+  for (const key of ["local", "subespecialidade"] as const) {
+    if (key in body) {
+      const v = body[key];
+      const s = typeof v === "string" ? v.trim() : "";
+      campos[key] = s || null;
+    }
+  }
+
+  return { ok: true, campos };
+}
+
+/** Erro de coluna inexistente para algum campo da 045 (migração não aplicada). */
+export function erroColuna045(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.code !== "42703" && e.code !== "PGRST204") return false;
+  const msg = (e.message ?? "").toLowerCase();
+  return COLUNAS_045.some(c => msg.includes(c));
+}
