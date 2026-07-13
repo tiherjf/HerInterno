@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search, Plus, Pencil, ClipboardList, ChevronDown, ChevronUp,
   Info, AlertCircle, ToggleLeft, ToggleRight, Stethoscope, FlaskConical,
+  Sparkles, Syringe, Scissors, Slice, Grid2x2, Clock, CalendarCheck,
+  FileText, Pill, Package, CreditCard, User, type LucideIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -39,6 +42,19 @@ const SEM_CATEGORIA = "__geral__";
 
 const fmtBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
+// Ícone por categoria (palavra-chave → lucide). Fallback: ClipboardList.
+function iconeCategoria(cat: string): LucideIcon {
+  const c = cat.toLowerCase();
+  if (/peeling/.test(c)) return Sparkles;
+  if (/microagulhamento|mesoterapia/.test(c)) return Grid2x2;
+  if (/toxina|botox|preenchimento/.test(c)) return Syringe;
+  if (/bioestimulador|colágeno|colageno/.test(c)) return Sparkles;
+  if (/curetagem|shaving|cauteriz/.test(c)) return Scissors;
+  if (/cirúrgic|cirurgic/.test(c)) return Slice;
+  if (/exame/.test(c)) return FlaskConical;
+  return ClipboardList;
+}
+
 interface Procedimento {
   id: string;
   nome: string;
@@ -53,6 +69,28 @@ interface Procedimento {
   unidade_medida: string | null;
   protocolo: string | null;
   profissional: string | null;
+  // Migração 044
+  convenios: string[] | null;
+  atende_particular: boolean | null;
+  parcelas_max: number | null;
+  pacote_sessoes: number | null;
+  pacote_preco: number | null;
+  jejum_horas: number | null;
+  requer_agendamento: boolean | null;
+  duracao_min: number | null;
+  documentos_necessarios: string | null;
+  suspende_medicacao: string | null;
+  medicos: string[] | null;
+}
+
+// Lista de médicos de um item: prefere `medicos[]`; senão divide o
+// legado `profissional` em " e " / "," / ";".
+function medicosDe(p: Procedimento): string[] {
+  if (p.medicos && p.medicos.length) return p.medicos;
+  if (p.profissional) {
+    return p.profissional.split(/\s+e\s+|[,;]/).map(s => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 const EMPTY_FORM = {
@@ -66,6 +104,18 @@ const EMPTY_FORM = {
   unidade_medida: "",
   protocolo: "",
   profissional: "",
+  // Migração 044 — convênios/médicos como string separada por vírgula no form
+  convenios: "",
+  atende_particular: true,
+  parcelas_max: null as number | null,
+  pacote_sessoes: null as number | null,
+  pacote_preco: null as number | null,
+  jejum_horas: null as number | null,
+  requer_agendamento: false,
+  duracao_min: null as number | null,
+  documentos_necessarios: "",
+  suspende_medicacao: "",
+  medicos: "",
 };
 
 export default function ProcedimentosPage() {
@@ -76,6 +126,7 @@ export default function ProcedimentosPage() {
   const [busca, setBusca] = useState("");
   const [unidadeAtiva, setUnidadeAtiva] = useState<string>("Hospital");
   const [tipoAtivo, setTipoAtivo] = useState<string>("todos");
+  const [medicoAtivo, setMedicoAtivo] = useState<string>("todos");
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set(["exame", "procedimento"]));
   const [aviso, setAviso] = useState("");
 
@@ -98,6 +149,9 @@ export default function ProcedimentosPage() {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
+  // Ao trocar de unidade, o filtro de médico volta para "Todos"
+  useEffect(() => { setMedicoAtivo("todos"); }, [unidadeAtiva]);
+
   const unidadeInfo = useMemo(
     () => UNIDADES.find(u => u.key === unidadeAtiva) ?? UNIDADES[0],
     [unidadeAtiva],
@@ -110,21 +164,48 @@ export default function ProcedimentosPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [items]);
 
+  // Convênios já usados (datalist do formulário)
+  const conveniosExistentes = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of items) for (const c of p.convenios ?? []) if (c.trim()) set.add(c.trim());
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [items]);
+
+  // Médicos já usados (datalist do formulário) — considera legado `profissional`
+  const medicosExistentes = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of items) for (const m of medicosDe(p)) set.add(m);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [items]);
+
+  // Médicos distintos na unidade ativa (para o filtro por médico)
+  const medicosUnidade = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of items) {
+      if (p.unidade !== unidadeAtiva) continue;
+      for (const m of medicosDe(p)) set.add(m);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [items, unidadeAtiva]);
+
   const filtrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
     return items.filter(p => {
       if (p.unidade !== unidadeAtiva) return false;
       if (tipoAtivo !== "todos" && p.tipo !== tipoAtivo) return false;
+      const meds = medicosDe(p);
+      if (medicoAtivo !== "todos" && !meds.includes(medicoAtivo)) return false;
       if (!termo) return true;
       return (
         p.nome.toLowerCase().includes(termo) ||
         (p.descricao ?? "").toLowerCase().includes(termo) ||
         (p.preparacao ?? "").toLowerCase().includes(termo) ||
         (p.categoria ?? "").toLowerCase().includes(termo) ||
-        (p.profissional ?? "").toLowerCase().includes(termo)
+        (p.profissional ?? "").toLowerCase().includes(termo) ||
+        meds.some(m => m.toLowerCase().includes(termo))
       );
     });
-  }, [items, unidadeAtiva, tipoAtivo, busca]);
+  }, [items, unidadeAtiva, tipoAtivo, medicoAtivo, busca]);
 
   const porTipo = useMemo(() => {
     const map = new Map<TipoKey, Procedimento[]>();
@@ -186,6 +267,17 @@ export default function ProcedimentosPage() {
       unidade_medida: p.unidade_medida ?? "",
       protocolo: p.protocolo ?? "",
       profissional: p.profissional ?? "",
+      convenios: (p.convenios ?? []).join(", "),
+      atende_particular: p.atende_particular ?? true,
+      parcelas_max: p.parcelas_max ?? null,
+      pacote_sessoes: p.pacote_sessoes ?? null,
+      pacote_preco: p.pacote_preco ?? null,
+      jejum_horas: p.jejum_horas ?? null,
+      requer_agendamento: p.requer_agendamento ?? false,
+      duracao_min: p.duracao_min ?? null,
+      documentos_necessarios: p.documentos_necessarios ?? "",
+      suspende_medicacao: p.suspende_medicacao ?? "",
+      medicos: (p.medicos ?? []).join(", "),
     });
     setFormError("");
     setShowForm(true);
@@ -210,6 +302,18 @@ export default function ProcedimentosPage() {
         unidade_medida: form.unidade_medida.trim() || null,
         protocolo: form.protocolo.trim() || null,
         profissional: form.profissional.trim() || null,
+        // 044 — convênios/médicos vão como string por vírgula (a API divide)
+        convenios: form.convenios,
+        atende_particular: form.atende_particular,
+        parcelas_max: form.parcelas_max,
+        pacote_sessoes: form.pacote_sessoes,
+        pacote_preco: form.pacote_preco,
+        jejum_horas: form.jejum_horas,
+        requer_agendamento: form.requer_agendamento,
+        duracao_min: form.duracao_min,
+        documentos_necessarios: form.documentos_necessarios.trim() || null,
+        suspende_medicacao: form.suspende_medicacao.trim() || null,
+        medicos: form.medicos,
       };
       const url = editingId ? `/api/procedimentos/${editingId}` : "/api/procedimentos";
       const method = editingId ? "PATCH" : "POST";
@@ -237,9 +341,21 @@ export default function ProcedimentosPage() {
   };
 
   // Handler genérico para campos de texto do formulário
-  const f = (field: "nome" | "descricao" | "preparacao" | "categoria" | "unidade_medida" | "protocolo" | "profissional") => (
+  const f = (field:
+    | "nome" | "descricao" | "preparacao" | "categoria" | "unidade_medida"
+    | "protocolo" | "profissional" | "documentos_necessarios"
+    | "suspende_medicacao" | "convenios" | "medicos"
+  ) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  // Handler genérico para campos numéricos (inteiros/preços) — "" → null
+  const num = (field: "parcelas_max" | "pacote_sessoes" | "pacote_preco" | "jejum_horas" | "duracao_min") => (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const v = e.target.value;
+    setForm(prev => ({ ...prev, [field]: v === "" ? null : Number(v) }));
+  };
 
   const totalUnidade = items.filter(p => p.unidade === unidadeAtiva).length;
 
@@ -247,6 +363,27 @@ export default function ProcedimentosPage() {
   const renderItem = (p: Procedimento) => {
     const tipoInfo = TIPOS.find(t => t.key === p.tipo) ?? TIPOS[0];
     const Icon = tipoInfo.icon;
+    const meds = medicosDe(p);
+    const parcela = p.preco != null && p.parcelas_max ? p.preco / p.parcelas_max : null;
+    const temPacote = p.pacote_sessoes != null && p.pacote_preco != null;
+    const economia = temPacote && p.preco != null
+      ? p.preco * (p.pacote_sessoes ?? 0) - (p.pacote_preco ?? 0)
+      : 0;
+
+    // Chips de preparo estruturado
+    const chips: { icon: LucideIcon; texto: string; titulo?: string }[] = [];
+    if (p.jejum_horas != null) {
+      chips.push({ icon: Clock, texto: p.jejum_horas === 0 ? "Sem jejum" : `Jejum ${p.jejum_horas}h` });
+    }
+    if (p.requer_agendamento) chips.push({ icon: CalendarCheck, texto: "Requer agendamento" });
+    if (p.duracao_min != null) chips.push({ icon: Clock, texto: `${p.duracao_min} min` });
+    if (p.documentos_necessarios) {
+      chips.push({ icon: FileText, texto: "Documentos", titulo: p.documentos_necessarios });
+    }
+    if (p.suspende_medicacao) {
+      chips.push({ icon: Pill, texto: "Suspender medicação", titulo: p.suspende_medicacao });
+    }
+
     return (
       <div
         key={p.id}
@@ -257,40 +394,95 @@ export default function ProcedimentosPage() {
           {p.tipo === "exame" ? "Exame" : "Procedimento"}
         </Badge>
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
-            {p.profissional && (
-              <Badge variant="outline" className="text-[10px] font-normal text-gray-500 border-gray-200">
-                {p.profissional}
+            {meds.map(m => (
+              <Badge key={m} variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
+                <User size={9} /> {m}
               </Badge>
-            )}
+            ))}
           </div>
-          {p.protocolo && (
-            <p className="text-xs text-gray-400 mt-0.5">{p.protocolo}</p>
+
+          {/* Convênios + Particular */}
+          {(p.convenios?.length || p.atende_particular) ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(p.convenios ?? []).map(c => (
+                <Badge key={c} className="text-[10px] font-normal bg-green-100 text-green-800 border-green-200">
+                  {c}
+                </Badge>
+              ))}
+              {p.atende_particular && (
+                <Badge variant="outline" className="text-[10px] font-normal text-gray-500 border-gray-200 bg-gray-50">
+                  Particular
+                </Badge>
+              )}
+            </div>
+          ) : null}
+
+          {/* Preparo estruturado (chips) */}
+          {chips.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {chips.map((c, i) => {
+                const CIcon = c.icon;
+                return (
+                  <span
+                    key={i}
+                    title={c.titulo}
+                    className={`inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600 ${c.titulo ? "cursor-help" : ""}`}
+                  >
+                    <CIcon size={10} /> {c.texto}
+                  </span>
+                );
+              })}
+            </div>
           )}
+
           {p.descricao && (
-            <p className="text-xs text-gray-500 mt-0.5 flex items-start gap-1">
+            <p className="text-xs text-gray-500 flex items-start gap-1">
               <Info size={11} className="shrink-0 mt-0.5" />
               {p.descricao}
             </p>
           )}
+
+          {/* Pacote destacado (ou protocolo legado como fallback) */}
+          {temPacote ? (
+            <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-800">
+              <Package size={12} className="shrink-0" />
+              <span>
+                <strong>{p.pacote_sessoes} sessões:</strong> {fmtBRL.format(p.pacote_preco ?? 0)}
+                {economia > 0 && (
+                  <span className="text-emerald-600"> · economize {fmtBRL.format(economia)}</span>
+                )}
+              </span>
+            </div>
+          ) : p.protocolo ? (
+            <p className="text-xs text-gray-400">{p.protocolo}</p>
+          ) : null}
+
+          {/* Observações de preparo (texto livre) */}
           {p.preparacao && (
-            <div className="mt-1.5 bg-yellow-50 border border-yellow-200 rounded-md px-3 py-1.5">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-1.5">
               <p className="text-xs text-yellow-800 flex items-start gap-1">
                 <AlertCircle size={11} className="shrink-0 mt-0.5" />
-                <span><strong>Preparo:</strong> {p.preparacao}</span>
+                <span><strong>Observações de preparo:</strong> {p.preparacao}</span>
               </p>
             </div>
           )}
         </div>
 
         {p.preco != null && (
-          <div className="shrink-0 text-right">
-            <p className="font-semibold text-gray-900 text-sm whitespace-nowrap">
+          <div className="shrink-0 text-right space-y-1">
+            <p className="font-bold text-gray-900 text-base whitespace-nowrap leading-tight">
               {fmtBRL.format(p.preco)}
-              {p.unidade_medida ? <span className="font-normal text-gray-400"> /{p.unidade_medida}</span> : null}
+              {p.unidade_medida ? <span className="block font-normal text-[11px] text-gray-400"> /{p.unidade_medida}</span> : null}
             </p>
+            {p.parcelas_max ? (
+              <Badge variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
+                <CreditCard size={9} />
+                em até {p.parcelas_max}x{parcela != null ? ` de ${fmtBRL.format(parcela)}` : ""}
+              </Badge>
+            ) : null}
           </div>
         )}
 
@@ -357,7 +549,7 @@ export default function ProcedimentosPage() {
         </div>
       </div>
 
-      {/* Aviso de migração pendente (preço/categoria não salvos) */}
+      {/* Aviso de migração pendente */}
       {aviso && (
         <Alert>
           <AlertCircle size={16} />
@@ -368,18 +560,18 @@ export default function ProcedimentosPage() {
         </Alert>
       )}
 
-      {/* Barra de busca + filtro de tipo */}
+      {/* Barra de busca + filtro de tipo + filtro de médico */}
       <div className="flex flex-col sm:flex-row gap-3 items-center">
         <div className="relative flex-1 w-full">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar nome, descrição, categoria ou profissional..."
+            placeholder="Buscar nome, descrição, categoria ou médico..."
             value={busca}
             onChange={e => setBusca(e.target.value)}
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
           {["todos", ...TIPOS.map(t => t.key)].map(k => {
             const label = k === "todos" ? "Todos" : TIPOS.find(t => t.key === k)?.label ?? k;
             return (
@@ -394,6 +586,20 @@ export default function ProcedimentosPage() {
               </Button>
             );
           })}
+          {medicosUnidade.length > 0 && (
+            <Select value={medicoAtivo} onValueChange={setMedicoAtivo}>
+              <SelectTrigger className="h-7 w-auto min-w-[9rem] rounded-full text-xs gap-1">
+                <User size={13} className="text-muted-foreground" />
+                <SelectValue placeholder="Médico" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Médico: Todos</SelectItem>
+                {medicosUnidade.map(m => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
@@ -448,18 +654,22 @@ export default function ProcedimentosPage() {
                       </div>
                     ) : (
                       <div className="divide-y">
-                        {grupos.map(g => (
-                          <div key={g.cat}>
-                            <div className="px-5 pt-3 pb-1 bg-gray-50/60">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                {g.cat === SEM_CATEGORIA ? "Geral" : g.cat}
-                              </p>
+                        {grupos.map(g => {
+                          const CatIcon = g.cat === SEM_CATEGORIA ? ClipboardList : iconeCategoria(g.cat);
+                          return (
+                            <div key={g.cat}>
+                              <div className="px-5 pt-3 pb-1 bg-gray-50/60">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                  <CatIcon size={13} className="text-muted-foreground/70" />
+                                  {g.cat === SEM_CATEGORIA ? "Geral" : g.cat}
+                                </p>
+                              </div>
+                              <div className="divide-y">
+                                {g.items.map(renderItem)}
+                              </div>
                             </div>
-                            <div className="divide-y">
-                              {g.items.map(renderItem)}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </CardContent>
@@ -552,14 +762,106 @@ export default function ProcedimentosPage() {
                 <Input placeholder="sessão, ampola, frasco…" value={form.unidade_medida} onChange={f("unidade_medida")} />
               </div>
               <div className="space-y-1.5">
-                <Label>Profissional</Label>
-                <Input placeholder="Dra. Thais e Dra. Jessica" value={form.profissional} onChange={f("profissional")} />
+                <Label>Protocolo (texto livre)</Label>
+                <Input placeholder="Protocolo 3 sessões: R$ 1.200,00" value={form.protocolo} onChange={f("protocolo")} />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Protocolo</Label>
-              <Input placeholder="Protocolo 3 sessões: R$ 1.200,00" value={form.protocolo} onChange={f("protocolo")} />
+            {/* Seção: Valores & pagamento */}
+            <div className="pt-2 border-t">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 mb-3">
+                <CreditCard size={13} /> Valores &amp; pagamento
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Parcelas máx.</Label>
+                  <Input type="number" min="0" step="1" placeholder="6" value={form.parcelas_max ?? ""} onChange={num("parcelas_max")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Pacote: sessões</Label>
+                  <Input type="number" min="0" step="1" placeholder="3" value={form.pacote_sessoes ?? ""} onChange={num("pacote_sessoes")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Preço do pacote</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                    <Input type="number" min="0" step="0.01" placeholder="0,00" className="pl-9" value={form.pacote_preco ?? ""} onChange={num("pacote_preco")} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Seção: Preparo */}
+            <div className="pt-2 border-t">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 mb-3">
+                <Clock size={13} /> Preparo
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Jejum (horas)</Label>
+                  <Input type="number" min="0" step="1" placeholder="8" value={form.jejum_horas ?? ""} onChange={num("jejum_horas")} />
+                  <p className="text-[11px] text-muted-foreground">0 = sem jejum</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Duração (min)</Label>
+                  <Input type="number" min="0" step="1" placeholder="30" value={form.duracao_min ?? ""} onChange={num("duracao_min")} />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                <Checkbox
+                  checked={form.requer_agendamento}
+                  onCheckedChange={v => setForm(prev => ({ ...prev, requer_agendamento: v === true }))}
+                />
+                <span className="text-sm">Requer agendamento</span>
+              </label>
+              <div className="space-y-1.5 mt-3">
+                <Label>Documentos necessários</Label>
+                <Input placeholder="Ex: Pedido médico, RG, carteirinha do convênio…" value={form.documentos_necessarios} onChange={f("documentos_necessarios")} />
+              </div>
+              <div className="space-y-1.5 mt-3">
+                <Label>Suspender medicação</Label>
+                <Input placeholder="Ex: Suspender anticoagulante 3 dias antes…" value={form.suspende_medicacao} onChange={f("suspende_medicacao")} />
+              </div>
+            </div>
+
+            {/* Seção: Convênios & médicos */}
+            <div className="pt-2 border-t">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 mb-3">
+                <User size={13} /> Convênios &amp; médicos
+              </p>
+              <div className="space-y-1.5">
+                <Label>Convênios</Label>
+                <Input
+                  list="convenios-existentes"
+                  placeholder="Ex: Unimed, Bradesco, SulAmérica"
+                  value={form.convenios}
+                  onChange={f("convenios")}
+                />
+                <datalist id="convenios-existentes">
+                  {conveniosExistentes.map(c => <option key={c} value={c} />)}
+                </datalist>
+                <p className="text-[11px] text-muted-foreground">Separe por vírgula.</p>
+              </div>
+              <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                <Checkbox
+                  checked={form.atende_particular}
+                  onCheckedChange={v => setForm(prev => ({ ...prev, atende_particular: v === true }))}
+                />
+                <span className="text-sm">Atende particular</span>
+              </label>
+              <div className="space-y-1.5 mt-3">
+                <Label>Médicos</Label>
+                <Input
+                  list="medicos-existentes"
+                  placeholder="Ex: Dra. Thais, Dra. Jessica"
+                  value={form.medicos}
+                  onChange={f("medicos")}
+                />
+                <datalist id="medicos-existentes">
+                  {medicosExistentes.map(m => <option key={m} value={m} />)}
+                </datalist>
+                <p className="text-[11px] text-muted-foreground">Separe por vírgula.</p>
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -575,7 +877,7 @@ export default function ProcedimentosPage() {
 
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1">
-                <AlertCircle size={13} className="text-amber-600" /> Preparo / Instruções
+                <AlertCircle size={13} className="text-amber-600" /> Observações de preparo
               </Label>
               <Textarea
                 rows={3}
