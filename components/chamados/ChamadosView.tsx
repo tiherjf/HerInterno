@@ -203,6 +203,14 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const [mntEquipPatr, setMntEquipPatr] = useState("");
   const [attachFiles, setAttachFiles] = useState<File[]>([]);
 
+  // Wizard (Abrir Chamado): 3 etapas — categoria / detalhes / anexos+direcionamento
+  const [wizardStep, setWizardStep] = useState(1);
+  const [direcionamento, setDirecionamento] = useState<"team" | "tecnico">("team");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [agentes, setAgentes] = useState<{ id: string; full_name: string }[]>([]);
+  const [previews, setPreviews] = useState<(string | null)[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+
   const isManutencao = form.team === "manutencao";
   const isAgentUser = AGENT_ROLES.includes(myProfile?.role ?? "");
 
@@ -231,6 +239,24 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
       if (data.full_name) setMyProfile(data as MyProfile);
     }).catch(() => {});
   }, []);
+
+  // Técnicos da equipe para o direcionamento opcional (etapa 3).
+  // Recarrega ao abrir o modal e sempre que a equipe muda, resetando a escolha.
+  useEffect(() => {
+    if (!openNew) return;
+    setAssignedTo("");
+    fetch(`/api/chamados/agentes?team=${form.team}`)
+      .then(r => r.json())
+      .then(j => setAgentes(j.agentes ?? []))
+      .catch(() => setAgentes([]));
+  }, [openNew, form.team]);
+
+  // Miniaturas de imagens dos anexos — cria/revoga object URLs conforme a lista muda
+  useEffect(() => {
+    const urls = attachFiles.map(f => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null));
+    setPreviews(urls);
+    return () => { urls.forEach(u => { if (u) URL.revokeObjectURL(u); }); };
+  }, [attachFiles]);
 
   // Realtime: atualiza a lista quando qualquer chamado muda (canal global,
   // debounce de ~1s para evitar rajadas). Melhor esforço — sem Realtime o
@@ -324,10 +350,15 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
     setMntEquipDesc("");
     setMntEquipPatr("");
     setAttachFiles([]);
+    setWizardStep(1);
+    setDirecionamento("team");
+    setAssignedTo("");
   };
 
   const submitNew = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Só envia na última etapa (evita submit acidental via Enter nas etapas 1/2)
+    if (wizardStep !== 3) return;
     if (!form.title.trim() || !form.description.trim()) return;
     if (isManutencao && !mntLocation.trim()) {
       alert("Informe a localização do problema.");
@@ -353,6 +384,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
           equipment_patrimonio: isManutencao && mntEquipPatr.trim() ? mntEquipPatr.trim() : undefined,
           mkt_is_alteracao: isMkt ? mktIsAlteracao : undefined,
           mkt_prazo_desejado: isMkt && mktPrazo ? mktPrazo : undefined,
+          assigned_to: direcionamento === "tecnico" && assignedTo ? assignedTo : undefined,
         }),
       });
       const json = await res.json();
@@ -462,6 +494,39 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   const slaPreview = selectedMktCat
     ? (mktIsAlteracao && selectedMktCat.alteracao_sla_hours ? selectedMktCat.alteracao_sla_hours : selectedMktCat.sla_hours)
     : null;
+
+  // ── Wizard: navegação, prioridade resultante e resumo ──────────
+  const WIZARD_STEPS = [
+    { n: 1, label: "Categoria" },
+    { n: 2, label: "Detalhes" },
+    { n: 3, label: isMkt ? "Anexos e revisão" : "Anexos e envio" },
+  ];
+  // Etapa 1 exige categoria (quando a equipe tem categorias disponíveis)
+  const canAdvanceStep1 = catsForTeam.length === 0 || !!form.category_id;
+  // Etapa 2 exige título, descrição e (manutenção) localização
+  const canAdvanceStep2 =
+    !!form.title.trim() && !!form.description.trim() && (!isManutencao || !!mntLocation.trim());
+  // Prioridade resultante (espelha a lógica do payload)
+  const resultingPriority = catDefaultPriority
+    ? catDefaultPriority
+    : isManutencao ? (URGENCY_TO_PRIORITY[mntUrgency] ?? "medium") : form.priority;
+  // Texto do prazo de SLA para o resumo
+  const slaResumo = !selectedCat
+    ? "Definido pela equipe"
+    : catDefaultPriority === "scheduled"
+      ? "Sem prazo de SLA"
+      : isMkt && slaPreview !== null
+        ? `${slaPreview}h (POL HER 003)`
+        : `Resposta em até ${selectedCat.sla_hours}h úteis`;
+  const goNext = () => setWizardStep(s => Math.min(3, s + 1));
+  const goBack = () => setWizardStep(s => Math.max(1, s - 1));
+
+  // Texto do SLA por card de categoria (etapa 1)
+  const catCardSla = (c: Category) => {
+    const dp = c.default_priority && PRIORITY_LABELS[c.default_priority] ? c.default_priority : null;
+    if (dp === "scheduled") return "Sem prazo de SLA";
+    return `Resposta em até ${c.sla_hours}h úteis`;
+  };
 
   return (
     <div className="space-y-6">
@@ -592,7 +657,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
       {/* ──── Modal: novo chamado ──── */}
       <Dialog open={openNew} onOpenChange={v => { if (!v) resetForm(); setOpenNew(v); }}>
-        <DialogContent className={`${isMkt ? "max-w-xl" : "max-w-lg"} max-h-[90vh] overflow-y-auto`}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {isMkt ? <><Megaphone size={18} className="text-pink-600" /> Nova Solicitação de Comunicação</> : "Abrir Chamado"}
@@ -612,152 +677,177 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
           {!lastProtocolo && (
             <form onSubmit={submitNew} className="space-y-4">
-              {/* Team selector ou badge fixo */}
-              {!defaultTeam ? (
-                <div className="space-y-2">
-                  <Label>Para onde vai essa solicitação? *</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {TEAM_OPTIONS.map(t => {
-                      const Icon = t.icon;
-                      const isActive = form.team === t.key;
-                      return (
-                        <button key={t.key} type="button"
-                          onClick={() => setForm(p => ({ ...p, team: t.key, category_id: "" }))}
-                          className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${
-                            isActive ? t.color + " shadow-sm" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
-                          }`}>
-                          <Icon size={20} />
-                          <span className="text-xs font-semibold leading-tight">{t.label}</span>
-                          <span className="text-xs opacity-70 leading-tight hidden sm:block">{t.desc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 ${selectedTeamInfo.color}`}>
-                  {(() => { const Icon = selectedTeamInfo.icon; return <Icon size={16} />; })()}
-                  <div>
-                    <p className="text-sm font-semibold">{selectedTeamInfo.label}</p>
-                    <p className="text-xs opacity-75">{selectedTeamInfo.desc}</p>
-                  </div>
-                  <Lock size={13} className="ml-auto opacity-50" />
-                </div>
-              )}
-
-              {/* ──── MKT exclusivo ──── */}
-              {(form.team === "marketing" || isMkt) && (
-                <>
-                  <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-pink-700 mb-1.5 flex items-center gap-1">
-                      <User size={12} /> Solicitante
-                    </p>
-                    {myProfile ? (
-                      <p className="text-sm font-medium text-gray-800">
-                        {myProfile.full_name}
-                        {myProfile.sector && <span className="text-muted-foreground font-normal"> — {myProfile.sector}</span>}
-                      </p>
-                    ) : (
-                      <Skeleton className="h-4 w-48" />
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">Preenchido com seus dados de perfil</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Tipo de material *</Label>
-                    <Select value={form.category_id || "__none__"}
-                      onValueChange={v => setForm(p => ({ ...p, category_id: v === "__none__" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Selecione o tipo de demanda..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Selecione...</SelectItem>
-                        {(categoriasByTeam["marketing"] ?? []).map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {catPriorityBadge}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Tipo de solicitação *</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => setMktIsAlteracao(false)}
-                        className={`flex items-center gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
-                          !mktIsAlteracao ? "border-pink-500 bg-pink-50 text-pink-700" : "border-gray-200 text-gray-500 hover:border-gray-300"
-                        }`}>
-                        <Sparkles size={18} className="shrink-0" />
-                        <div>
-                          <p className="text-sm font-semibold">Nova criação</p>
-                          {selectedMktCat && !mktIsAlteracao && <p className="text-xs opacity-70">SLA: {selectedMktCat.sla_hours}h</p>}
-                        </div>
-                      </button>
-                      <button type="button" onClick={() => setMktIsAlteracao(true)}
-                        className={`flex items-center gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
-                          mktIsAlteracao ? "border-amber-500 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-500 hover:border-gray-300"
-                        }`}>
-                        <Pencil size={18} className="shrink-0" />
-                        <div>
-                          <p className="text-sm font-semibold">Alteração</p>
-                          {selectedMktCat && mktIsAlteracao && (
-                            <p className="text-xs opacity-70">
-                              {selectedMktCat.alteracao_sla_hours ? `SLA: ${selectedMktCat.alteracao_sla_hours}h` : "SLA igual"}
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  {slaPreview !== null && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center gap-2 text-sm">
-                      <Clock size={14} className="text-blue-600 shrink-0" />
-                      <span className="text-blue-700">
-                        Prazo conforme <strong>POL HER 003</strong>: <strong>{slaPreview}h</strong> a partir da abertura
-                        {mktIsAlteracao && !selectedMktCat?.alteracao_sla_hours && " (sem prazo reduzido para alteração neste tipo)"}
+              {/* Indicador de etapas */}
+              <div className="flex items-center gap-1.5">
+                {WIZARD_STEPS.map((st, i) => (
+                  <div key={st.n} className="flex items-center gap-1.5 flex-1 last:flex-none">
+                    <div className={`flex items-center gap-1.5 ${wizardStep === st.n ? "" : "opacity-60"}`}>
+                      <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold shrink-0 ${
+                        wizardStep > st.n
+                          ? "bg-green-600 text-white"
+                          : wizardStep === st.n
+                            ? (isMkt ? "bg-pink-600 text-white" : "bg-primary text-primary-foreground")
+                            : "bg-gray-200 text-gray-500"
+                      }`}>
+                        {wizardStep > st.n ? <CheckCircle2 size={14} /> : st.n}
                       </span>
+                      <span className="text-xs font-medium hidden sm:inline">{st.label}</span>
+                    </div>
+                    {i < WIZARD_STEPS.length - 1 && <div className="flex-1 h-px bg-gray-200" />}
+                  </div>
+                ))}
+              </div>
+
+              {/* ============ ETAPA 1 — CATEGORIA ============ */}
+              {wizardStep === 1 && (
+                <div className="space-y-4">
+                  {/* Team selector ou badge fixo */}
+                  {!defaultTeam ? (
+                    <div className="space-y-2">
+                      <Label>Para onde vai essa solicitação? *</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {TEAM_OPTIONS.map(t => {
+                          const Icon = t.icon;
+                          const isActive = form.team === t.key;
+                          return (
+                            <button key={t.key} type="button"
+                              onClick={() => setForm(p => ({ ...p, team: t.key, category_id: "" }))}
+                              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center ${
+                                isActive ? t.color + " shadow-sm" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                              }`}>
+                              <Icon size={20} />
+                              <span className="text-xs font-semibold leading-tight">{t.label}</span>
+                              <span className="text-xs opacity-70 leading-tight hidden sm:block">{t.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 ${selectedTeamInfo.color}`}>
+                      {(() => { const Icon = selectedTeamInfo.icon; return <Icon size={16} />; })()}
+                      <div>
+                        <p className="text-sm font-semibold">{selectedTeamInfo.label}</p>
+                        <p className="text-xs opacity-75">{selectedTeamInfo.desc}</p>
+                      </div>
+                      <Lock size={13} className="ml-auto opacity-50" />
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="mkt-prazo">Data limite desejada</Label>
-                    <Input id="mkt-prazo" type="date" value={mktPrazo}
-                      onChange={e => setMktPrazo(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]} />
-                    <p className="text-xs text-muted-foreground">Informativo — o prazo real segue a POL HER 003</p>
-                  </div>
-                </>
-              )}
+                  {/* Solicitante (MKT) */}
+                  {(form.team === "marketing" || isMkt) && (
+                    <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-pink-700 mb-1.5 flex items-center gap-1">
+                        <User size={12} /> Solicitante
+                      </p>
+                      {myProfile ? (
+                        <p className="text-sm font-medium text-gray-800">
+                          {myProfile.full_name}
+                          {myProfile.sector && <span className="text-muted-foreground font-normal"> — {myProfile.sector}</span>}
+                        </p>
+                      ) : (
+                        <Skeleton className="h-4 w-48" />
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">Preenchido com seus dados de perfil</p>
+                    </div>
+                  )}
 
-              {/* Título */}
-              <div className="space-y-2">
-                <Label htmlFor="ticket-title">
-                  {isMkt ? "Título / Assunto da solicitação *" : "Título *"}
-                </Label>
-                <Input id="ticket-title" required value={form.title}
-                  onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                  placeholder={
-                    isMkt ? "Ex.: Banner Dia dos Médicos, Comunicado Férias..."
-                    : isManutencao ? "Resumo do problema: Ex.: AC sem funcionar, Torneira quebrada..."
-                    : "Descreva brevemente o problema ou pedido"
-                  }
-                />
-              </div>
-
-              {/* Categoria (+ prioridade para TI) */}
-              {form.team !== "marketing" && !isMkt && (
-                <div className={`grid gap-3 ${isManutencao ? "grid-cols-1" : "grid-cols-2"}`}>
+                  {/* Cards de categoria */}
                   <div className="space-y-2">
-                    <Label>Categoria</Label>
-                    <Select value={form.category_id || "__none__"}
-                      onValueChange={v => setForm(p => ({ ...p, category_id: v === "__none__" ? "" : v }))}>
-                      <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Selecione...</SelectItem>
-                        {catsForTeam.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Label>{isMkt ? "Tipo de material *" : "Categoria *"}</Label>
+                    {catsForTeam.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhuma categoria disponível — prossiga para detalhar o chamado.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {catsForTeam.map(c => {
+                          const active = form.category_id === c.id;
+                          return (
+                            <button key={c.id} type="button"
+                              onClick={() => setForm(p => ({ ...p, category_id: c.id }))}
+                              className={`flex flex-col items-start gap-1 p-3 rounded-xl border-2 text-left transition-all ${
+                                active ? "border-primary bg-primary/5 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"
+                              }`}>
+                              <span className="flex items-center gap-2 font-medium text-sm text-gray-900">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                                {c.name}
+                              </span>
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock size={11} /> {catCardSla(c)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  {!isManutencao && (
+
+                  {/* MKT: tipo de solicitação + SLA POL HER 003 */}
+                  {(form.team === "marketing" || isMkt) && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Tipo de solicitação *</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" onClick={() => setMktIsAlteracao(false)}
+                            className={`flex items-center gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
+                              !mktIsAlteracao ? "border-pink-500 bg-pink-50 text-pink-700" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            }`}>
+                            <Sparkles size={18} className="shrink-0" />
+                            <div>
+                              <p className="text-sm font-semibold">Nova criação</p>
+                              {selectedMktCat && !mktIsAlteracao && <p className="text-xs opacity-70">SLA: {selectedMktCat.sla_hours}h</p>}
+                            </div>
+                          </button>
+                          <button type="button" onClick={() => setMktIsAlteracao(true)}
+                            className={`flex items-center gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
+                              mktIsAlteracao ? "border-amber-500 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            }`}>
+                            <Pencil size={18} className="shrink-0" />
+                            <div>
+                              <p className="text-sm font-semibold">Alteração</p>
+                              {selectedMktCat && mktIsAlteracao && (
+                                <p className="text-xs opacity-70">
+                                  {selectedMktCat.alteracao_sla_hours ? `SLA: ${selectedMktCat.alteracao_sla_hours}h` : "SLA igual"}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {slaPreview !== null && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center gap-2 text-sm">
+                          <Clock size={14} className="text-blue-600 shrink-0" />
+                          <span className="text-blue-700">
+                            Prazo conforme <strong>POL HER 003</strong>: <strong>{slaPreview}h</strong> a partir da abertura
+                            {mktIsAlteracao && !selectedMktCat?.alteracao_sla_hours && " (sem prazo reduzido para alteração neste tipo)"}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Prioridade resultante / controle manual */}
+                  {(form.team === "marketing" || isMkt) ? (
+                    catPriorityBadge
+                  ) : isManutencao ? (
+                    catDefaultPriority ? (
+                      <div className="space-y-2"><Label>Prioridade</Label>{catPriorityBadge}</div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Urgência *</Label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {URGENCY_OPTIONS.map(u => (
+                            <button key={u.key} type="button" onClick={() => setMntUrgency(u.key)}
+                              className={`py-2.5 px-3 rounded-lg border-2 text-center transition-all text-sm font-medium ${
+                                mntUrgency === u.key ? u.activeColor : "border-gray-200 text-gray-500 hover:border-gray-300"
+                              }`}>
+                              {u.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  ) : (
                     <div className="space-y-2">
                       <Label>Prioridade</Label>
                       {catDefaultPriority ? catPriorityBadge : (
@@ -776,177 +866,243 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                 </div>
               )}
 
-              {/* ──── Manutenção exclusivo ──── */}
-              {isManutencao && (
-                <>
-                  {/* Localização */}
+              {/* ============ ETAPA 2 — DETALHES ============ */}
+              {wizardStep === 2 && (
+                <div className="space-y-4">
+                  {/* Título */}
                   <div className="space-y-2">
-                    <Label htmlFor="mnt-location">Localização do problema *</Label>
-                    <Input
-                      id="mnt-location"
-                      required
-                      value={mntLocation}
-                      onChange={e => setMntLocation(e.target.value)}
-                      placeholder="Ex: Térreo — Recepção, 2º Andar — UTI, Sala 302, Banheiro masculino..."
+                    <Label htmlFor="ticket-title">{isMkt ? "Título / Assunto da solicitação *" : "Título *"}</Label>
+                    <Input id="ticket-title" value={form.title}
+                      onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                      placeholder={
+                        isMkt ? "Ex.: Banner Dia dos Médicos, Comunicado Férias..."
+                        : isManutencao ? "Resumo do problema: Ex.: AC sem funcionar, Torneira quebrada..."
+                        : "Descreva brevemente o problema ou pedido"
+                      }
                     />
                   </div>
 
-                  {/* Urgência — oculta quando a categoria define a prioridade */}
-                  {catDefaultPriority ? (
-                    <div className="space-y-2">
-                      <Label>Prioridade</Label>
-                      {catPriorityBadge}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label>Urgência *</Label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {URGENCY_OPTIONS.map(u => (
-                          <button
-                            key={u.key}
-                            type="button"
-                            onClick={() => setMntUrgency(u.key)}
-                            className={`py-2.5 px-3 rounded-lg border-2 text-center transition-all text-sm font-medium ${
-                              mntUrgency === u.key ? u.activeColor : "border-gray-200 text-gray-500 hover:border-gray-300"
-                            }`}
-                          >
-                            {u.label}
-                          </button>
-                        ))}
+                  {/* Manutenção: localização + equipamento */}
+                  {isManutencao && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="mnt-location">Localização do problema *</Label>
+                        <Input id="mnt-location" value={mntLocation}
+                          onChange={e => setMntLocation(e.target.value)}
+                          placeholder="Ex: Térreo — Recepção, 2º Andar — UTI, Sala 302, Banheiro masculino..." />
                       </div>
-                    </div>
+                      <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                        <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                          <Wrench size={13} /> Equipamento envolvido
+                          <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mnt-patr" className="text-xs text-gray-600">Nº de Patrimônio</Label>
+                            <Input id="mnt-patr" value={mntEquipPatr} onChange={e => setMntEquipPatr(e.target.value)} placeholder="Ex: 00123" className="bg-white" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="mnt-equip" className="text-xs text-gray-600">Descrição</Label>
+                            <Input id="mnt-equip" value={mntEquipDesc} onChange={e => setMntEquipDesc(e.target.value)} placeholder="Ex: Ar-condicionado, Torneira..." className="bg-white" />
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   )}
 
-                  {/* Equipamento */}
-                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
-                    <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                      <Wrench size={13} />
-                      Equipamento envolvido
-                      <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="mnt-patr" className="text-xs text-gray-600">Nº de Patrimônio</Label>
-                        <Input
-                          id="mnt-patr"
-                          value={mntEquipPatr}
-                          onChange={e => setMntEquipPatr(e.target.value)}
-                          placeholder="Ex: 00123"
-                          className="bg-white"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="mnt-equip" className="text-xs text-gray-600">Descrição</Label>
-                        <Input
-                          id="mnt-equip"
-                          value={mntEquipDesc}
-                          onChange={e => setMntEquipDesc(e.target.value)}
-                          placeholder="Ex: Ar-condicionado, Torneira..."
-                          className="bg-white"
-                        />
-                      </div>
-                    </div>
+                  {/* Descrição */}
+                  <div className="space-y-2">
+                    <Label htmlFor="ticket-desc">{isMkt ? "Descrição da demanda *" : "Descrição detalhada *"}</Label>
+                    <Textarea id="ticket-desc" rows={isMkt ? 5 : 4}
+                      placeholder={
+                        isMkt ? "Descreva o objetivo do material, público-alvo, tom de comunicação, informações que devem constar e qualquer detalhe relevante."
+                        : isManutencao ? "Descreva o problema com detalhes: há quanto tempo ocorre, afeta o atendimento, alguma observação importante?"
+                        : "O que aconteceu? Quando? Qual equipamento ou sistema está envolvido?"
+                      }
+                      value={form.description}
+                      onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                      className="resize-none" />
                   </div>
-                </>
+
+                  {/* MKT: data limite desejada */}
+                  {(form.team === "marketing" || isMkt) && (
+                    <div className="space-y-2">
+                      <Label htmlFor="mkt-prazo">Data limite desejada</Label>
+                      <Input id="mkt-prazo" type="date" value={mktPrazo}
+                        onChange={e => setMktPrazo(e.target.value)}
+                        min={new Date().toISOString().split("T")[0]} />
+                      <p className="text-xs text-muted-foreground">Informativo — o prazo real segue a POL HER 003</p>
+                    </div>
+                  )}
+                </div>
               )}
 
-              {/* Descrição */}
-              <div className="space-y-2">
-                <Label htmlFor="ticket-desc">
-                  {isMkt ? "Descrição da demanda *" : "Descrição detalhada *"}
-                </Label>
-                <Textarea id="ticket-desc" required rows={isMkt ? 5 : 4}
-                  placeholder={
-                    isMkt
-                      ? "Descreva o objetivo do material, público-alvo, tom de comunicação, informações que devem constar e qualquer detalhe relevante."
-                    : isManutencao
-                      ? "Descreva o problema com detalhes: há quanto tempo ocorre, afeta o atendimento, alguma observação importante?"
-                    : "O que aconteceu? Quando? Qual equipamento ou sistema está envolvido?"
-                  }
-                  value={form.description}
-                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-                  className="resize-none"
-                />
-              </div>
+              {/* ============ ETAPA 3 — ANEXOS + DIRECIONAMENTO + REVISÃO ============ */}
+              {wizardStep === 3 && (
+                <div className="space-y-4">
+                  {/* Anexos (drag-and-drop + miniaturas) */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      <Paperclip size={13} />
+                      {isManutencao ? "Fotos do problema" : "Anexos"}
+                      <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+                    </Label>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => fileInputRef.current?.click()}
+                      onKeyDown={e => e.key === "Enter" && fileInputRef.current?.click()}
+                      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={e => { e.preventDefault(); setDragOver(false); }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        setDragOver(false);
+                        const files = Array.from(e.dataTransfer.files ?? []);
+                        if (files.length) setAttachFiles(prev => [...prev, ...files]);
+                      }}
+                      className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                        dragOver ? "border-primary bg-primary/10" : "border-gray-200 hover:border-primary/40 hover:bg-primary/5"
+                      }`}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        className="hidden"
+                        onChange={e => {
+                          const files = Array.from(e.target.files ?? []);
+                          setAttachFiles(prev => [...prev, ...files]);
+                          e.target.value = "";
+                        }}
+                      />
+                      <Paperclip size={18} className="mx-auto mb-1.5 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Arraste arquivos aqui ou clique para selecionar</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Imagens, PDF, Word, Excel — máx. 10 MB por arquivo</p>
+                    </div>
+                    {attachFiles.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {attachFiles.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 px-2 py-1.5 rounded-lg border">
+                            {previews[i] ? (
+                              <span className="w-10 h-10 rounded bg-cover bg-center border shrink-0"
+                                style={{ backgroundImage: `url(${previews[i]})` }} />
+                            ) : (
+                              <span className="w-10 h-10 rounded bg-white border flex items-center justify-center shrink-0">
+                                <FileText size={16} className="text-muted-foreground" />
+                              </span>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate">{f.name}</p>
+                              <p className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</p>
+                            </div>
+                            <button type="button"
+                              onClick={() => setAttachFiles(p => p.filter((_, j) => j !== i))}
+                              className="text-muted-foreground hover:text-red-600 shrink-0">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-              {/* Anexos */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">
-                  <Paperclip size={13} />
-                  {isManutencao ? "Fotos do problema" : "Anexos"}
-                  <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
-                </Label>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => fileInputRef.current?.click()}
-                  onKeyDown={e => e.key === "Enter" && fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                    className="hidden"
-                    onChange={e => {
-                      const files = Array.from(e.target.files ?? []);
-                      setAttachFiles(prev => [...prev, ...files]);
-                      e.target.value = "";
-                    }}
-                  />
-                  <Paperclip size={18} className="mx-auto mb-1.5 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Clique para selecionar arquivos</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Imagens, PDF, Word, Excel — máx. 10 MB por arquivo</p>
+                  {/* Direcionamento */}
+                  <div className="space-y-2">
+                    <Label>Direcionamento</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button type="button" onClick={() => { setDirecionamento("team"); setAssignedTo(""); }}
+                        className={`flex items-start gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
+                          direcionamento === "team" ? "border-primary bg-primary/5 text-primary" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}>
+                        <Users size={18} className="shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold">Deixar a equipe distribuir</p>
+                          <p className="text-xs opacity-70">A fila da equipe define quem atende</p>
+                        </div>
+                      </button>
+                      <button type="button" onClick={() => setDirecionamento("tecnico")}
+                        disabled={agentes.length === 0}
+                        className={`flex items-start gap-2.5 p-3 rounded-lg border-2 text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                          direcionamento === "tecnico" ? "border-primary bg-primary/5 text-primary" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}>
+                        <User size={18} className="shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold">Direcionar para um técnico</p>
+                          <p className="text-xs opacity-70">{agentes.length === 0 ? "Nenhum técnico disponível" : "Escolha quem deve atender"}</p>
+                        </div>
+                      </button>
+                    </div>
+                    {direcionamento === "tecnico" && (
+                      <Select value={assignedTo || "__none__"}
+                        onValueChange={v => setAssignedTo(v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o técnico..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Selecione...</SelectItem>
+                          {agentes.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  {/* Resumo */}
+                  <div className="rounded-lg border bg-muted/40 p-3 space-y-1.5 text-sm">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Resumo</p>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Categoria</span>
+                      <span className="font-medium text-right">{selectedCat?.name ?? "Sem categoria"}</span>
+                    </div>
+                    <div className="flex justify-between gap-2 items-center">
+                      <span className="text-muted-foreground">Prioridade</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_LABELS[resultingPriority]?.color ?? ""}`}>
+                        {PRIORITY_LABELS[resultingPriority]?.label ?? resultingPriority}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Prazo de SLA</span>
+                      <span className="font-medium text-right">{slaResumo}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Direcionado a</span>
+                      <span className="font-medium text-right">
+                        {direcionamento === "tecnico" && assignedTo
+                          ? `Téc.: ${agentes.find(a => a.id === assignedTo)?.full_name ?? ""}`
+                          : `Fila da equipe ${selectedTeamInfo.label}`}
+                      </span>
+                    </div>
+                    {isMkt && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 pt-1">
+                        <FileText size={11} /> Protocolo COM- gerado automaticamente
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {attachFiles.length > 0 && (
-                  <ul className="space-y-1">
-                    {attachFiles.map((f, i) => (
-                      <li key={i} className="flex items-center gap-2 text-sm bg-gray-50 px-3 py-1.5 rounded-lg border">
-                        <FileText size={13} className="text-muted-foreground shrink-0" />
-                        <span className="flex-1 truncate">{f.name}</span>
-                        <span className="text-xs text-muted-foreground shrink-0">{(f.size / 1024).toFixed(0)} KB</span>
-                        <button
-                          type="button"
-                          onClick={() => setAttachFiles(p => p.filter((_, j) => j !== i))}
-                          className="text-muted-foreground hover:text-red-600 shrink-0"
-                        >
-                          <X size={13} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {/* SLA preview não-MKT */}
-              {!isMkt && selectedCat && (
-                catDefaultPriority === "scheduled" ? (
-                  <p className="text-xs text-muted-foreground">
-                    Categoria <strong>A Programar</strong> — sem prazo de SLA
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">SLA desta categoria: <strong>{selectedCat.sla_hours}h</strong></p>
-                )
               )}
 
               <DialogFooter className="flex-row items-center justify-between gap-2 pt-2">
-                {isMkt ? (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <FileText size={11} /> Protocolo COM- gerado automaticamente
-                  </p>
-                ) : (
-                  <span className={`text-xs px-2 py-1 rounded-full border font-medium ${selectedTeamInfo.color}`}>
-                    Enviando para: {selectedTeamInfo.label}
-                  </span>
-                )}
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => { resetForm(); setOpenNew(false); }}>Cancelar</Button>
-                  <Button type="submit" disabled={submitting} className={isMkt ? "bg-pink-600 hover:bg-pink-700" : ""}>
-                    {submitting
-                      ? <><Loader2 size={14} className="animate-spin" /> {attachFiles.length > 0 ? "Enviando arquivos..." : "Enviando..."}</>
-                      : isMkt ? "Enviar Solicitação" : "Abrir Chamado"}
-                  </Button>
+                <div className="flex items-center gap-2">
+                  {wizardStep > 1 ? (
+                    <Button type="button" variant="outline" onClick={goBack}>Voltar</Button>
+                  ) : (
+                    <Button type="button" variant="outline" onClick={() => { resetForm(); setOpenNew(false); }}>Cancelar</Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {wizardStep < 3 ? (
+                    <Button type="button" onClick={goNext}
+                      disabled={wizardStep === 1 ? !canAdvanceStep1 : !canAdvanceStep2}
+                      className={isMkt ? "bg-pink-600 hover:bg-pink-700" : ""}>
+                      Próximo
+                    </Button>
+                  ) : (
+                    <Button type="submit"
+                      disabled={submitting || (direcionamento === "tecnico" && !assignedTo)}
+                      className={isMkt ? "bg-pink-600 hover:bg-pink-700" : ""}>
+                      {submitting
+                        ? <><Loader2 size={14} className="animate-spin" /> {attachFiles.length > 0 ? "Enviando arquivos..." : "Enviando..."}</>
+                        : isMkt ? "Enviar Solicitação" : "Abrir Chamado"}
+                    </Button>
+                  )}
                 </div>
               </DialogFooter>
             </form>

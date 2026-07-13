@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
       title, description, category_id, team: requestedTeam,
       mkt_is_alteracao, mkt_prazo_desejado,
       location, urgency, equipment_description, equipment_patrimonio,
+      assigned_to,
     } = body;
 
     if (!title?.trim() || !description?.trim()) {
@@ -175,6 +176,24 @@ export async function POST(req: NextRequest) {
     // "A Programar" (scheduled) não corre SLA
     if (resolvedPriority === "scheduled") sla_deadline = null;
 
+    // Direcionamento opcional a um técnico: valida que é um perfil ativo cujo
+    // papel corresponde à equipe do chamado. Sem assigned_to, comportamento
+    // idêntico ao anterior (o chamado entra na fila da equipe).
+    let assignedTo: string | null = null;
+    let assignedName: string | null = null;
+    if (assigned_to) {
+      const { data: tecnico } = await svc
+        .from("profiles")
+        .select("id, full_name, role, active")
+        .eq("id", assigned_to)
+        .single();
+      if (!tecnico || tecnico.active !== true || tecnico.role !== ticketTeam) {
+        return NextResponse.json({ error: "Técnico inválido para esta equipe" }, { status: 400 });
+      }
+      assignedTo = tecnico.id;
+      assignedName = tecnico.full_name;
+    }
+
     // Gera protocolo COM-AAAA-XXXX para solicitações MKT
     let mktProtocolo: string | null = null;
     if (ticketTeam === "marketing") {
@@ -211,6 +230,8 @@ export async function POST(req: NextRequest) {
         urgency: ticketTeam === "manutencao" ? (urgency ?? null) : null,
         equipment_description: ticketTeam === "manutencao" && equipment_description?.trim() ? equipment_description.trim() : null,
         equipment_patrimonio: ticketTeam === "manutencao" && equipment_patrimonio?.trim() ? equipment_patrimonio.trim() : null,
+        // Direcionamento opcional — status permanece "open" e não seta first_response_at
+        assigned_to: assignedTo,
       })
       .select("id, number, mkt_protocolo")
       .single();
@@ -220,6 +241,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: MSG_MIGRACAO_042 }, { status: 400 });
     }
     if (error) throw error;
+
+    // Registra no histórico o direcionamento feito na abertura (melhor esforço)
+    if (assignedTo && assignedName && data?.id) {
+      try {
+        await svc.from("ticket_history").insert({
+          ticket_id: data.id,
+          user_id: profile.id,
+          user_name: profile.full_name,
+          action: "assigned",
+          old_value: null,
+          new_value: `${assignedName} (direcionado na abertura)`,
+        });
+      } catch { /* não bloqueia a criação do chamado */ }
+    }
 
     return NextResponse.json({ ok: true, id: data.id, number: data.number, mkt_protocolo: data.mkt_protocolo }, { status: 201 });
   } catch (err) {
