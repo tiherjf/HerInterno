@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   Search, RefreshCw, Clock, CheckCircle2, XCircle, AlertTriangle,
   User, BarChart2, SlidersHorizontal, ChevronDown, ChevronUp,
@@ -64,6 +65,14 @@ const PRIORITY: Record<string, { label: string; color: string }> = {
   high:     { label: "Alta",    color: "bg-orange-100 text-orange-700" },
   critical: { label: "Crítica", color: "bg-red-100 text-red-700 font-bold" },
   scheduled: { label: "A Programar", color: "bg-gray-200 text-gray-600" },
+};
+// Cor sólida do "ponto" de prioridade usado na barra lateral do detalhe
+const PRIORITY_DOT: Record<string, string> = {
+  low:       "bg-blue-500",
+  medium:    "bg-yellow-500",
+  high:      "bg-orange-500",
+  critical:  "bg-red-500",
+  scheduled: "bg-gray-400",
 };
 const STATUS: Record<string, { label: string; color: string }> = {
   open:        { label: "Aberto",         color: "bg-gray-100 text-gray-700" },
@@ -116,6 +125,85 @@ function SlaChip({ deadline, status }: { deadline: string | null; status: string
     <span className={`text-xs font-medium flex items-center gap-0.5 ${color} ${urgent ? "animate-pulse" : ""}`}>
       <Clock size={11} /> {h > 0 ? `${h}h ${m}m` : `${m}min`}
     </span>
+  );
+}
+
+// ── Card de destaque do SLA (usado no painel de detalhe) ─────────────────────
+// Reaproveita exatamente a mesma lógica de prazo do SlaChip (calculada a partir
+// de sla_deadline) — apenas apresentada como um cartão colorido maior.
+function SlaCard({ deadline, status, breachReason }: { deadline: string | null; status: string; breachReason?: string | null }) {
+  // SLA pausado enquanto aguarda usuário/terceiros
+  if (status === "waiting_user" || status === "waiting_third_party") {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-2">
+        <Hourglass size={16} className="text-amber-600 shrink-0" />
+        <span className="text-sm font-medium text-amber-700">SLA pausado</span>
+        <span className="text-xs text-amber-600 ml-auto">Contagem retomada ao voltar o atendimento</span>
+      </div>
+    );
+  }
+
+  const finalized = ["resolved", "closed", "cancelled"].includes(status);
+
+  // Chamado finalizado com estouro de prazo → painel vermelho com o motivo
+  if (finalized) {
+    if (breachReason) {
+      return (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-xs font-bold text-red-700 mb-1 flex items-center gap-1">
+            <AlertTriangle size={13} /> SLA estourado — motivo:
+          </p>
+          <p className="text-sm whitespace-pre-wrap text-gray-700">{breachReason}</p>
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-2">
+        <CheckCircle2 size={16} className="text-green-600 shrink-0" />
+        <span className="text-sm font-medium text-green-700">SLA cumprido</span>
+      </div>
+    );
+  }
+
+  if (!deadline) return null;
+
+  const diff = new Date(deadline).getTime() - Date.now();
+
+  // Vencido
+  if (diff <= 0) {
+    const over = -diff;
+    const h = Math.floor(over / 3600000);
+    const m = Math.floor((over % 3600000) / 60000);
+    return (
+      <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 flex items-center gap-2 animate-pulse">
+        <AlertTriangle size={16} className="text-red-600 shrink-0" />
+        <span className="text-sm font-semibold text-red-700">SLA vencido</span>
+        <span className="text-xs text-red-600 ml-auto font-medium">vencido há {h > 0 ? `${h}h ${m}m` : `${m}min`}</span>
+      </div>
+    );
+  }
+
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const remaining = h > 0 ? `${h}h ${m}m` : `${m}min`;
+  const urgent = diff < 7200000; // < 2h
+
+  if (urgent) {
+    return (
+      <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-2 animate-pulse">
+        <Clock size={16} className="text-amber-600 shrink-0" />
+        <span className="text-sm font-semibold text-amber-700">SLA vence em breve</span>
+        <span className="text-xs text-amber-600 ml-auto font-medium">faltam {remaining}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-2">
+      <Clock size={16} className="text-green-600 shrink-0" />
+      <span className="text-sm font-semibold text-green-700">Dentro do prazo</span>
+      <span className="text-xs text-green-600 ml-auto font-medium">faltam {remaining}</span>
+    </div>
   );
 }
 
@@ -734,350 +822,398 @@ export default function AdminChamadosPage() {
         </div>
       )}
 
-      {/* Modal detalhe */}
-      <Dialog open={!!selected} onOpenChange={v => { if (!v) { setSelected(null); setDetail(null); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      {/* Painel de detalhe — slide-over à direita */}
+      <Sheet open={!!selected} onOpenChange={v => { if (!v) { setSelected(null); setDetail(null); } }}>
+        <SheetContent side="right" className="w-full max-w-2xl sm:max-w-2xl p-0 flex flex-col gap-0">
           {selected && (
             <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <span className="font-mono text-sm text-muted-foreground">#{String(selected.number).padStart(4,"0")}</span>
-                  {selected.title}
-                </DialogTitle>
-              </DialogHeader>
-
-              {/* Atribuição manual */}
-              {["open","in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
-                <div className="flex gap-2 items-center border rounded-lg px-3 py-2 bg-muted/50">
-                  <UserCheck size={15} className="text-muted-foreground shrink-0" />
-                  <Select value={assignToId || "__none__"} onValueChange={v => setAssignToId(v === "__none__" ? "" : v)}>
-                    <SelectTrigger className="flex-1 border-0 bg-transparent h-8 shadow-none focus:ring-0 text-sm">
-                      <SelectValue placeholder="Atribuir para..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Atribuir para...</SelectItem>
-                      {availableAgents.map(a => (
-                        <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" disabled={!assignToId || actioning}
-                    onClick={() => { doAction("assign", { assigned_to: assignToId }); setAssignToId(""); }}>
-                    Atribuir
-                  </Button>
-                </div>
-              )}
-
-              {/* Ações rápidas */}
-              <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg">
-                {selected.status === "open" && (
-                  <Button size="sm" onClick={() => doAction("set_status", { status: "in_progress" })} disabled={actioning}>
-                    <RefreshCw size={14} /> Iniciar Atendimento
-                  </Button>
-                )}
-                {selected.status === "in_progress" && (
-                  <Button size="sm" variant="outline" className="text-amber-700 border-amber-300 hover:bg-amber-50"
-                    onClick={() => doAction("set_status", { status: "waiting_user" })} disabled={actioning}>
-                    <Hourglass size={14} /> Aguardar Usuário
-                  </Button>
-                )}
-                {["open","in_progress","waiting_user"].includes(selected.status) && (
-                  <Button size="sm" variant="outline" className="text-orange-700 border-orange-300 hover:bg-orange-50"
-                    onClick={() => doAction("set_status", { status: "waiting_third_party" })} disabled={actioning}>
-                    <Users size={14} /> Aguardar Terceiros
-                  </Button>
-                )}
-                {["waiting_user","waiting_third_party"].includes(selected.status) && (
-                  <Button size="sm" onClick={() => doAction("set_status", { status: "in_progress" })} disabled={actioning}>
-                    <RefreshCw size={14} /> Retomar Atendimento
-                  </Button>
-                )}
-                {["in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700"
-                    onClick={() => openResolveModal(selected)} disabled={actioning}>
-                    <CheckCircle2 size={14} /> Resolver
-                  </Button>
-                )}
-                {["open","in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
-                  <Button size="sm" variant="outline" className="text-red-600 border-red-200"
-                    onClick={() => doAction("set_status", { status: "cancelled" })} disabled={actioning}>
-                    <XCircle size={14} /> Cancelar
-                  </Button>
-                )}
-                {selected.status === "resolved" && (
-                  <Button size="sm" variant="outline"
-                    onClick={() => doAction("set_status", { status: "closed" })} disabled={actioning}>
-                    <CheckCircle2 size={14} /> Encerrar
-                  </Button>
-                )}
-                {["resolved","closed"].includes(selected.status) && (
-                  <Button size="sm" variant="outline"
-                    onClick={() => doAction("reopen")} disabled={actioning}>
-                    <RotateCcw size={14} /> Reabrir
-                  </Button>
-                )}
+              {/* Cabeçalho fixo */}
+              <div className="flex items-center gap-3 border-b px-5 py-3.5 pr-12 shrink-0">
+                <span className="font-mono text-sm text-muted-foreground shrink-0">#{String(selected.number).padStart(4,"0")}</span>
+                <SheetTitle className="flex-1 truncate text-base font-bold leading-tight">{selected.title}</SheetTitle>
+                <Badge className={`text-xs border-0 shrink-0 ${STATUS[selected.status]?.color}`}>
+                  {STATUS[selected.status]?.label}
+                </Badge>
               </div>
 
-              {loadingDetail ? (
-                <div className="space-y-3 py-4">
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-24" />
-                  <Skeleton className="h-16" />
-                </div>
-              ) : detail ? (
-                <div className="space-y-4">
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2">
-                    {selected.ticket_categories && (
-                      <span className="text-xs px-2 py-1 rounded-full text-white font-medium"
-                        style={{ backgroundColor: selected.ticket_categories.color }}>
-                        {selected.ticket_categories.name}
-                      </span>
-                    )}
-                    <Badge className={`text-xs border-0 ${PRIORITY[selected.priority]?.color}`}>
-                      {PRIORITY[selected.priority]?.label}
-                    </Badge>
-                    <Badge className={`text-xs border-0 ${STATUS[selected.status]?.color}`}>
-                      {STATUS[selected.status]?.label}
-                    </Badge>
-                    {selected.assigned && (
-                      <Badge variant="secondary" className="text-xs gap-1">
-                        <User size={11} />{selected.assigned.full_name}
-                      </Badge>
-                    )}
-                    <SlaChip deadline={selected.sla_deadline} status={selected.status} />
+              {/* Corpo rolável — duas colunas no desktop */}
+              <div className="flex-1 overflow-y-auto">
+                {loadingDetail ? (
+                  <div className="space-y-3 p-5">
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-24" />
+                    <Skeleton className="h-16" />
                   </div>
+                ) : detail ? (
+                  <div className="grid md:grid-cols-3 md:divide-x">
+                    {/* Coluna principal */}
+                    <div className="md:col-span-2 p-5 space-y-5 min-w-0">
+                      {/* SLA em destaque */}
+                      <SlaCard
+                        deadline={selected.sla_deadline}
+                        status={selected.status}
+                        breachReason={detail.ticket.sla_breach_reason}
+                      />
 
-                  {/* Info */}
-                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                    <div>Solicitante: <strong className="text-gray-700">{selected.requester_name}</strong>
-                      {selected.requester_sector && ` (${selected.requester_sector})`}</div>
-                    <div>Abertura: <strong className="text-gray-700">{formatDate(selected.created_at)}</strong></div>
-                    {selected.first_response_at && (
-                      <div>1ª resposta: <strong className="text-gray-700">{formatDate(selected.first_response_at)}</strong></div>
-                    )}
-                    {selected.resolved_at && (
-                      <div>Resolvido: <strong className="text-gray-700">{formatDate(selected.resolved_at)}</strong></div>
-                    )}
-                    {selected.rating && (
-                      <div>Avaliação: <strong className="text-yellow-500">{"★".repeat(selected.rating)}{"☆".repeat(5-selected.rating)}</strong></div>
-                    )}
-                  </div>
+                      {/* Descrição */}
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Descrição</p>
+                        <div className="bg-gray-50 rounded-lg p-4 text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.description}</div>
+                      </div>
 
-                  {/* Descrição */}
-                  <div className="bg-gray-50 rounded-lg p-4 text-sm whitespace-pre-wrap">{detail.ticket.description}</div>
-
-                  {/* Solução */}
-                  {detail.ticket.solution && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-xs font-bold text-green-700 mb-1 flex items-center gap-1"><CheckCircle2 size={12} /> Solução aplicada</p>
-                      <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.solution}</p>
-                    </div>
-                  )}
-
-                  {/* Motivo do estouro de SLA */}
-                  {detail.ticket.sla_breach_reason && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-xs font-bold text-red-700 mb-1 flex items-center gap-1">
-                        <AlertTriangle size={12} /> SLA estourado — motivo:
-                      </p>
-                      <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.sla_breach_reason}</p>
-                    </div>
-                  )}
-
-                  {/* Materiais e custo (manutenção) */}
-                  {(detail.ticket.materials || detail.ticket.cost != null) && (
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
-                      {detail.ticket.materials && (
-                        <div>
-                          <p className="text-xs font-bold text-orange-700 mb-1 flex items-center gap-1"><Wrench size={12} /> Materiais utilizados</p>
-                          <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.materials}</p>
+                      {/* Solução */}
+                      {detail.ticket.solution && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <p className="text-xs font-bold text-green-700 mb-1 flex items-center gap-1"><CheckCircle2 size={12} /> Solução aplicada</p>
+                          <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.solution}</p>
                         </div>
                       )}
-                      {detail.ticket.cost != null && (
-                        <p className="text-sm text-gray-700">
-                          <span className="text-xs font-bold text-orange-700">Custo:</span>{" "}
-                          {Number(detail.ticket.cost).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                        </p>
+
+                      {/* Materiais e custo (manutenção) */}
+                      {(detail.ticket.materials || detail.ticket.cost != null) && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
+                          {detail.ticket.materials && (
+                            <div>
+                              <p className="text-xs font-bold text-orange-700 mb-1 flex items-center gap-1"><Wrench size={12} /> Materiais utilizados</p>
+                              <p className="text-sm whitespace-pre-wrap text-gray-700">{detail.ticket.materials}</p>
+                            </div>
+                          )}
+                          {detail.ticket.cost != null && (
+                            <p className="text-sm text-gray-700">
+                              <span className="text-xs font-bold text-orange-700">Custo:</span>{" "}
+                              {Number(detail.ticket.cost).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Conversa & Histórico — timeline unificada */}
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Conversa &amp; Histórico</p>
+                        {timeline.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Nenhuma atualização ainda</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {timeline.map(item =>
+                              item.kind === "comment" ? (
+                                <div key={item.id}
+                                  className={`rounded-lg p-3 text-sm ${item.is_internal ? "bg-amber-50 border-l-4 border-amber-400" : "bg-blue-50 border border-blue-100"}`}>
+                                  <div className="flex justify-between mb-1">
+                                    <span className="font-medium">{item.author_name}</span>
+                                    <span className="text-xs text-muted-foreground">{formatDate(item.created_at)}</span>
+                                  </div>
+                                  <p className="whitespace-pre-wrap text-gray-700">{item.content}</p>
+                                  {item.is_internal && <span className="text-xs text-amber-600 mt-1 block font-medium">Nota interna</span>}
+                                </div>
+                              ) : (
+                                <div key={item.id} className="flex items-center gap-2 text-xs text-muted-foreground py-0.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+                                  <span className="text-gray-500">{HISTORY_LABEL[item.action]?.(item) ?? item.action}</span>
+                                  <span className="ml-auto text-right">{item.user_name} · {formatDate(item.created_at)}</span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Adicionar atualização */}
+                      {!["cancelled"].includes(selected.status) && (
+                        <div className="border-t pt-4">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-sm font-medium">Adicionar atualização</label>
+                            {/* Templates dropdown */}
+                            <div className="relative" ref={tplRef}>
+                              <Button size="sm" variant="ghost" onClick={() => setShowTemplates(!showTemplates)}
+                                className="text-xs gap-1">
+                                <BookOpen size={13} /> Templates <ChevronDown size={11} />
+                              </Button>
+                              {showTemplates && (
+                                <div className="absolute right-0 top-8 z-20 bg-white border rounded-lg shadow-lg w-72 max-h-64 overflow-y-auto">
+                                  {templates.filter(t => !selected.team || t.team === selected.team).map(t => (
+                                    <button key={t.id}
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 group"
+                                      onClick={() => { setComment(t.content); setShowTemplates(false); }}>
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium">{t.name}</span>
+                                        <button onClick={e => { e.stopPropagation(); deleteTemplate(t.id); }}
+                                          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600">
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground truncate mt-0.5">{t.content}</p>
+                                    </button>
+                                  ))}
+                                  <button
+                                    onClick={() => { setShowNewTemplate(true); setShowTemplates(false); }}
+                                    className="w-full text-left px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 flex items-center gap-1 border-t">
+                                    <Plus size={12} /> Criar novo template
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <Textarea
+                            rows={3}
+                            placeholder="Resposta ao solicitante ou nota interna..."
+                            value={comment}
+                            onChange={e => setComment(e.target.value)}
+                            className="resize-none"
+                          />
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id="is_internal"
+                                checked={isInternal}
+                                onCheckedChange={v => setIsInternal(v === true)}
+                                className="border-amber-600 data-[state=checked]:bg-amber-600"
+                              />
+                              <Label htmlFor="is_internal" className="text-sm text-amber-700 cursor-pointer">
+                                Nota interna
+                              </Label>
+                            </div>
+                            <Button size="sm" onClick={submitComment} disabled={submittingComment || !comment.trim()}>
+                              {submittingComment ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Enviar"}
+                            </Button>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  )}
 
-                  {/* Histórico do equipamento (patrimônio) */}
-                  {detail.ticket.equipment_patrimonio && patrHistory.length > 0 && (
-                    <div className="border rounded-lg overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setShowPatrHistory(v => !v)}
-                        className="w-full flex items-center justify-between bg-gray-50 px-4 py-2.5 text-sm font-medium hover:bg-gray-100 transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <History size={15} />
-                          Histórico deste equipamento ({patrHistory.length} chamado{patrHistory.length > 1 ? "s" : ""})
-                          <span className="font-mono text-xs text-muted-foreground">Pat. {detail.ticket.equipment_patrimonio}</span>
-                        </span>
-                        {showPatrHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                      </button>
-                      {showPatrHistory && (
+                    {/* Coluna lateral — metadados */}
+                    <div className="md:col-span-1 p-5 space-y-4 bg-muted/20 border-t md:border-t-0">
+                      {/* Metadados */}
+                      <div className="rounded-lg border bg-white divide-y">
+                        {/* Prioridade */}
+                        <div className="px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Prioridade</p>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-sm">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${PRIORITY_DOT[selected.priority] ?? "bg-gray-300"}`} />
+                            {PRIORITY[selected.priority]?.label ?? selected.priority}
+                          </div>
+                        </div>
+                        {/* Categoria */}
+                        <div className="px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Categoria</p>
+                          <div className="mt-0.5 text-sm">
+                            {selected.ticket_categories ? (
+                              <span className="inline-block text-xs px-2 py-0.5 rounded-full text-white font-medium"
+                                style={{ backgroundColor: selected.ticket_categories.color }}>
+                                {selected.ticket_categories.name}
+                              </span>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </div>
+                        </div>
+                        {/* Responsável */}
+                        <div className="px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Responsável</p>
+                          <div className="mt-0.5 text-sm flex items-center gap-1">
+                            {selected.assigned ? (
+                              <><User size={12} className="text-muted-foreground" />{selected.assigned.full_name}</>
+                            ) : <span className="text-muted-foreground">Não atribuído</span>}
+                          </div>
+                        </div>
+                        {/* Solicitante */}
+                        <div className="px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Solicitante</p>
+                          <div className="mt-0.5 text-sm">
+                            {selected.requester_name}
+                            {selected.requester_sector && (
+                              <span className="block text-xs text-muted-foreground">{selected.requester_sector}</span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Abertura */}
+                        <div className="px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Abertura</p>
+                          <div className="mt-0.5 text-sm">{formatDate(selected.created_at)}</div>
+                        </div>
+                        {/* 1ª resposta */}
+                        <div className="px-3 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">1ª resposta</p>
+                          <div className="mt-0.5 text-sm">
+                            {selected.first_response_at ? formatDate(selected.first_response_at) : <span className="text-muted-foreground">—</span>}
+                          </div>
+                        </div>
+                        {/* Resolvido */}
+                        {selected.resolved_at && (
+                          <div className="px-3 py-2.5">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Resolvido</p>
+                            <div className="mt-0.5 text-sm">{formatDate(selected.resolved_at)}</div>
+                          </div>
+                        )}
+                        {/* Avaliação */}
+                        {selected.rating && (
+                          <div className="px-3 py-2.5">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Avaliação</p>
+                            <div className="mt-0.5 text-sm text-yellow-500">{"★".repeat(selected.rating)}{"☆".repeat(5 - selected.rating)}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Checklist */}
+                      <div className="border rounded-lg overflow-hidden bg-white">
+                        <div className="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b">
+                          <span className="text-sm font-medium flex items-center gap-2">
+                            <ListChecks size={15} />
+                            Checklist
+                            {checklist.length > 0 && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                checklistDone === checklist.length ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"
+                              }`}>{checklistDone}/{checklist.length}</span>
+                            )}
+                          </span>
+                        </div>
+                        {checklist.length === 0 && (
+                          <p className="text-xs text-muted-foreground px-4 py-2">Nenhuma tarefa adicionada</p>
+                        )}
                         <div className="divide-y">
-                          {patrHistory.map(t => (
-                            <div key={t.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                              <span className="font-mono text-xs text-muted-foreground shrink-0">#{String(t.number).padStart(4, "0")}</span>
-                              <span className="flex-1 truncate">{t.title}</span>
-                              <Badge className={`text-xs border-0 shrink-0 ${STATUS[t.status]?.color ?? "bg-gray-100 text-gray-700"}`}>
-                                {STATUS[t.status]?.label ?? t.status}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground shrink-0">{formatDate(t.created_at)}</span>
+                          {checklist.map(item => (
+                            <div key={item.id} className={`flex items-center gap-3 px-4 py-2 ${item.completed ? "bg-gray-50" : ""}`}>
+                              <button onClick={() => toggleChecklist(item)}
+                                className={`shrink-0 ${item.completed ? "text-green-600" : "text-gray-400 hover:text-gray-600"}`}>
+                                {item.completed ? <Check size={16} /> : <Square size={16} />}
+                              </button>
+                              <span className={`text-sm flex-1 ${item.completed ? "line-through text-muted-foreground" : ""}`}>
+                                {item.text}
+                              </span>
+                              {item.completed && item.completer && (
+                                <span className="text-xs text-muted-foreground">{item.completer.full_name}</span>
+                              )}
+                              <button onClick={() => deleteChecklistItem(item.id)} className="text-gray-300 hover:text-red-500 shrink-0">
+                                <X size={13} />
+                              </button>
                             </div>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Timeline unificada */}
-                  {timeline.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Histórico</p>
-                      {timeline.map(item =>
-                        item.kind === "comment" ? (
-                          <div key={item.id}
-                            className={`rounded-lg p-3 text-sm ${item.is_internal ? "bg-amber-50 border border-amber-200" : "bg-blue-50"}`}>
-                            <div className="flex justify-between mb-1">
-                              <span className="font-medium">{item.author_name}</span>
-                              <span className="text-xs text-muted-foreground">{formatDate(item.created_at)}</span>
-                            </div>
-                            <p className="whitespace-pre-wrap text-gray-700">{item.content}</p>
-                            {item.is_internal && <span className="text-xs text-amber-600 mt-1 block">Nota interna</span>}
-                          </div>
-                        ) : (
-                          <div key={item.id} className="flex items-center gap-2 text-xs text-muted-foreground py-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
-                            <span className="text-gray-500">{HISTORY_LABEL[item.action]?.(item) ?? item.action}</span>
-                            <span className="ml-auto">{item.user_name} · {formatDate(item.created_at)}</span>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  )}
-
-                  {/* Checklist */}
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b">
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        <ListChecks size={15} />
-                        Checklist
-                        {checklist.length > 0 && (
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                            checklistDone === checklist.length ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"
-                          }`}>{checklistDone}/{checklist.length}</span>
-                        )}
-                      </span>
-                    </div>
-                    {checklist.length === 0 && (
-                      <p className="text-xs text-muted-foreground px-4 py-2">Nenhuma tarefa adicionada</p>
-                    )}
-                    <div className="divide-y">
-                      {checklist.map(item => (
-                        <div key={item.id} className={`flex items-center gap-3 px-4 py-2 ${item.completed ? "bg-gray-50" : ""}`}>
-                          <button onClick={() => toggleChecklist(item)}
-                            className={`shrink-0 ${item.completed ? "text-green-600" : "text-gray-400 hover:text-gray-600"}`}>
-                            {item.completed ? <Check size={16} /> : <Square size={16} />}
-                          </button>
-                          <span className={`text-sm flex-1 ${item.completed ? "line-through text-muted-foreground" : ""}`}>
-                            {item.text}
-                          </span>
-                          {item.completed && item.completer && (
-                            <span className="text-xs text-muted-foreground">{item.completer.full_name}</span>
-                          )}
-                          <button onClick={() => deleteChecklistItem(item.id)} className="text-gray-300 hover:text-red-500 shrink-0">
-                            <X size={13} />
-                          </button>
+                        <div className="flex gap-2 px-4 py-2 border-t bg-muted/30">
+                          <Input
+                            className="flex-1 h-8 text-sm"
+                            placeholder="Adicionar tarefa..."
+                            value={newChecklistText}
+                            onChange={e => setNewChecklistText(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") addChecklistItem(); }}
+                          />
+                          <Button size="sm" onClick={addChecklistItem}
+                            disabled={!newChecklistText.trim() || addingChecklist}>
+                            <Plus size={14} />
+                          </Button>
                         </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2 px-4 py-2 border-t bg-muted/30">
-                      <Input
-                        className="flex-1 h-8 text-sm"
-                        placeholder="Adicionar tarefa..."
-                        value={newChecklistText}
-                        onChange={e => setNewChecklistText(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") addChecklistItem(); }}
-                      />
-                      <Button size="sm" onClick={addChecklistItem}
-                        disabled={!newChecklistText.trim() || addingChecklist}>
-                        <Plus size={14} />
-                      </Button>
+                      </div>
+
+                      {/* Histórico do equipamento (patrimônio) */}
+                      {detail.ticket.equipment_patrimonio && patrHistory.length > 0 && (
+                        <div className="border rounded-lg overflow-hidden bg-white">
+                          <button
+                            type="button"
+                            onClick={() => setShowPatrHistory(v => !v)}
+                            className="w-full flex items-center justify-between bg-gray-50 px-4 py-2.5 text-sm font-medium hover:bg-gray-100 transition-colors text-left"
+                          >
+                            <span className="flex items-center gap-2 min-w-0">
+                              <History size={15} className="shrink-0" />
+                              <span className="truncate">Histórico deste equipamento ({patrHistory.length})</span>
+                            </span>
+                            {showPatrHistory ? <ChevronUp size={14} className="shrink-0" /> : <ChevronDown size={14} className="shrink-0" />}
+                          </button>
+                          {showPatrHistory && (
+                            <div className="divide-y">
+                              <div className="px-4 py-1.5 font-mono text-xs text-muted-foreground bg-gray-50/50">Pat. {detail.ticket.equipment_patrimonio}</div>
+                              {patrHistory.map(t => (
+                                <div key={t.id} className="flex items-center gap-2 px-4 py-2 text-sm">
+                                  <span className="font-mono text-xs text-muted-foreground shrink-0">#{String(t.number).padStart(4, "0")}</span>
+                                  <span className="flex-1 truncate">{t.title}</span>
+                                  <Badge className={`text-xs border-0 shrink-0 ${STATUS[t.status]?.color ?? "bg-gray-100 text-gray-700"}`}>
+                                    {STATUS[t.status]?.label ?? t.status}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
+                ) : null}
+              </div>
 
-                  {/* Adicionar atualização */}
-                  {!["cancelled"].includes(selected.status) && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-sm font-medium">Adicionar atualização</label>
-                        {/* Templates dropdown */}
-                        <div className="relative" ref={tplRef}>
-                          <Button size="sm" variant="ghost" onClick={() => setShowTemplates(!showTemplates)}
-                            className="text-xs gap-1">
-                            <BookOpen size={13} /> Templates <ChevronDown size={11} />
-                          </Button>
-                          {showTemplates && (
-                            <div className="absolute right-0 top-8 z-20 bg-white border rounded-lg shadow-lg w-72 max-h-64 overflow-y-auto">
-                              {templates.filter(t => !selected.team || t.team === selected.team).map(t => (
-                                <button key={t.id}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 group"
-                                  onClick={() => { setComment(t.content); setShowTemplates(false); }}>
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium">{t.name}</span>
-                                    <button onClick={e => { e.stopPropagation(); deleteTemplate(t.id); }}
-                                      className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600">
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground truncate mt-0.5">{t.content}</p>
-                                </button>
-                              ))}
-                              <button
-                                onClick={() => { setShowNewTemplate(true); setShowTemplates(false); }}
-                                className="w-full text-left px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 flex items-center gap-1 border-t">
-                                <Plus size={12} /> Criar novo template
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <Textarea
-                        rows={3}
-                        placeholder="Resposta ao solicitante ou nota interna..."
-                        value={comment}
-                        onChange={e => setComment(e.target.value)}
-                        className="resize-none"
-                      />
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="is_internal"
-                            checked={isInternal}
-                            onCheckedChange={v => setIsInternal(v === true)}
-                            className="border-amber-600 data-[state=checked]:bg-amber-600"
-                          />
-                          <Label htmlFor="is_internal" className="text-sm text-amber-700 cursor-pointer">
-                            Nota interna
-                          </Label>
-                        </div>
-                        <Button size="sm" onClick={submitComment} disabled={submittingComment || !comment.trim()}>
-                          {submittingComment ? <><Loader2 size={13} className="animate-spin" /> Enviando...</> : "Enviar"}
-                        </Button>
-                      </div>
-                    </div>
+              {/* Barra de ações fixa (rodapé) */}
+              <div className="border-t bg-background px-5 py-3 shrink-0 space-y-2">
+                {/* Atribuição manual */}
+                {["open","in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
+                  <div className="flex gap-2 items-center border rounded-lg px-3 py-1.5 bg-muted/50">
+                    <UserCheck size={15} className="text-muted-foreground shrink-0" />
+                    <Select value={assignToId || "__none__"} onValueChange={v => setAssignToId(v === "__none__" ? "" : v)}>
+                      <SelectTrigger className="flex-1 border-0 bg-transparent h-8 shadow-none focus:ring-0 text-sm">
+                        <SelectValue placeholder="Atribuir para..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Atribuir para...</SelectItem>
+                        {availableAgents.map(a => (
+                          <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" disabled={!assignToId || actioning}
+                      onClick={() => { doAction("assign", { assigned_to: assignToId }); setAssignToId(""); }}>
+                      Atribuir
+                    </Button>
+                  </div>
+                )}
+
+                {/* Ações rápidas */}
+                <div className="flex flex-wrap gap-2">
+                  {selected.status === "open" && (
+                    <Button size="sm" onClick={() => doAction("set_status", { status: "in_progress" })} disabled={actioning}>
+                      <RefreshCw size={14} /> Iniciar Atendimento
+                    </Button>
+                  )}
+                  {selected.status === "in_progress" && (
+                    <Button size="sm" variant="outline" className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                      onClick={() => doAction("set_status", { status: "waiting_user" })} disabled={actioning}>
+                      <Hourglass size={14} /> Aguardar Usuário
+                    </Button>
+                  )}
+                  {["open","in_progress","waiting_user"].includes(selected.status) && (
+                    <Button size="sm" variant="outline" className="text-orange-700 border-orange-300 hover:bg-orange-50"
+                      onClick={() => doAction("set_status", { status: "waiting_third_party" })} disabled={actioning}>
+                      <Users size={14} /> Aguardar Terceiros
+                    </Button>
+                  )}
+                  {["waiting_user","waiting_third_party"].includes(selected.status) && (
+                    <Button size="sm" onClick={() => doAction("set_status", { status: "in_progress" })} disabled={actioning}>
+                      <RefreshCw size={14} /> Retomar Atendimento
+                    </Button>
+                  )}
+                  {["in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700"
+                      onClick={() => openResolveModal(selected)} disabled={actioning}>
+                      <CheckCircle2 size={14} /> Resolver
+                    </Button>
+                  )}
+                  {["open","in_progress","waiting_user","waiting_third_party"].includes(selected.status) && (
+                    <Button size="sm" variant="outline" className="text-red-600 border-red-200"
+                      onClick={() => doAction("set_status", { status: "cancelled" })} disabled={actioning}>
+                      <XCircle size={14} /> Cancelar
+                    </Button>
+                  )}
+                  {selected.status === "resolved" && (
+                    <Button size="sm" variant="outline"
+                      onClick={() => doAction("set_status", { status: "closed" })} disabled={actioning}>
+                      <CheckCircle2 size={14} /> Encerrar
+                    </Button>
+                  )}
+                  {["resolved","closed"].includes(selected.status) && (
+                    <Button size="sm" variant="outline"
+                      onClick={() => doAction("reopen")} disabled={actioning}>
+                      <RotateCcw size={14} /> Reabrir
+                    </Button>
                   )}
                 </div>
-              ) : null}
+              </div>
             </>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Modal Resolver — campos obrigatórios */}
       <Dialog open={!!resolveModal} onOpenChange={v => { if (!v) closeResolveModal(); }}>

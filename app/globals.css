@@ -33,6 +33,18 @@
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up:   accordion-up 0.2s ease-out;
+
+  /* Slide-over (Sheet) */
+  --animate-overlay-in:      overlay-in 0.2s ease-out;
+  --animate-overlay-out:     overlay-out 0.2s ease-in;
+  --animate-sheet-in-right:  sheet-in-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-sheet-out-right: sheet-out-right 0.25s ease-in;
+  --animate-sheet-in-left:   sheet-in-left 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-sheet-out-left:  sheet-out-left 0.25s ease-in;
+  --animate-sheet-in-top:    sheet-in-top 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-sheet-out-top:   sheet-out-top 0.25s ease-in;
+  --animate-sheet-in-bottom: sheet-in-bottom 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-sheet-out-bottom:sheet-out-bottom 0.25s ease-in;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -46,6 +58,16 @@
   from { height: var(--radix-accordion-content-height) }
   to   { height: 0 }
 }
+@keyframes overlay-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes overlay-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes sheet-in-right  { from { transform: translateX(100%) } to { transform: translateX(0) } }
+@keyframes sheet-out-right { from { transform: translateX(0) } to { transform: translateX(100%) } }
+@keyframes sheet-in-left   { from { transform: translateX(-100%) } to { transform: translateX(0) } }
+@keyframes sheet-out-left  { from { transform: translateX(0) } to { transform: translateX(-100%) } }
+@keyframes sheet-in-top    { from { transform: translateY(-100%) } to { transform: translateY(0) } }
+@keyframes sheet-out-top   { from { transform: translateY(0) } to { transform: translateY(-100%) } }
+@keyframes sheet-in-bottom { from { transform: translateY(100%) } to { transform: translateY(0) } }
+@keyframes sheet-out-bottom{ from { transform: translateY(0) } to { transform: translateY(100%) } }
 
 /* ─────────────────────────────────────────────────────────────
    Variáveis shadcn/ui
