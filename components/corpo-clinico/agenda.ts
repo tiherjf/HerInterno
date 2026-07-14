@@ -88,6 +88,69 @@ export function agendaDoDia(agenda: AgendaEntry[] | null | undefined, dia: numbe
     .sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
 
+// Mapa de prefixos (sem acento, minúsculo) → dia da semana (0=domingo … 6=sábado).
+const PREFIXO_DIA: [string, number][] = [
+  ["dom", 0], ["seg", 1], ["ter", 2], ["qua", 3], ["qui", 4], ["sex", 5], ["sab", 6],
+];
+
+function normalizarTexto(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/** Converte um token ("seg", "segunda", "(quarta)"…) no dia da semana, ou null. */
+function tokenParaDia(token: string): number | null {
+  const t = normalizarTexto(token).replace(/[^a-z]/g, "");
+  if (!t) return null;
+  for (const [prefixo, dia] of PREFIXO_DIA) {
+    if (t.startsWith(prefixo)) return dia;
+  }
+  return null;
+}
+
+/**
+ * Interpreta o texto livre de dias ("Seg/Ter/Qui", "Seg a Sex", "Quarta",
+ * "Terça/Quarta"…) e devolve o conjunto de dias da semana (0–6).
+ * Entende abreviações, nomes completos, separadores /,; e "e", e intervalos "X a Y".
+ */
+export function diasDoTexto(dias: string | null | undefined): Set<number> {
+  const set = new Set<number>();
+  if (!dias || typeof dias !== "string") return set;
+  let t = normalizarTexto(dias);
+  // Intervalos "seg a sex" → expande circularmente do início ao fim
+  t = t.replace(/([a-z]{3,})\s+a\s+([a-z]{3,})/g, (_m, a: string, b: string) => {
+    const di = tokenParaDia(a);
+    const df = tokenParaDia(b);
+    if (di !== null && df !== null) {
+      let d = di;
+      for (let i = 0; i < 7; i++) {
+        set.add(d);
+        if (d === df) break;
+        d = (d + 1) % 7;
+      }
+    }
+    return " ";
+  });
+  // Tokens restantes separados por / , ; ou " e "
+  for (const tok of t.split(/[/,;]|\se\s/)) {
+    const d = tokenParaDia(tok);
+    if (d !== null) set.add(d);
+  }
+  return set;
+}
+
+/**
+ * Se o profissional atende no dia informado, considerando a agenda estruturada
+ * (quando existe) OU o texto livre de dias.
+ */
+export function atendeNoDia(
+  agenda: AgendaEntry[] | null | undefined,
+  dias: string | null | undefined,
+  dia: number,
+): boolean {
+  if (agendaDoDia(agenda, dia).length > 0) return true;
+  return diasDoTexto(dias).has(dia);
+}
+
 /**
  * Detecta erro de coluna inexistente para "agenda" (migração 039 não aplicada).
  * Postgres: 42703 (undefined_column); PostgREST: PGRST204 (coluna fora do schema cache).

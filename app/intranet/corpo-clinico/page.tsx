@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 import { AgendaEditor } from "@/components/corpo-clinico/AgendaEditor";
-import { agendaDoDia, type AgendaEntry } from "@/components/corpo-clinico/agenda";
+import { agendaDoDia, atendeNoDia, type AgendaEntry } from "@/components/corpo-clinico/agenda";
 
 const UNIDADES = [
   { key: "Hospital",           label: "Hospital",            emoji: "🏥", cor: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -171,7 +171,7 @@ export default function CorpoClinicoPage() {
       ...g,
       profissionais: g.profissionais.filter(p => {
         if (unidadeAtiva && p.unidade !== unidadeAtiva) return false;
-        if (apenasHoje && agendaDoDia(p.agenda, hoje).length === 0) return false;
+        if (apenasHoje && !atendeNoDia(p.agenda, p.dias, hoje)) return false;
         if (!termo) return true;
         return (
           p.nome.toLowerCase().includes(termo) ||
@@ -513,6 +513,7 @@ export default function CorpoClinicoPage() {
                       {g.profissionais.map(prof => {
                         const ud = unidadeInfo(prof.unidade);
                         const entradasHoje = agendaDoDia(prof.agenda, hoje);
+                        const hojeAtende = atendeNoDia(prof.agenda, prof.dias, hoje);
                         const valores = blocoValores(prof);
                         return (
                           <tr
@@ -530,12 +531,14 @@ export default function CorpoClinicoPage() {
                                     {prof.subespecialidade}
                                   </Badge>
                                 )}
-                                {entradasHoje.length > 0 && (
+                                {hojeAtende && (
                                   <Badge
                                     variant="outline"
                                     className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold shrink-0"
                                   >
-                                    Hoje · {entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}
+                                    {entradasHoje.length > 0
+                                      ? `Hoje · ${entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}`
+                                      : "Hoje"}
                                   </Badge>
                                 )}
                                 {prof.idade_minima != null && (
