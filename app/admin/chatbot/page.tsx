@@ -119,16 +119,16 @@ export default function ChatbotConfigPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
             <Brain size={24} /> Base de Conhecimento
           </h2>
           <p className="text-muted-foreground">
             Gerencie o conteúdo injetado no sistema prompt do chatbot
           </p>
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} className="w-full sm:w-auto shrink-0">
           <Plus size={16} /> Adicionar
         </Button>
       </div>
@@ -161,8 +161,8 @@ export default function ChatbotConfigPage() {
               <TableRow>
                 <TableHead className="w-20">Categoria</TableHead>
                 <TableHead>Pergunta</TableHead>
-                <TableHead>Resposta</TableHead>
-                <TableHead className="w-20">Status</TableHead>
+                <TableHead className="hidden md:table-cell">Resposta</TableHead>
+                <TableHead className="hidden sm:table-cell w-20">Status</TableHead>
                 <TableHead className="text-right w-24">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -177,10 +177,10 @@ export default function ChatbotConfigPage() {
                   <TableCell className="max-w-xs">
                     <p className="text-sm font-medium line-clamp-2">{item.question}</p>
                   </TableCell>
-                  <TableCell className="max-w-xs">
+                  <TableCell className="hidden md:table-cell max-w-xs">
                     <p className="text-sm text-muted-foreground line-clamp-2">{item.answer}</p>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <button onClick={() => toggleActive(item)}>
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer ${

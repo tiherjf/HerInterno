@@ -131,14 +131,14 @@ export default function EventosPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">Eventos</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Eventos</h2>
           <p className="text-muted-foreground text-sm mt-1">Eventos e atividades do hospital</p>
         </div>
         {canManageEventos && (
-          <Link href="/intranet/eventos/novo">
-            <Button size="sm">
+          <Link href="/intranet/eventos/novo" className="w-full sm:w-auto">
+            <Button size="sm" className="w-full sm:w-auto">
               <Plus size={15} className="mr-1.5" /> Novo Evento
             </Button>
           </Link>
@@ -146,12 +146,12 @@ export default function EventosPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0 ${
               tab === t.id
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"

@@ -64,7 +64,7 @@ export default function TreinamentosPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Treinamentos</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Treinamentos</h2>
           <p className="text-muted-foreground text-sm mt-1">Biblioteca de vídeos por módulo</p>
         </div>
         {isAdmin && (

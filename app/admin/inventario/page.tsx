@@ -222,12 +222,12 @@ export default function InventarioPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Inventário de Equipamentos</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inventário de Equipamentos</h1>
           <p className="text-sm text-muted-foreground">Gestão de ativos de TI</p>
         </div>
-        <Button onClick={openCreate} className="gap-2">
+        <Button onClick={openCreate} className="gap-2 w-full sm:w-auto shrink-0">
           <Plus size={16} /> Novo Equipamento
         </Button>
       </div>
@@ -444,8 +444,8 @@ export default function InventarioPage() {
 
           <div className="space-y-4">
             {/* Nome + Tipo */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2 space-y-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2 space-y-1.5">
                 <Label>Nome *</Label>
                 <Input placeholder="Ex: Desktop RH 01" value={form.name} onChange={f("name")} />
               </div>
@@ -473,7 +473,7 @@ export default function InventarioPage() {
             </div>
 
             {/* Marca + Modelo */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Marca</Label>
                 <Input placeholder="Ex: Dell" value={form.brand} onChange={f("brand")} />
@@ -485,7 +485,7 @@ export default function InventarioPage() {
             </div>
 
             {/* Serial + Patrimônio */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Número de Série</Label>
                 <Input className="font-mono" placeholder="SN12345" value={form.serial_number} onChange={f("serial_number")} />
@@ -497,7 +497,7 @@ export default function InventarioPage() {
             </div>
 
             {/* Localização + Responsável */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Localização</Label>
                 <Input placeholder="Ex: Sala TI — 2º Andar" value={form.location} onChange={f("location")} />
@@ -515,7 +515,7 @@ export default function InventarioPage() {
             </div>
 
             {/* SO + IP */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Sistema Operacional</Label>
                 <Input placeholder="Ex: Windows 11 Pro" value={form.operating_system} onChange={f("operating_system")} />
@@ -527,7 +527,7 @@ export default function InventarioPage() {
             </div>
 
             {/* Datas */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Data de Compra</Label>
                 <Input type="date" value={form.purchase_date} onChange={f("purchase_date")} />
@@ -539,8 +539,8 @@ export default function InventarioPage() {
             </div>
 
             {/* Depreciação */}
-            <div className="grid grid-cols-2 gap-3 bg-blue-50 rounded-lg p-3">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-blue-50 rounded-lg p-3">
+              <div className="sm:col-span-2">
                 <p className="text-xs font-semibold text-blue-700 mb-2">Depreciação (linear)</p>
               </div>
               <div className="space-y-1.5">

@@ -217,7 +217,7 @@ export default function CategoriasChamadosPage() {
       {/* Cabeçalho */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Tag size={24} /> Categorias &amp; SLA
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -283,10 +283,10 @@ export default function CategoriasChamadosPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
-                {isAdmin && <TableHead>Equipe</TableHead>}
-                <TableHead>SLA (h)</TableHead>
-                <TableHead>OLA (h)</TableHead>
-                <TableHead>Prioridade padrão</TableHead>
+                {isAdmin && <TableHead className="hidden md:table-cell">Equipe</TableHead>}
+                <TableHead className="hidden sm:table-cell">SLA (h)</TableHead>
+                <TableHead className="hidden lg:table-cell">OLA (h)</TableHead>
+                <TableHead className="hidden md:table-cell">Prioridade padrão</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -303,21 +303,21 @@ export default function CategoriasChamadosPage() {
                       </div>
                     </TableCell>
                     {isAdmin && (
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <Badge className={`text-xs border-0 ${TEAM_BADGE[cat.team] ?? "bg-gray-100 text-gray-700"}`}>
                           {TEAM_LABEL[cat.team] ?? cat.team}
                         </Badge>
                       </TableCell>
                     )}
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <span className="flex items-center gap-1"><Clock size={12} />{cat.sla_hours}h</span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       {cat.ola_hours != null
                         ? <span className="flex items-center gap-1"><Clock size={12} />{cat.ola_hours}h</span>
                         : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {prio
                         ? <Badge className={`text-xs border-0 ${prio.color}`}>{prio.label}</Badge>
                         : <span className="text-xs text-muted-foreground">—</span>}
@@ -363,7 +363,7 @@ export default function CategoriasChamadosPage() {
 
       {/* Dialog Novo/Editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Tag size={16} /> {editItem ? "Editar Categoria" : "Nova Categoria"}
@@ -469,7 +469,7 @@ export default function CategoriasChamadosPage() {
 
       {/* Dialog confirmar exclusão */}
       <Dialog open={!!deleteItem} onOpenChange={v => { if (!v) setDeleteItem(null); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>Excluir categoria?</DialogTitle>
           </DialogHeader>

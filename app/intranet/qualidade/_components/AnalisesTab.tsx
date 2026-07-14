@@ -162,13 +162,13 @@ export function AnalisesTab({ sector, isAdmin, setores }: Props) {
   return (
     <div className="space-y-4">
       {/* Sub-tabs */}
-      <div className="flex gap-0 border-b">
+      <div className="flex gap-0 border-b overflow-x-auto scrollbar-none">
         {[
           { id:"reunioes" as const, label:"Reuniões de Análise", icon:Calendar },
           { id:"ishikawa" as const, label:"Ishikawa (6M)",       icon:GitBranch },
         ].map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-all whitespace-nowrap ${
               tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-gray-700"
             }`}>
             <Icon size={13} />{label}
@@ -236,11 +236,11 @@ export function AnalisesTab({ sector, isAdmin, setores }: Props) {
 
       {/* Meeting create dialog */}
       <Dialog open={showMeetForm} onOpenChange={setShowMeetForm}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nova Reunião de Análise Crítica</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
             <div><Label className="text-xs">Título *</Label><Input value={meetForm.title} onChange={e => setMeetForm({...meetForm,title:e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Data da reunião</Label><Input type="date" value={meetForm.analysis_date} onChange={e => setMeetForm({...meetForm,analysis_date:e.target.value})} /></div>
               <div><Label className="text-xs">Próxima reunião</Label><Input type="date" value={meetForm.next_date} onChange={e => setMeetForm({...meetForm,next_date:e.target.value})} /></div>
               <div><Label className="text-xs">Status</Label>
@@ -272,11 +272,11 @@ export function AnalisesTab({ sector, isAdmin, setores }: Props) {
 
       {/* Ishikawa create dialog */}
       <Dialog open={showIshForm} onOpenChange={setShowIshForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Novo Diagrama de Ishikawa (6M)</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2"><Label className="text-xs">Efeito / Problema *</Label><Input value={ishForm.title} onChange={e => setIshForm({...ishForm,title:e.target.value})} placeholder="Qual é o problema a analisar?" /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2"><Label className="text-xs">Efeito / Problema *</Label><Input value={ishForm.title} onChange={e => setIshForm({...ishForm,title:e.target.value})} placeholder="Qual é o problema a analisar?" /></div>
               <div><Label className="text-xs">Setor</Label>
                 {sector ? <Input value={sector} disabled className="bg-gray-50" /> : (
                   <Select value={ishForm.sector} onValueChange={v => setIshForm({...ishForm,sector:v})}>
@@ -287,7 +287,7 @@ export function AnalisesTab({ sector, isAdmin, setores }: Props) {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">Digite as causas de cada categoria, uma por linha.</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {M6_CATEGORIES.map(({ key, label, color }) => (
                 <div key={key} className={`rounded-lg border p-3 ${color}`}>
                   <Label className="text-xs font-bold">{label}</Label>
@@ -312,7 +312,7 @@ export function AnalisesTab({ sector, isAdmin, setores }: Props) {
 
       {/* Meeting detail */}
       <Dialog open={!!selectedMeet} onOpenChange={o => !o && setSelectedMeet(null)}>
-        <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[85vh] overflow-y-auto">
           {selectedMeet && (
             <>
               <DialogHeader>
@@ -353,7 +353,7 @@ export function AnalisesTab({ sector, isAdmin, setores }: Props) {
 
       {/* Ishikawa detail */}
       <Dialog open={!!selectedIsh} onOpenChange={o => !o && setSelectedIsh(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           {selectedIsh && (
             <>
               <DialogHeader><DialogTitle>Diagrama de Ishikawa</DialogTitle></DialogHeader>

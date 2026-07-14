@@ -161,7 +161,7 @@ export function QualidadeView({ isAdmin, setores: initialSetores }: Props) {
 
       {/* Setores management dialog */}
       <Dialog open={showSetores} onOpenChange={setShowSetores}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Settings2 size={16} /> Gerenciar Setores</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             {/* Add new */}

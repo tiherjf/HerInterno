@@ -197,12 +197,12 @@ export function PainelTab({ sector, isAdmin, setores }: Props) {
       {/* Notification sender */}
       {isAdmin && (
         <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-amber-800 flex items-center gap-2"><Bell size={14} /> Enviar alertas por e-mail</p>
               <p className="text-xs text-amber-600 mt-0.5">Notifica responsáveis sobre NCs vencidas, sem plano, documentos expirando e indicadores críticos.</p>
             </div>
-            <Button size="sm" variant="outline" className="shrink-0 border-amber-200 text-amber-700 hover:bg-amber-100"
+            <Button size="sm" variant="outline" className="shrink-0 self-start sm:self-auto border-amber-200 text-amber-700 hover:bg-amber-100"
               onClick={sendNotificacoes} disabled={sending}>
               {sending ? <Loader size={13} className="animate-spin" /> : "Enviar agora"}
             </Button>

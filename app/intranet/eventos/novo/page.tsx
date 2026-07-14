@@ -11,7 +11,7 @@ export default async function NovoEventoPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Novo Evento</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Novo Evento</h2>
         <p className="text-muted-foreground text-sm mt-1">Preencha as informações do evento</p>
       </div>
       <EventForm />

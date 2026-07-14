@@ -188,10 +188,10 @@ export function DocumentosTab({ sector, isAdmin, setores }: Props) {
 
       {/* Create dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Novo Documento</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Código</Label><Input value={form.code} onChange={e => setForm({...form,code:e.target.value})} placeholder="POP-001" /></div>
               <div><Label className="text-xs">Tipo *</Label>
                 <Select value={form.doc_type} onValueChange={v => setForm({...form,doc_type:v})}>
@@ -213,7 +213,7 @@ export function DocumentosTab({ sector, isAdmin, setores }: Props) {
               )}
             </div>
             <div><Label className="text-xs">URL do arquivo (PDF/link)</Label><Input value={form.file_url} onChange={e => setForm({...form,file_url:e.target.value})} placeholder="https://..." /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Válido de</Label><Input type="date" value={form.valid_from} onChange={e => setForm({...form,valid_from:e.target.value})} /></div>
               <div><Label className="text-xs">Válido até</Label><Input type="date" value={form.valid_until} onChange={e => setForm({...form,valid_until:e.target.value})} /></div>
             </div>
@@ -232,7 +232,7 @@ export function DocumentosTab({ sector, isAdmin, setores }: Props) {
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={o => !o && setSelected(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>
@@ -281,7 +281,7 @@ export function DocumentosTab({ sector, isAdmin, setores }: Props) {
                       {loadingReaders ? <Loader2 size={11} className="animate-spin" /> : <ChevronDown size={11} className={showReaders ? "rotate-180 transition-transform" : "transition-transform"} />}
                     </button>
                     {showReaders && (
-                      <div className="rounded-lg border overflow-hidden mb-3">
+                      <div className="rounded-lg border overflow-x-auto mb-3">
                         {readers.length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-4">Nenhuma confirmação ainda.</p>
                         ) : (

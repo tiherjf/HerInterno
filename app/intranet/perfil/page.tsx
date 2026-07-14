@@ -197,7 +197,7 @@ export default function PerfilPage() {
               placeholder="Seu nome completo"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 <Phone size={12} /> Ramal

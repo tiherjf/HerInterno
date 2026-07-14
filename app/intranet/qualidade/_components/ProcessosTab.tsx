@@ -186,12 +186,12 @@ export function ProcessosTab({ sector, isAdmin, setores }: Props) {
 
       {/* Create dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Novo Processo</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             <div><Label className="text-xs">Nome *</Label><Input value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></div>
             <div><Label className="text-xs">Descrição</Label><Textarea rows={2} value={form.description} onChange={e => setForm({...form,description:e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Tipo *</Label>
                 <Select value={form.process_type} onValueChange={v => setForm({...form,process_type:v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -211,7 +211,7 @@ export function ProcessosTab({ sector, isAdmin, setores }: Props) {
             {/* SIPOC fields */}
             <div className="bg-gray-50 rounded-xl p-4 space-y-4">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SIPOC — Entradas e Saídas</p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ArrayField label="Fornecedores" field="suppliers" placeholder="Quem fornece as entradas..." />
                 <ArrayField label="Entradas" field="inputs" placeholder="Materiais, informações..." />
                 <ArrayField label="Saídas" field="outputs" placeholder="Produtos, serviços..." />
@@ -219,7 +219,7 @@ export function ProcessosTab({ sector, isAdmin, setores }: Props) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <ArrayField label="Riscos associados" field="risks" placeholder="Risco identificado..." />
               <ArrayField label="Indicadores" field="indicators" placeholder="Nome do indicador..." />
             </div>
@@ -235,7 +235,7 @@ export function ProcessosTab({ sector, isAdmin, setores }: Props) {
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={o => !o && setSelected(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>

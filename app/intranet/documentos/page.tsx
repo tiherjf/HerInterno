@@ -143,13 +143,13 @@ export default function DocumentosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">Base de Documentos</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Base de Documentos</h2>
           <p className="text-muted-foreground">POPs, protocolos, formulários e manuais</p>
         </div>
         {canUpload && (
-          <Button onClick={() => setUploadOpen(true)}>
+          <Button onClick={() => setUploadOpen(true)} className="w-full sm:w-auto">
             <Upload size={16} /> Enviar Documento
           </Button>
         )}
@@ -198,14 +198,15 @@ export default function DocumentosPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Documento</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Setor</TableHead>
-                <TableHead>Tags</TableHead>
-                <TableHead>Data</TableHead>
+                <TableHead className="hidden sm:table-cell">Categoria</TableHead>
+                <TableHead className="hidden md:table-cell">Setor</TableHead>
+                <TableHead className="hidden lg:table-cell">Tags</TableHead>
+                <TableHead className="hidden md:table-cell">Data</TableHead>
                 <TableHead className="text-right">Ação</TableHead>
               </TableRow>
             </TableHeader>
@@ -220,20 +221,20 @@ export default function DocumentosPage() {
                         <span className="font-medium">{doc.title}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge variant="secondary" className="text-xs">{doc.category}</Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                       {doc.sector || "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <div className="flex flex-wrap gap-1">
                         {(doc.tags || []).slice(0, 3).map((tag) => (
                           <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                       {formatDate(doc.created_at)}
                     </TableCell>
                     <TableCell className="text-right">
@@ -264,12 +265,13 @@ export default function DocumentosPage() {
               })}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 
       {/* Dialog de upload */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Enviar Documento</DialogTitle>
           </DialogHeader>
@@ -303,7 +305,7 @@ export default function DocumentosPage() {
                 placeholder="Ex.: POP de Higienização das Mãos"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Categoria</Label>
                 <Select

@@ -154,7 +154,7 @@ export default function NovaJustificativaPage() {
           <Button variant="ghost" size="sm"><ArrowLeft size={16} /> Voltar</Button>
         </Link>
         <div>
-          <h2 className="text-2xl font-bold">Nova Justificativa</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Nova Justificativa</h2>
           <p className="text-muted-foreground">Prazo: até 3 dias úteis após a ocorrência</p>
         </div>
       </div>

@@ -337,11 +337,11 @@ export default function CorpoClinicoPage() {
     <div className="space-y-6">
       {/* Cabeçalho */}
       <div className="bg-primary rounded-xl p-5 text-primary-foreground">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Stethoscope size={26} />
+            <Stethoscope size={26} className="shrink-0" />
             <div>
-              <h2 className="text-xl font-bold">Corpo Clínico</h2>
+              <h2 className="text-xl sm:text-2xl font-bold">Corpo Clínico</h2>
               {!loading && (
                 <p className="text-primary-foreground/70 text-sm">
                   {grupos.length} especialidades · {totalProfissionais} profissionais
@@ -350,7 +350,7 @@ export default function CorpoClinicoPage() {
             </div>
           </div>
           {podeEditar && (
-            <Button onClick={openCreate} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2 shrink-0">
+            <Button onClick={openCreate} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-2 shrink-0 w-full sm:w-auto">
               <Plus size={15} /> Novo Profissional
             </Button>
           )}
@@ -661,7 +661,7 @@ export default function CorpoClinicoPage() {
 
       {/* Modal formulário */}
       <Dialog open={showForm} onOpenChange={v => { if (!v) setShowForm(false); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Editar Profissional" : "Novo Profissional"}</DialogTitle>
           </DialogHeader>
@@ -677,7 +677,7 @@ export default function CorpoClinicoPage() {
               <Input placeholder="Ex: Pediatra, Otorrinolaringologista" value={form.especialidade} onChange={f("especialidade")} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Grupo */}
               <div className="space-y-1.5">
                 <Label>Grupo / Área *</Label>
@@ -753,7 +753,7 @@ export default function CorpoClinicoPage() {
                 <Wallet size={14} /> Valores & Convênios
               </p>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Particular (R$)</Label>
                   <Input
@@ -794,7 +794,7 @@ export default function CorpoClinicoPage() {
                 <p className="text-xs text-muted-foreground">Separe vários convênios por vírgula.</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Idade mínima</Label>
                   <Input

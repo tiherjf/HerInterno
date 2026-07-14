@@ -84,7 +84,7 @@ function SetorDialog({ open, initial, onClose, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{isEdit ? "Editar setor" : "Novo setor"}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-1">
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -174,7 +174,7 @@ function RamalDialog({ open, initial, setores, defaultSetorId, onClose, onSaved 
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{isEdit ? "Editar ramal" : "Adicionar ramal"}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-1">
           {error && <p className="text-sm text-red-600">{error}</p>}

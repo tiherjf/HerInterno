@@ -84,9 +84,9 @@ export default function CalendarioPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Calendário de Ponto</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Calendário de Ponto</h1>
           <p className="text-sm text-muted-foreground">Visualize suas justificativas por mês</p>
         </div>
         <div className="flex items-center gap-2">
@@ -151,7 +151,7 @@ export default function CalendarioPage() {
               const day = dayIdx >= 0 && dayIdx < days.length ? days[dayIdx] : null;
 
               if (!day) {
-                return <div key={idx} className="min-h-[80px] border-b border-r last:border-r-0 bg-gray-50/30" />;
+                return <div key={idx} className="min-h-[56px] sm:min-h-[80px] border-b border-r last:border-r-0 bg-gray-50/30" />;
               }
 
               const isToday = day.date === today;
@@ -161,12 +161,12 @@ export default function CalendarioPage() {
                 <div
                   key={day.date}
                   onClick={() => hasJust && setSelectedDay(day)}
-                  className={`min-h-[80px] border-b border-r last:border-r-0 p-2 flex flex-col gap-1 transition-colors ${
+                  className={`min-h-[56px] sm:min-h-[80px] border-b border-r last:border-r-0 p-1 sm:p-2 flex flex-col gap-1 transition-colors ${
                     day.weekend ? "bg-gray-50" : "bg-white"
                   } ${hasJust ? "cursor-pointer hover:bg-blue-50/50" : ""}`}
                 >
                   {/* Número do dia */}
-                  <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full ${
+                  <span className={`text-xs sm:text-sm font-medium w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full ${
                     isToday ? "bg-primary text-primary-foreground" : day.weekend ? "text-gray-400" : "text-gray-700"
                   }`}>
                     {day.day}

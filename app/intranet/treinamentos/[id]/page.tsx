@@ -104,7 +104,7 @@ export default function ModuloPage() {
         <div className="p-5 space-y-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold">{module.name}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold">{module.name}</h1>
               {module.description && <p className="text-muted-foreground text-sm mt-1">{module.description}</p>}
             </div>
             {isAdmin && (

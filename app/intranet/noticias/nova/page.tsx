@@ -11,7 +11,7 @@ export default async function NovaNoticiaPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">Nova Notícia</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Nova Notícia</h2>
         <p className="text-muted-foreground">Crie e publique um novo comunicado</p>
       </div>
       <NewsForm authorId={profile.id} />

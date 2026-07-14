@@ -532,12 +532,12 @@ export default function AdminChamadosPage() {
   return (
     <div className="space-y-5">
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Chamados</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Chamados</h1>
           <p className="text-sm text-muted-foreground">Gestão de solicitações de suporte</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border overflow-hidden">
             <Button
               size="sm"
@@ -581,12 +581,12 @@ export default function AdminChamadosPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b overflow-x-auto">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               tab === t.key
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -599,8 +599,8 @@ export default function AdminChamadosPage() {
 
       {/* Busca + filtros avançados */}
       <div className="space-y-3">
-        <div className="flex gap-2">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative w-full sm:flex-1 sm:max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               className="pl-9"
@@ -654,20 +654,20 @@ export default function AdminChamadosPage() {
 
       {/* Tabela (modo lista) */}
       {viewMode === "list" && (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-600 w-16">#</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Título</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Categoria</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Equipe</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Prioridade</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 hidden lg:table-cell">Categoria</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 hidden md:table-cell">Equipe</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 hidden sm:table-cell">Prioridade</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Solicitante</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Responsável</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">SLA</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Abertura</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 hidden lg:table-cell">Solicitante</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 hidden xl:table-cell">Responsável</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 hidden sm:table-cell">SLA</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600 hidden md:table-cell">Abertura</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -684,36 +684,36 @@ export default function AdminChamadosPage() {
                     style={slaUrgent ? { borderLeft: "3px solid #ef4444" } : undefined}>
                     <td className="px-4 py-3 font-mono text-muted-foreground">#{String(t.number).padStart(4, "0")}</td>
                     <td className="px-4 py-3 max-w-50"><span className="font-medium truncate block">{t.title}</span></td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden lg:table-cell">
                       {t.ticket_categories ? (
                         <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ backgroundColor: t.ticket_categories.color }}>
                           {t.ticket_categories.name}
                         </span>
                       ) : "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       {t.team === "manutencao" ? <Badge className="text-xs bg-orange-100 text-orange-700 border-0">Manutenção</Badge>
                         : t.team === "ti" ? <Badge className="text-xs bg-blue-100 text-blue-700 border-0">TI</Badge>
                         : t.team === "marketing" ? <Badge className="text-xs bg-pink-100 text-pink-700 border-0">MKT</Badge>
                         : "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden sm:table-cell">
                       <Badge className={`text-xs border-0 ${PRIORITY[t.priority]?.color}`}>{PRIORITY[t.priority]?.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <Badge className={`text-xs border-0 ${STATUS[t.status]?.color}`}>{STATUS[t.status]?.label}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
                       <div>{t.requester_name}</div>
                       {t.requester_sector && <div className="text-xs">{t.requester_sector}</div>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden xl:table-cell">
                       {t.assigned ? (
                         <span className="flex items-center gap-1 text-sm"><User size={12} />{t.assigned.full_name}</span>
                       ) : <span className="text-muted-foreground text-xs">Não atribuído</span>}
                     </td>
-                    <td className="px-4 py-3"><SlaChip deadline={t.sla_deadline} status={t.status} /></td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{formatDate(t.created_at)}</td>
+                    <td className="px-4 py-3 hidden sm:table-cell"><SlaChip deadline={t.sla_deadline} status={t.status} /></td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">{formatDate(t.created_at)}</td>
                   </tr>
                 );
               })}
@@ -1221,7 +1221,7 @@ export default function AdminChamadosPage() {
 
       {/* Modal Resolver — campos obrigatórios */}
       <Dialog open={!!resolveModal} onOpenChange={v => { if (!v) closeResolveModal(); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 size={18} className="text-green-600" />
@@ -1353,7 +1353,7 @@ export default function AdminChamadosPage() {
 
       {/* Modal novo template */}
       <Dialog open={showNewTemplate} onOpenChange={setShowNewTemplate}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Novo Template</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">

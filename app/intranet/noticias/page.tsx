@@ -92,13 +92,13 @@ export default async function NoticiasPage({
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">Notícias e Comunicados</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Notícias e Comunicados</h2>
           <p className="text-muted-foreground text-sm">Fique por dentro das novidades do hospital</p>
         </div>
         {canCreate && (
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link href="/intranet/noticias/nova"><Plus size={16} /> Nova Notícia</Link>
           </Button>
         )}
@@ -106,7 +106,7 @@ export default async function NoticiasPage({
 
       {/* Abas de editor */}
       {hasEditorContent && (
-        <div className="flex gap-1 border-b">
+        <div className="flex gap-1 border-b overflow-x-auto">
           {[
             { key: "publicadas", label: "Publicadas" },
             { key: "rascunhos", label: `Rascunhos${drafts.length > 0 ? ` (${drafts.length})` : ""}` },
@@ -114,7 +114,7 @@ export default async function NoticiasPage({
           ].map(tab => (
             <Link key={tab.key}
               href={`/intranet/noticias?aba=${tab.key}${search ? `&q=${search}` : ""}`}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 aba === tab.key
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"

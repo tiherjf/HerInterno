@@ -124,7 +124,7 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
           )}
         </div>
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">{news.title}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">{news.title}</h1>
 
         {news.summary && (
           <p className="text-lg text-muted-foreground mb-6 leading-relaxed border-l-4 border-primary pl-4">

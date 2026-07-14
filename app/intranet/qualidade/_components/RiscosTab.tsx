@@ -240,12 +240,12 @@ export function RiscosTab({ sector, isAdmin, setores }: Props) {
 
       {/* Create dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Novo Risco</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
             <div><Label className="text-xs">Título *</Label><Input value={form.title} onChange={e => setForm({...form,title:e.target.value})} /></div>
             <div><Label className="text-xs">Descrição</Label><Textarea rows={2} value={form.description} onChange={e => setForm({...form,description:e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Categoria *</Label>
                 <Select value={form.category} onValueChange={v => setForm({...form,category:v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -289,7 +289,7 @@ export function RiscosTab({ sector, isAdmin, setores }: Props) {
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={o => !o && setSelected(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>

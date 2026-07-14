@@ -532,9 +532,9 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             {teamTitle ? `${isMkt ? "Solicitações " : "Meus Chamados — "}${teamTitle}` : "Meus Chamados"}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -542,7 +542,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
           </p>
         </div>
         <Button onClick={() => { setLastProtocolo(null); setOpenNew(true); }}
-          className={isMkt ? "bg-pink-600 hover:bg-pink-700" : ""}>
+          className={`w-full sm:w-auto ${isMkt ? "bg-pink-600 hover:bg-pink-700" : ""}`}>
           <Plus size={16} /> {isMkt ? "Nova Solicitação" : "Abrir Chamado"}
         </Button>
       </div>
@@ -658,7 +658,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
       {/* ──── Modal: novo chamado ──── */}
       <Dialog open={openNew} onOpenChange={v => { if (!v) resetForm(); setOpenNew(v); }}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {isMkt ? <><Megaphone size={18} className="text-pink-600" /> Nova Solicitação de Comunicação</> : "Abrir Chamado"}
@@ -1113,7 +1113,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
       {/* ──── Modal: detalhe ──── */}
       <Dialog open={!!selected} onOpenChange={v => { if (!v) { setSelected(null); setDetail(null); } }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] max-h-[85vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>
@@ -1375,7 +1375,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
       {/* Confirmar cancelar */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>{isMkt ? "Cancelar solicitação?" : "Cancelar chamado?"}</DialogTitle>
           </DialogHeader>
@@ -1389,7 +1389,7 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
 
       {/* Confirmar reabrir */}
       <Dialog open={reopenDialogOpen} onOpenChange={setReopenDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm w-[calc(100vw-2rem)]">
           <DialogHeader><DialogTitle>Reabrir?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             {isMkt ? "A solicitação voltará ao status Aberto." : "O chamado voltará ao status \"Aberto\"."}

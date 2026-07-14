@@ -514,7 +514,7 @@ export default function AssistentePage() {
     <div className="flex flex-col h-[calc(100vh-10rem)]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
             <Bot className="text-primary" /> Assistente IA
           </h2>
           <p className="text-muted-foreground text-sm">
@@ -553,7 +553,7 @@ export default function AssistentePage() {
               </Avatar>
               <div
                 className={cn(
-                  "max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                  "max-w-[85%] min-w-0 rounded-2xl px-4 py-3 text-sm leading-relaxed",
                   msg.role === "assistant"
                     ? "bg-white border shadow-sm"
                     : "bg-primary text-primary-foreground whitespace-pre-wrap"

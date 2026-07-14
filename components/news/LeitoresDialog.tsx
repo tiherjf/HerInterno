@@ -58,7 +58,7 @@ export function LeitoresDialog({ newsId }: { newsId: string }) {
         <Users size={14} /> Relatório de leitura
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Relatório de Leitura</DialogTitle>
           </DialogHeader>

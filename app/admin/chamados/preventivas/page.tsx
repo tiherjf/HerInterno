@@ -204,7 +204,7 @@ export default function PreventivasPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
             <CalendarClock size={24} /> Manutenção Preventiva
           </h2>
           <p className="text-muted-foreground">
@@ -269,11 +269,11 @@ export default function PreventivasPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Título</TableHead>
-                <TableHead>Local</TableHead>
-                <TableHead>Patrimônio</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Frequência</TableHead>
-                <TableHead>Próxima execução</TableHead>
+                <TableHead className="hidden md:table-cell">Local</TableHead>
+                <TableHead className="hidden lg:table-cell">Patrimônio</TableHead>
+                <TableHead className="hidden lg:table-cell">Categoria</TableHead>
+                <TableHead className="hidden md:table-cell">Frequência</TableHead>
+                <TableHead className="hidden sm:table-cell">Próxima execução</TableHead>
                 <TableHead>Ativo</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -282,15 +282,15 @@ export default function PreventivasPage() {
               {plans.map((p) => (
                 <TableRow key={p.id} className={!p.active ? "opacity-50" : ""}>
                   <TableCell className="font-medium">{p.title}</TableCell>
-                  <TableCell>{p.location || "—"}</TableCell>
-                  <TableCell>{p.equipment_patrimonio || "—"}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">{p.location || "—"}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{p.equipment_patrimonio || "—"}</TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     {p.category ? (
                       <Badge variant="secondary" className="text-xs">{p.category.name}</Badge>
                     ) : "—"}
                   </TableCell>
-                  <TableCell>a cada {p.frequency_days} dia{p.frequency_days > 1 ? "s" : ""}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">a cada {p.frequency_days} dia{p.frequency_days > 1 ? "s" : ""}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {p.active && p.next_due <= hoje ? (
                       <Badge className="text-xs bg-red-100 text-red-700 border-0">
                         {fmtDate(p.next_due)} · vencida
@@ -326,7 +326,7 @@ export default function PreventivasPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editItem ? "Editar Plano" : "Novo Plano Preventivo"}</DialogTitle>
           </DialogHeader>

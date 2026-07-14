@@ -148,11 +148,11 @@ export function AuditoriasTab({ sector, isAdmin, setores }: Props) {
 
       {/* Create dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nova Auditoria{sector ? ` — ${sector}` : ""}</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
             <div><Label className="text-xs">Título *</Label><Input value={form.title} onChange={e => setForm({...form,title:e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Tipo *</Label>
                 <Select value={form.audit_type} onValueChange={v => setForm({...form,audit_type:v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -174,7 +174,7 @@ export function AuditoriasTab({ sector, isAdmin, setores }: Props) {
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={o => !o && setSelected(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>
@@ -213,7 +213,7 @@ export function AuditoriasTab({ sector, isAdmin, setores }: Props) {
                   </div>
                   {addingFinding && (
                     <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-3 space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div><Label className="text-xs">Tipo *</Label>
                           <Select value={findingForm.finding_type} onValueChange={v => setFindingForm({...findingForm,finding_type:v})}>
                             <SelectTrigger><SelectValue /></SelectTrigger>

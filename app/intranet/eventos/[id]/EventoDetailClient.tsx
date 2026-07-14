@@ -155,7 +155,7 @@ export default function EventoDetailClient({
       {/* Painel do organizador */}
       {isOrganizer && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h3 className="font-semibold text-base">
               Participantes ({participants.length})
               {participants.length > 0 && (
@@ -179,7 +179,7 @@ export default function EventoDetailClient({
               Nenhum inscrito ainda.
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 border-b">
                   <tr>
@@ -230,7 +230,7 @@ export default function EventoDetailClient({
               <h4 className="font-medium text-sm text-muted-foreground">
                 Fila de espera ({waiters.length})
               </h4>
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm">
                   <tbody>
                     {waiters.map((w, i) => (

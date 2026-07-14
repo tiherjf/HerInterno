@@ -196,12 +196,12 @@ export function IndicadoresTab({ sector, isAdmin, setores }: Props) {
 
       {/* Create dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Novo Indicador</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-2">
             <div><Label className="text-xs">Nome *</Label><Input value={form.name} onChange={e => setForm({...form,name:e.target.value})} /></div>
             <div><Label className="text-xs">Descrição</Label><Textarea rows={2} value={form.description} onChange={e => setForm({...form,description:e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label className="text-xs">Unidade</Label><Input value={form.unit} onChange={e => setForm({...form,unit:e.target.value})} placeholder="%, un, dias..." /></div>
               <div><Label className="text-xs">Frequência</Label>
                 <Select value={form.frequency} onValueChange={v => setForm({...form,frequency:v})}>
@@ -241,7 +241,7 @@ export function IndicadoresTab({ sector, isAdmin, setores }: Props) {
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={o => !o && setSelected(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           {selected && (
             <>
               <DialogHeader>
@@ -321,7 +321,7 @@ export function IndicadoresTab({ sector, isAdmin, setores }: Props) {
                 {isAdmin && (
                   <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                     <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-3">Lançar resultado</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div><Label className="text-xs">Mês</Label><Input type="month" value={recordForm.reference_month} onChange={e => setRecordForm({...recordForm,reference_month:e.target.value})} /></div>
                       <div><Label className="text-xs">Valor ({selected.unit})</Label><Input type="number" value={recordForm.actual_value} onChange={e => setRecordForm({...recordForm,actual_value:e.target.value})} /></div>
                       <div><Label className="text-xs">Observações</Label><Input value={recordForm.observations} onChange={e => setRecordForm({...recordForm,observations:e.target.value})} /></div>

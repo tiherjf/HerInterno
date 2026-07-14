@@ -215,9 +215,9 @@ function ApprovacoesRH() {
 
       {/* Barra de lote */}
       {checked.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-xl px-5 py-3 shadow-2xl">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-gray-900 text-white rounded-xl px-4 sm:px-5 py-3 shadow-2xl max-w-[calc(100vw-1.5rem)]">
           <span className="text-sm font-medium">{checked.size} selecionada(s)</span>
-          <div className="w-px h-5 bg-gray-600" />
+          <div className="hidden sm:block w-px h-5 bg-gray-600" />
           <Button size="sm" className="bg-green-600 hover:bg-green-700"
             onClick={() => { setBatchAction("approve"); setBatchObs(""); setBatchError(""); }}>
             <CheckCircle2 size={14} /> Aprovar em lote
@@ -377,8 +377,8 @@ function TiposTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead><TableHead>Req. Documento</TableHead>
-                <TableHead>Horário Parcial</TableHead><TableHead>Status</TableHead>
+                <TableHead>Nome</TableHead><TableHead className="hidden md:table-cell">Req. Documento</TableHead>
+                <TableHead className="hidden md:table-cell">Horário Parcial</TableHead><TableHead className="hidden sm:table-cell">Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -386,9 +386,9 @@ function TiposTab() {
               {types.map(t => (
                 <TableRow key={t.id} className={!t.active ? "opacity-50" : ""}>
                   <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell>{t.requires_document ? "Sim" : "Não"}</TableCell>
-                  <TableCell>{t.allows_partial_day ? "Sim" : "Não"}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">{t.requires_document ? "Sim" : "Não"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{t.allows_partial_day ? "Sim" : "Não"}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <Badge variant={t.active ? "success" : "secondary"} className="text-xs">
                       {t.active ? "Ativo" : "Inativo"}
                     </Badge>
@@ -485,7 +485,7 @@ function BancoHorasTab() {
         <div className="bg-white rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Colaborador</TableHead><TableHead>Setor</TableHead><TableHead>Mês</TableHead><TableHead>Saldo</TableHead><TableHead>Observação</TableHead></TableRow>
+              <TableRow><TableHead>Colaborador</TableHead><TableHead className="hidden md:table-cell">Setor</TableHead><TableHead>Mês</TableHead><TableHead>Saldo</TableHead><TableHead className="hidden lg:table-cell">Observação</TableHead></TableRow>
             </TableHeader>
             <TableBody>
               {records.map(r => {
@@ -494,7 +494,7 @@ function BancoHorasTab() {
                 return (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{r.profiles?.full_name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.profiles?.sector}</TableCell>
+                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{r.profiles?.sector}</TableCell>
                     <TableCell className="capitalize text-sm">{month}</TableCell>
                     <TableCell>
                       <span className={`font-bold text-sm flex items-center gap-1 ${isPos ? "text-green-700" : "text-red-700"}`}>
@@ -502,7 +502,7 @@ function BancoHorasTab() {
                         {isPos ? "+" : "-"}{minutesToHHMM(r.overtime_minutes)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.description || "—"}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{r.description || "—"}</TableCell>
                   </TableRow>
                 );
               })}
@@ -619,7 +619,7 @@ function FechamentosTab() {
         <div className="bg-white rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Período</TableHead><TableHead>Fechado por</TableHead><TableHead>Data do Fechamento</TableHead><TableHead>Observação</TableHead><TableHead className="text-right">Ações</TableHead></TableRow>
+              <TableRow><TableHead>Período</TableHead><TableHead className="hidden md:table-cell">Fechado por</TableHead><TableHead className="hidden lg:table-cell">Data do Fechamento</TableHead><TableHead className="hidden lg:table-cell">Observação</TableHead><TableHead className="text-right">Ações</TableHead></TableRow>
             </TableHeader>
             <TableBody>
               {fechamentos.map(f => (
@@ -630,9 +630,9 @@ function FechamentosTab() {
                       {new Date(f.reference_month + "-01T00:00:00").toLocaleString("pt-BR", { month: "long", year: "numeric" })}
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm">{f.closed_by_name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{new Date(f.closed_at).toLocaleString("pt-BR")}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{f.notes || "—"}</TableCell>
+                  <TableCell className="hidden md:table-cell text-sm">{f.closed_by_name}</TableCell>
+                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{new Date(f.closed_at).toLocaleString("pt-BR")}</TableCell>
+                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{f.notes || "—"}</TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="outline" className="text-blue-600 border-blue-200"
                       onClick={() => handleReopen(f.id, f.reference_month)}>
@@ -751,7 +751,7 @@ function FeriadosTab() {
 
       {showForm && (
         <Card><CardContent className="pt-4 space-y-3">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1"><Label className="text-xs">Data</Label><Input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Nome</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex: Feriado Municipal" /></div>
             <div className="space-y-1">
@@ -880,20 +880,20 @@ function RelatoriosTab() {
         <div className="bg-white rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Colaborador</TableHead><TableHead>Tipo</TableHead><TableHead>Ocorrência</TableHead><TableHead>Status</TableHead><TableHead>Enviada</TableHead></TableRow>
+              <TableRow><TableHead>Colaborador</TableHead><TableHead className="hidden sm:table-cell">Tipo</TableHead><TableHead className="hidden md:table-cell">Ocorrência</TableHead><TableHead>Status</TableHead><TableHead className="hidden lg:table-cell">Enviada</TableHead></TableRow>
             </TableHeader>
             <TableBody>
               {items.map(j => (
                 <TableRow key={j.id}>
                   <TableCell><p className="font-medium text-sm">{j.profiles?.full_name}</p><p className="text-xs text-muted-foreground">{j.profiles?.sector}</p></TableCell>
-                  <TableCell className="text-sm">{j.justification_types?.name}</TableCell>
-                  <TableCell className="text-sm">{fmt(j.occurrence_date)}</TableCell>
+                  <TableCell className="hidden sm:table-cell text-sm">{j.justification_types?.name}</TableCell>
+                  <TableCell className="hidden md:table-cell text-sm">{fmt(j.occurrence_date)}</TableCell>
                   <TableCell>
                     <Badge className={`text-xs border-0 ${j.status === "approved" ? "bg-green-100 text-green-800" : j.status.includes("rejected") ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>
                       {statusLabel[j.status] || j.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{fmt(j.created_at)}</TableCell>
+                  <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">{fmt(j.created_at)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -911,11 +911,11 @@ export default function AdminPontoPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Ponto — RH</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Ponto — RH</h2>
         <p className="text-muted-foreground">Aprovações, fechamentos, banco de horas e relatórios</p>
       </div>
       <Tabs defaultValue="aprovacoes">
-        <TabsList className="grid grid-cols-6 max-w-3xl">
+        <TabsList className="grid grid-cols-3 sm:grid-cols-6 h-auto max-w-3xl">
           <TabsTrigger value="aprovacoes">Aprovações</TabsTrigger>
           <TabsTrigger value="fechamentos">Fechamentos</TabsTrigger>
           <TabsTrigger value="tipos">Tipos</TabsTrigger>

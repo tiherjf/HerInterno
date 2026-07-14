@@ -424,12 +424,12 @@ export default function IndicadoresPage() {
       `}</style>
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Indicadores de Chamados</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Indicadores de Chamados</h1>
           <p className="text-sm text-muted-foreground">Métricas para acompanhamento e acreditação ONA</p>
         </div>
-        <div className="flex gap-2 print-hide">
+        <div className="flex gap-2 flex-wrap print-hide">
           <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </Button>

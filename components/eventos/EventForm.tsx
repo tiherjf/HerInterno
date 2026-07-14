@@ -215,7 +215,7 @@ export default function EventForm({ initialData }: Props) {
       </div>
 
       {/* Categoria + Tipo */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Categoria</Label>
           <Select value={form.category} onValueChange={v => set("category", v)}>
@@ -271,7 +271,7 @@ export default function EventForm({ initialData }: Props) {
       )}
 
       {/* Datas */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="event_date">Data do evento *</Label>
           <Input

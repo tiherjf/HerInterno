@@ -777,7 +777,7 @@ export default function ChatInternoPage() {
                         )}
                         <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                           <div
-                            className={`max-w-[80%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm whitespace-pre-wrap break-words ${
+                            className={`max-w-[85%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm whitespace-pre-wrap break-words ${
                               mine
                                 ? "bg-primary text-primary-foreground rounded-br-sm"
                                 : "bg-white border rounded-bl-sm text-gray-800"

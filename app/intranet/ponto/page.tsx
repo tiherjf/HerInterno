@@ -96,20 +96,20 @@ export default async function PontoDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Controle de Ponto</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Controle de Ponto</h2>
           <p className="text-muted-foreground">Justificativas e banco de horas</p>
         </div>
-        <Link href="/intranet/ponto/justificativas/nova">
-          <Button>
+        <Link href="/intranet/ponto/justificativas/nova" className="shrink-0">
+          <Button className="w-full sm:w-auto">
             <Plus size={16} /> Nova Justificativa
           </Button>
         </Link>
       </div>
 
       {/* Cards de status */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">

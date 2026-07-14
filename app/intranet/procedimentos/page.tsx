@@ -387,9 +387,9 @@ export default function ProcedimentosPage() {
     return (
       <div
         key={p.id}
-        className={`px-5 py-4 flex items-start gap-4 ${!p.ativo ? "opacity-50" : ""}`}
+        className={`px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 ${!p.ativo ? "opacity-50" : ""}`}
       >
-        <Badge className={`inline-flex items-center gap-1 text-xs shrink-0 mt-0.5 ${tipoInfo.cor}`}>
+        <Badge className={`inline-flex items-center gap-1 text-xs shrink-0 mt-0.5 self-start ${tipoInfo.cor}`}>
           <Icon size={11} />
           {p.tipo === "exame" ? "Exame" : "Procedimento"}
         </Badge>
@@ -472,7 +472,7 @@ export default function ProcedimentosPage() {
         </div>
 
         {p.preco != null && (
-          <div className="shrink-0 text-right space-y-1">
+          <div className="shrink-0 sm:text-right space-y-1">
             <p className="font-bold text-gray-900 text-base whitespace-nowrap leading-tight">
               {fmtBRL.format(p.preco)}
               {p.unidade_medida ? <span className="block font-normal text-[11px] text-gray-400"> /{p.unidade_medida}</span> : null}
@@ -510,11 +510,11 @@ export default function ProcedimentosPage() {
     <div className="space-y-6">
       {/* Cabeçalho */}
       <div className={`${unidadeInfo.header} rounded-xl p-5 text-white`}>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <ClipboardList size={26} />
+            <ClipboardList size={26} className="shrink-0" />
             <div>
-              <h2 className="text-xl font-bold">Procedimentos e Exames</h2>
+              <h2 className="text-xl sm:text-2xl font-bold">Procedimentos e Exames</h2>
               {!loading && (
                 <p className="text-white/80 text-sm">
                   {unidadeInfo.emoji} {unidadeInfo.label} · {totalUnidade} item{totalUnidade !== 1 ? "s" : ""}
@@ -523,7 +523,7 @@ export default function ProcedimentosPage() {
             </div>
           </div>
           {podeEditar && (
-            <Button onClick={openCreate} className="bg-white/20 hover:bg-white/30 border-white/40 border text-white gap-2 shrink-0">
+            <Button onClick={openCreate} className="bg-white/20 hover:bg-white/30 border-white/40 border text-white gap-2 shrink-0 w-full sm:w-auto">
               <Plus size={15} /> Novo Item
             </Button>
           )}
@@ -691,13 +691,13 @@ export default function ProcedimentosPage() {
 
       {/* Modal formulário */}
       <Dialog open={showForm} onOpenChange={v => { if (!v) setShowForm(false); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Editar Item" : "Novo Procedimento / Exame"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Tipo *</Label>
                 <Select value={form.tipo} onValueChange={v => setForm(prev => ({ ...prev, tipo: v as TipoKey }))}>
@@ -723,7 +723,7 @@ export default function ProcedimentosPage() {
               <Input placeholder="Ex: Hemograma completo, Ressonância magnética..." value={form.nome} onChange={f("nome")} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Categoria</Label>
                 <Input
@@ -756,7 +756,7 @@ export default function ProcedimentosPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Unidade de medida</Label>
                 <Input placeholder="sessão, ampola, frasco…" value={form.unidade_medida} onChange={f("unidade_medida")} />
@@ -772,7 +772,7 @@ export default function ProcedimentosPage() {
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 mb-3">
                 <CreditCard size={13} /> Valores &amp; pagamento
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label>Parcelas máx.</Label>
                   <Input type="number" min="0" step="1" placeholder="6" value={form.parcelas_max ?? ""} onChange={num("parcelas_max")} />
@@ -796,7 +796,7 @@ export default function ProcedimentosPage() {
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 mb-3">
                 <Clock size={13} /> Preparo
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Jejum (horas)</Label>
                   <Input type="number" min="0" step="1" placeholder="8" value={form.jejum_horas ?? ""} onChange={num("jejum_horas")} />

@@ -23,7 +23,7 @@ export default async function EditarEventoPage({ params }: Params) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Editar Evento</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">Editar Evento</h2>
         <p className="text-muted-foreground text-sm mt-1">{ev.title}</p>
       </div>
       <EventForm

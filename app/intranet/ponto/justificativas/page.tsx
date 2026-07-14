@@ -79,18 +79,18 @@ export default function MinhasJustificativasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Minhas Justificativas</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Minhas Justificativas</h2>
           <p className="text-muted-foreground">{justifications.length} justificativa(s) no total</p>
         </div>
-        <Link href="/intranet/ponto/justificativas/nova">
-          <Button><Plus size={16} /> Nova</Button>
+        <Link href="/intranet/ponto/justificativas/nova" className="shrink-0">
+          <Button className="w-full sm:w-auto"><Plus size={16} /> Nova</Button>
         </Link>
       </div>
 
       {/* Filtro */}
-      <div className="max-w-xs">
+      <div className="w-full sm:max-w-xs">
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger>
             <SelectValue />
@@ -181,7 +181,7 @@ export default function MinhasJustificativasPage() {
 
       {/* Modal de detalhes */}
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selected?.justification_types?.name}</DialogTitle>
           </DialogHeader>

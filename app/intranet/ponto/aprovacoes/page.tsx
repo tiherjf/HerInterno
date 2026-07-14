@@ -143,9 +143,9 @@ export default function AprovacoesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Aprovações de Gestor</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">Aprovações de Gestor</h2>
           <p className="text-muted-foreground">
             {justifications.length === 0
               ? "Nenhuma justificativa aguardando sua aprovação."
@@ -153,7 +153,7 @@ export default function AprovacoesPage() {
           </p>
         </div>
         {justifications.length > 0 && (
-          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={toggleAll}>
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground self-start sm:self-auto shrink-0" onClick={toggleAll}>
             {allChecked ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
             Selecionar todas
           </Button>
@@ -215,7 +215,7 @@ export default function AprovacoesPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                     <Button size="sm" variant="outline" className="text-green-700 border-green-200 hover:bg-green-50"
                       onClick={() => openAction(j, "approve")}>
                       <CheckCircle2 size={14} /> Aprovar
@@ -234,9 +234,9 @@ export default function AprovacoesPage() {
 
       {/* Barra de ação em lote */}
       {checked.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-xl px-5 py-3 shadow-2xl">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-gray-900 text-white rounded-xl px-4 sm:px-5 py-3 shadow-2xl max-w-[calc(100vw-1.5rem)]">
           <span className="text-sm font-medium">{checked.size} selecionada(s)</span>
-          <div className="w-px h-5 bg-gray-600" />
+          <div className="hidden sm:block w-px h-5 bg-gray-600" />
           <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
             onClick={() => { setBatchAction("approve"); setBatchObs(""); setBatchError(""); }}>
             <CheckCircle2 size={14} /> Aprovar em lote

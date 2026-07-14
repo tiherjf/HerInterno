@@ -173,10 +173,10 @@ export default function UsuariosPage() {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="bg-primary rounded-xl p-6 text-primary-foreground">
-        <div className="flex items-center justify-between">
+      <div className="bg-primary rounded-xl p-4 sm:p-6 text-primary-foreground">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Usuários Colaboradores</h2>
+            <h2 className="text-xl sm:text-2xl font-bold">Usuários Colaboradores</h2>
             <p className="text-primary-foreground/70 text-sm">
               {users.filter((u) => u.active).length} ativos ·{" "}
               {activeManagers.length} gestores
@@ -184,7 +184,7 @@ export default function UsuariosPage() {
           </div>
           <Button
             onClick={openCreateDialog}
-            className="bg-white/20 hover:bg-white/30 text-white border-white/30 border"
+            className="bg-white/20 hover:bg-white/30 text-white border-white/30 border w-full sm:w-auto shrink-0"
             variant="secondary"
           >
             <Plus size={16} className="mr-1.5" /> Novo Usuário
@@ -217,10 +217,10 @@ export default function UsuariosPage() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Perfil</TableHead>
-                <TableHead>Setor</TableHead>
-                <TableHead>Gestor direto</TableHead>
-                <TableHead>Ramal</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead className="hidden md:table-cell">Setor</TableHead>
+                <TableHead className="hidden lg:table-cell">Gestor direto</TableHead>
+                <TableHead className="hidden lg:table-cell">Ramal</TableHead>
+                <TableHead className="hidden sm:table-cell">Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -242,14 +242,14 @@ export default function UsuariosPage() {
                       {ROLE_LABELS[user.role]}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                     {user.sector || "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                     {managerName(user.manager_id)}
                   </TableCell>
-                  <TableCell className="text-sm">{user.phone_ext || "—"}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden lg:table-cell text-sm">{user.phone_ext || "—"}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <Badge variant={user.active ? "success" : "secondary"} className="text-xs">
                       {user.active ? "Ativo" : "Inativo"}
                     </Badge>
@@ -290,7 +290,7 @@ export default function UsuariosPage() {
 
       {/* Dialog criar / editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editUser ? "Editar Usuário" : "Novo Usuário"}
@@ -300,7 +300,7 @@ export default function UsuariosPage() {
           <div className="space-y-4 py-1">
             {/* Criação: e-mail + senha */}
             {!editUser && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>E-mail *</Label>
                   <Input
@@ -337,7 +337,7 @@ export default function UsuariosPage() {
             </div>
 
             {/* Perfil + Setor */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Perfil *</Label>
                 <Select
@@ -369,7 +369,7 @@ export default function UsuariosPage() {
             </div>
 
             {/* Unidade + Ramal */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Unidade</Label>
                 <Input
