@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { TicketProgress } from "@/components/chamados/TicketProgress";
 import {
   Search, RefreshCw, Clock, CheckCircle2, XCircle, AlertTriangle,
   User, BarChart2, SlidersHorizontal, ChevronDown, ChevronUp,
@@ -848,6 +849,9 @@ export default function AdminChamadosPage() {
                   <div className="grid md:grid-cols-3 md:divide-x">
                     {/* Coluna principal */}
                     <div className="md:col-span-2 p-5 space-y-5 min-w-0">
+                      {/* Progresso do chamado */}
+                      <TicketProgress status={selected.status} />
+
                       {/* SLA em destaque */}
                       <SlaCard
                         deadline={selected.sla_deadline}

@@ -23,6 +23,7 @@ import {
 import { formatDate } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { TicketProgress } from "@/components/chamados/TicketProgress";
 
 type BrowserSupabase = ReturnType<typeof createClient>;
 
@@ -1165,6 +1166,11 @@ export function ChamadosView({ defaultTeam }: { defaultTeam?: string }) {
                       {STATUS_LABELS[selected.status].icon} {STATUS_LABELS[selected.status].label}
                     </span>
                     <SlaIndicator deadline={selected.sla_deadline} status={selected.status} />
+                  </div>
+
+                  {/* Barra de progresso do chamado */}
+                  <div className="rounded-xl border bg-white px-4 py-3">
+                    <TicketProgress status={selected.status} />
                   </div>
 
                   {/* Prazo MKT */}
