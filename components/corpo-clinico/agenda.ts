@@ -166,10 +166,16 @@ function hhmmParaMin(h: string): number | null {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
-/** Extrai faixas [início, fim] em minutos de um texto de horários ("08:00–12:00 / 14:00–18:00"). */
+/**
+ * Extrai faixas [início, fim] em minutos de um texto de horários.
+ * Aceita os separadores usados na prática: "às", "as", "até", "–", "—", "-".
+ * Ex.: "08:00 às 13:00 / 14:00 às 18:00", "09:00–12:00".
+ */
 function faixasDeTexto(horarios: string): [number, number][] {
   const out: [number, number][] = [];
-  const re = /(\d{1,2}):(\d{2})\s*[–\-a]{1,3}\s*(\d{1,2}):(\d{2})/g;
+  // Dois horários HH:MM ligados por até 5 caracteres que não são dígitos
+  // (cobre " às ", " – ", " até ", " - ") — o "/" separa faixas distintas.
+  const re = /(\d{1,2}):(\d{2})[^\d/]{1,5}(\d{1,2}):(\d{2})/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(horarios))) {
     const s = Number(m[1]) * 60 + Number(m[2]);
