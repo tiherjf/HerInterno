@@ -18,8 +18,12 @@ const COLUNAS_044 = [
 ];
 const AVISO_044 = "Execute a migração 044 no Supabase para salvar os novos campos.";
 
-// União das colunas extras (043 + 044) — retiradas em conjunto no fallback.
-const COLUNAS_EXTRAS = [...COLUNAS_043, ...COLUNAS_044];
+// Colunas adicionadas pela migração 046 (dias/horários).
+const COLUNAS_046 = ["dias", "horarios"];
+const AVISO_046 = "Execute a migração 046 no Supabase para salvar dias/horários.";
+
+// União das colunas extras (043 + 044 + 046) — retiradas em conjunto no fallback.
+const COLUNAS_EXTRAS = [...COLUNAS_043, ...COLUNAS_044, ...COLUNAS_046];
 
 /** Erro de coluna inexistente da migração 043 (não aplicada). */
 function erroColuna043(error: unknown): boolean {
@@ -40,6 +44,17 @@ function erroColuna044(error: unknown): boolean {
   return (
     (e.code === "42703" || e.code === "PGRST204") &&
     COLUNAS_044.some(c => msg.includes(c.toLowerCase()))
+  );
+}
+
+/** Erro de coluna inexistente da migração 046 (não aplicada). */
+function erroColuna046(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  const msg = (e.message ?? "").toLowerCase();
+  return (
+    (e.code === "42703" || e.code === "PGRST204") &&
+    COLUNAS_046.some(c => msg.includes(c.toLowerCase()))
   );
 }
 
@@ -123,7 +138,7 @@ export async function POST(req: NextRequest) {
       categoria, preco, unidade_medida, protocolo, profissional,
       convenios, atende_particular, parcelas_max, pacote_sessoes, pacote_preco,
       jejum_horas, requer_agendamento, duracao_min, documentos_necessarios,
-      suspende_medicacao, medicos,
+      suspende_medicacao, medicos, dias, horarios,
     } = await req.json();
     if (!nome?.trim() || !unidade?.trim()) {
       return NextResponse.json({ error: "Nome e unidade são obrigatórios" }, { status: 400 });
@@ -171,6 +186,8 @@ export async function POST(req: NextRequest) {
       documentos_necessarios: coerceText(documentos_necessarios),
       suspende_medicacao: coerceText(suspende_medicacao),
       medicos: coerceStrArray(medicos),
+      dias: coerceText(dias),
+      horarios: coerceText(horarios),
       order_num: (count ?? 0) + 1,
       created_by: profile.id,
     };
@@ -183,9 +200,9 @@ export async function POST(req: NextRequest) {
     let { data, error } = await supabase.from("procedimentos").insert(registro).select().single();
     let aviso: string | undefined;
 
-    // Pré-migração 043/044: colunas extras inexistentes — reinsere sem elas
-    if (error && (erroColuna043(error) || erroColuna044(error))) {
-      const avisoOriginal = erroColuna044(error) ? AVISO_044 : AVISO_043;
+    // Pré-migração 043/044/046: colunas extras inexistentes — reinsere sem elas
+    if (error && (erroColuna043(error) || erroColuna044(error) || erroColuna046(error))) {
+      const avisoOriginal = erroColuna046(error) ? AVISO_046 : erroColuna044(error) ? AVISO_044 : AVISO_043;
       const semNovas = { ...registro };
       for (const c of COLUNAS_EXTRAS) delete semNovas[c];
       const retry = await supabase.from("procedimentos").insert(semNovas).select().single();

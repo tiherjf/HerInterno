@@ -19,8 +19,12 @@ const COLUNAS_044 = [
 ];
 const AVISO_044 = "Execute a migração 044 no Supabase para salvar os novos campos.";
 
-// União das colunas extras (043 + 044) — retiradas em conjunto no fallback.
-const COLUNAS_EXTRAS = [...COLUNAS_043, ...COLUNAS_044];
+// Colunas adicionadas pela migração 046 (dias/horários).
+const COLUNAS_046 = ["dias", "horarios"];
+const AVISO_046 = "Execute a migração 046 no Supabase para salvar dias/horários.";
+
+// União das colunas extras (043 + 044 + 046) — retiradas em conjunto no fallback.
+const COLUNAS_EXTRAS = [...COLUNAS_043, ...COLUNAS_044, ...COLUNAS_046];
 
 // Campos numéricos (preço) e inteiros aceitos, para validação/coerção.
 const CAMPOS_PRECO = ["preco", "pacote_preco"];
@@ -30,6 +34,7 @@ const CAMPOS_BOOL = ["atende_particular", "requer_agendamento"];
 const CAMPOS_TEXTO = [
   "descricao", "preparacao", "categoria", "unidade_medida", "protocolo",
   "profissional", "documentos_necessarios", "suspende_medicacao",
+  "dias", "horarios",
 ];
 
 /** Erro de coluna inexistente da migração 043 (não aplicada). */
@@ -51,6 +56,17 @@ function erroColuna044(error: unknown): boolean {
   return (
     (e.code === "42703" || e.code === "PGRST204") &&
     COLUNAS_044.some(c => msg.includes(c.toLowerCase()))
+  );
+}
+
+/** Erro de coluna inexistente da migração 046 (não aplicada). */
+function erroColuna046(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  const msg = (e.message ?? "").toLowerCase();
+  return (
+    (e.code === "42703" || e.code === "PGRST204") &&
+    COLUNAS_046.some(c => msg.includes(c.toLowerCase()))
   );
 }
 
@@ -85,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const allowed = [
       "nome", "tipo", "unidade", "descricao", "preparacao", "ativo", "order_num",
       "categoria", "preco", "unidade_medida", "protocolo", "profissional",
-      ...COLUNAS_044,
+      ...COLUNAS_044, ...COLUNAS_046,
     ];
     const updates = Object.fromEntries(
       Object.entries(body).filter(([k]) => allowed.includes(k))
@@ -147,13 +163,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let { error } = await supabase.from("procedimentos").update(updates).eq("id", params.id);
     let aviso: string | undefined;
 
-    // Pré-migração 043/044: colunas extras inexistentes — reenvia sem elas
+    // Pré-migração 043/044/046: colunas extras inexistentes — reenvia sem elas
     if (
       error &&
-      (erroColuna043(error) || erroColuna044(error)) &&
+      (erroColuna043(error) || erroColuna044(error) || erroColuna046(error)) &&
       COLUNAS_EXTRAS.some(c => c in updates)
     ) {
-      const avisoOriginal = erroColuna044(error) ? AVISO_044 : AVISO_043;
+      const avisoOriginal = erroColuna046(error) ? AVISO_046 : erroColuna044(error) ? AVISO_044 : AVISO_043;
       const semNovas = { ...updates };
       for (const c of COLUNAS_EXTRAS) delete semNovas[c];
       const retry = await supabase.from("procedimentos").update(semNovas).eq("id", params.id);

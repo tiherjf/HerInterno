@@ -3,12 +3,13 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search, AlertTriangle, Clock, CalendarDays, Stethoscope,
-  ChevronDown, ChevronUp, Plus, Pencil, Trash2, MapPin, Wallet, Baby,
+  ChevronDown, ChevronUp, Plus, Pencil, Trash2, Wallet, Baby, SlidersHorizontal,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { FichaCard } from "@/components/clinica/FichaCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -119,6 +120,7 @@ export default function CorpoClinicoPage() {
   const [grupoAtivo, setGrupoAtivo] = useState<string | null>(null);
   const [unidadeAtiva, setUnidadeAtiva] = useState<string | null>(null);
   const [apenasHoje, setApenasHoje] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
   const [showForm, setShowForm] = useState(false);
@@ -326,6 +328,8 @@ export default function CorpoClinicoPage() {
   const grupoFinalLabel = form.grupo === "__novo__" ? form.grupo_novo : form.grupo;
   const totalProfissionais = profissionais.length;
   const hoje = new Date().getDay();
+  const filtrosAtivos =
+    (unidadeAtiva !== null ? 1 : 0) + (grupoAtivo !== null ? 1 : 0) + (apenasHoje ? 1 : 0);
 
   // Registro em edição sem agenda estruturada, mas com textos legados de dias/horários
   const registroEmEdicao = editingId ? profissionais.find(p => p.id === editingId) : undefined;
@@ -355,37 +359,6 @@ export default function CorpoClinicoPage() {
             </Button>
           )}
         </div>
-
-        {/* Chips de unidade no cabeçalho */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          <Button
-            size="sm"
-            onClick={() => setUnidadeAtiva(null)}
-            className={`rounded-full text-xs h-7 px-3 ${
-              unidadeAtiva === null
-                ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90 border-primary-foreground"
-                : "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-primary-foreground/40"
-            }`}
-            variant="outline"
-          >
-            Todas as unidades
-          </Button>
-          {UNIDADES.map(u => (
-            <Button
-              key={u.key}
-              size="sm"
-              onClick={() => setUnidadeAtiva(unidadeAtiva === u.key ? null : u.key)}
-              className={`rounded-full text-xs h-7 px-3 ${
-                unidadeAtiva === u.key
-                  ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90 border-primary-foreground"
-                  : "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border-primary-foreground/40"
-              }`}
-              variant="outline"
-            >
-              {u.emoji} {u.label}
-            </Button>
-          ))}
-        </div>
       </div>
 
       {/* Aviso de migração 045 pendente */}
@@ -401,7 +374,7 @@ export default function CorpoClinicoPage() {
         </Alert>
       )}
 
-      {/* Filtros */}
+      {/* Busca + botão de filtros */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -414,39 +387,94 @@ export default function CorpoClinicoPage() {
         </div>
         <Button
           variant="outline"
-          onClick={() => setApenasHoje(v => !v)}
-          className={`rounded-full gap-1.5 shrink-0 ${
-            apenasHoje
-              ? "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white"
-              : "text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800"
-          }`}
+          onClick={() => setFiltrosAbertos(v => !v)}
+          className={`gap-2 shrink-0 ${filtrosAtivos > 0 ? "border-primary/40 text-primary" : ""}`}
         >
-          <Clock size={14} /> Atendem hoje
+          <SlidersHorizontal size={15} /> Filtros
+          {filtrosAtivos > 0 && (
+            <Badge className="border-0 bg-primary text-primary-foreground h-5 min-w-5 justify-center px-1.5 text-[11px]">
+              {filtrosAtivos}
+            </Badge>
+          )}
+          {filtrosAbertos
+            ? <ChevronUp size={15} className="text-muted-foreground" />
+            : <ChevronDown size={15} className="text-muted-foreground" />}
         </Button>
       </div>
 
-      {/* Chips de especialidade */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={grupoAtivo === null ? "default" : "outline"}
-          onClick={() => setGrupoAtivo(null)}
-          className="rounded-full text-xs h-7"
-        >
-          Todas ({grupos.length})
-        </Button>
-        {grupos.map(g => (
-          <Button
-            key={g.nome}
-            size="sm"
-            variant={grupoAtivo === g.nome ? "default" : "outline"}
-            onClick={() => setGrupoAtivo(grupoAtivo === g.nome ? null : g.nome)}
-            className="rounded-full text-xs h-7"
-          >
-            {g.nome} ({g.profissionais.length})
-          </Button>
-        ))}
-      </div>
+      {/* Painel de filtros (colapsável) */}
+      {filtrosAbertos && (
+        <div className="rounded-xl border bg-muted/30 p-4 space-y-4">
+          {/* Unidades */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Unidade</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant={unidadeAtiva === null ? "default" : "outline"}
+                onClick={() => setUnidadeAtiva(null)}
+                className="rounded-full text-xs h-7 px-3"
+              >
+                Todas as unidades
+              </Button>
+              {UNIDADES.map(u => (
+                <Button
+                  key={u.key}
+                  size="sm"
+                  variant={unidadeAtiva === u.key ? "default" : "outline"}
+                  onClick={() => setUnidadeAtiva(unidadeAtiva === u.key ? null : u.key)}
+                  className="rounded-full text-xs h-7 px-3"
+                >
+                  {u.emoji} {u.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Grupos / especialidades */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Especialidade</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant={grupoAtivo === null ? "default" : "outline"}
+                onClick={() => setGrupoAtivo(null)}
+                className="rounded-full text-xs h-7"
+              >
+                Todas ({grupos.length})
+              </Button>
+              {grupos.map(g => (
+                <Button
+                  key={g.nome}
+                  size="sm"
+                  variant={grupoAtivo === g.nome ? "default" : "outline"}
+                  onClick={() => setGrupoAtivo(grupoAtivo === g.nome ? null : g.nome)}
+                  className="rounded-full text-xs h-7"
+                >
+                  {g.nome} ({g.profissionais.length})
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Atendem hoje */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Disponibilidade</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setApenasHoje(v => !v)}
+              className={`rounded-full gap-1.5 h-7 ${
+                apenasHoje
+                  ? "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white"
+                  : "text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800"
+              }`}
+            >
+              <Clock size={14} /> Atendem hoje
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -492,161 +520,94 @@ export default function CorpoClinicoPage() {
               </Button>
 
               {expandidos.has(g.nome) && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
-                        <th className="text-left px-5 py-2.5 font-medium">Profissional</th>
-                        <th className="text-left px-5 py-2.5 font-medium hidden sm:table-cell">Unidade</th>
-                        <th className="text-left px-5 py-2.5 font-medium hidden md:table-cell">Especialidade</th>
-                        <th className="text-left px-5 py-2.5 font-medium">
-                          <span className="flex items-center gap-1"><CalendarDays size={12} /> Dias</span>
-                        </th>
-                        <th className="text-left px-5 py-2.5 font-medium hidden lg:table-cell">
-                          <span className="flex items-center gap-1"><Clock size={12} /> Horários</span>
-                        </th>
-                        <th className="text-left px-5 py-2.5 font-medium hidden xl:table-cell">Observações</th>
-                        {podeEditar && <th className="text-right px-5 py-2.5 font-medium">Ações</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {g.profissionais.map(prof => {
-                        const ud = unidadeInfo(prof.unidade);
-                        const entradasHoje = agendaDoDia(prof.agenda, hoje);
-                        const hojeAtende = atendeNoDia(prof.agenda, prof.dias, hoje);
-                        const valores = blocoValores(prof);
-                        return (
-                          <tr
-                            key={prof.id}
-                            className={`border-b last:border-0 transition-colors ${
-                              prof.sem_agenda ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <td className="px-5 py-3 font-medium text-gray-800">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {prof.sem_agenda && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
-                                {prof.nome}
-                                {prof.subespecialidade && (
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium shrink-0">
-                                    {prof.subespecialidade}
-                                  </Badge>
-                                )}
-                                {hojeAtende && (
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold shrink-0"
-                                  >
-                                    {entradasHoje.length > 0
-                                      ? `Hoje · ${entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}`
-                                      : "Hoje"}
-                                  </Badge>
-                                )}
-                                {prof.idade_minima != null && (
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] px-1.5 py-0 font-medium shrink-0"
-                                  >
-                                    <Baby size={10} className="mr-0.5" /> a partir de {prof.idade_minima} anos
-                                  </Badge>
-                                )}
-                              </div>
-
-                              {valores.length > 0 && (
-                                <div className="flex items-center gap-1 text-xs font-medium text-emerald-700 mt-1">
-                                  <Wallet size={11} className="shrink-0" />
-                                  <span>{valores.join(" · ")}</span>
-                                </div>
+                <div className="divide-y">
+                  {g.profissionais.map(prof => {
+                    const ud = unidadeInfo(prof.unidade);
+                    const entradasHoje = agendaDoDia(prof.agenda, hoje);
+                    const hojeAtende = atendeNoDia(prof.agenda, prof.dias, hoje);
+                    const valores = blocoValores(prof);
+                    return (
+                      <div key={prof.id} className={prof.sem_agenda ? "bg-amber-50" : ""}>
+                        <FichaCard
+                          titulo={prof.nome}
+                          tituloBadges={
+                            <>
+                              {prof.sem_agenda && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
+                              {prof.subespecialidade && (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium shrink-0">
+                                  {prof.subespecialidade}
+                                </Badge>
                               )}
-
-                              {prof.convenios && prof.convenios.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {prof.convenios.map(c => (
-                                    <Badge
-                                      key={c}
-                                      variant="outline"
-                                      className="text-[10px] px-1.5 py-0 font-normal text-gray-600 border-gray-300"
-                                    >
-                                      {c}
-                                    </Badge>
-                                  ))}
-                                </div>
+                              {hojeAtende && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold shrink-0"
+                                >
+                                  {entradasHoje.length > 0
+                                    ? `Hoje · ${entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}`
+                                    : "Hoje"}
+                                </Badge>
                               )}
-
-                              {prof.local && (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                                  <MapPin size={11} className="shrink-0" /> {prof.local}
-                                </div>
+                              {prof.idade_minima != null && (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] px-1.5 py-0 font-medium shrink-0"
+                                >
+                                  <Baby size={10} className="mr-0.5" /> a partir de {prof.idade_minima} anos
+                                </Badge>
                               )}
-
-                              <div className="sm:hidden mt-1">
-                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${ud.cor}`}>
-                                  {ud.emoji} {ud.label}
-                                </span>
+                            </>
+                          }
+                          unidade={{ label: ud.label, emoji: ud.emoji, cor: ud.cor }}
+                          especialidade={prof.especialidade}
+                          dias={prof.sem_agenda ? "Sem agenda" : prof.dias}
+                          horarios={prof.sem_agenda ? null : prof.horarios}
+                          local={prof.local}
+                          convenios={prof.convenios}
+                          observacoes={prof.sem_agenda ? "Não liberou horário" : prof.observacoes}
+                          valor={
+                            valores.length > 0 ? (
+                              <div className="flex items-center gap-1 text-xs font-medium text-emerald-700 sm:justify-end">
+                                <Wallet size={11} className="shrink-0" />
+                                <span>{valores.join(" · ")}</span>
                               </div>
-                              <div className="md:hidden text-xs text-muted-foreground mt-0.5">{prof.especialidade}</div>
-                              <div className="lg:hidden text-xs text-muted-foreground mt-0.5">
-                                {prof.sem_agenda
-                                  ? <span className="text-amber-600">Sem agenda cadastrada</span>
-                                  : prof.horarios}
-                              </div>
-                            </td>
-                            <td className="px-5 py-3 hidden sm:table-cell">
-                              <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${ud.cor}`}>
-                                {ud.emoji} {ud.label}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3 text-gray-600 hidden md:table-cell">{prof.especialidade}</td>
-                            <td className="px-5 py-3 text-gray-700">
-                              {prof.sem_agenda
-                                ? <span className="text-amber-600 text-xs font-medium">Sem agenda</span>
-                                : prof.dias}
-                            </td>
-                            <td className="px-5 py-3 text-gray-600 hidden lg:table-cell">{prof.horarios}</td>
-                            <td className="px-5 py-3 text-gray-500 text-xs hidden xl:table-cell">
-                              {prof.sem_agenda
-                                ? <span className="text-amber-600 font-medium">Não liberou horário</span>
-                                : (prof.observacoes || "—")}
-                            </td>
-                            {podeEditar && (
-                              <td className="px-5 py-3">
-                                <div className="flex items-center gap-1 justify-end">
-                                  <Button size="sm" variant="ghost" onClick={() => openEdit(prof)}>
-                                    <Pencil size={14} />
-                                  </Button>
-                                  <Button
-                                    size="sm" variant="ghost"
-                                    className="text-red-500 hover:text-red-700"
-                                    onClick={() => remove(prof)}
-                                  >
-                                    <Trash2 size={14} />
-                                  </Button>
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                      {podeEditar && (
-                        <tr className="border-t bg-gray-50">
-                          <td colSpan={podeEditar ? 7 : 6} className="px-5 py-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
-                              onClick={() => {
-                                setEditingId(null);
-                                setForm({ ...EMPTY_FORM, grupo: g.nome });
-                                setFormError("");
-                                setShowForm(true);
-                              }}
-                            >
-                              <Plus size={12} /> Adicionar em {g.nome}
-                            </Button>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                            ) : undefined
+                          }
+                          acoes={podeEditar ? (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(prof)}>
+                                <Pencil size={14} />
+                              </Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className="text-red-500 hover:text-red-700"
+                                onClick={() => remove(prof)}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </>
+                          ) : undefined}
+                        />
+                      </div>
+                    );
+                  })}
+                  {podeEditar && (
+                    <div className="bg-gray-50 px-4 py-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
+                        onClick={() => {
+                          setEditingId(null);
+                          setForm({ ...EMPTY_FORM, grupo: g.nome });
+                          setFormError("");
+                          setShowForm(true);
+                        }}
+                      >
+                        <Plus size={12} /> Adicionar em {g.nome}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </Card>

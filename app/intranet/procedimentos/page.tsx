@@ -3,9 +3,10 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search, Plus, Pencil, ClipboardList, ChevronDown, ChevronUp,
-  Info, AlertCircle, ToggleLeft, ToggleRight, Stethoscope, FlaskConical,
+  AlertCircle, ToggleLeft, ToggleRight, Stethoscope, FlaskConical,
   Sparkles, Syringe, Scissors, Slice, Grid2x2, Clock, CalendarCheck,
-  FileText, Pill, Package, CreditCard, User, type LucideIcon,
+  FileText, Pill, Package, CreditCard, User, CalendarDays, SlidersHorizontal,
+  type LucideIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
+import { FichaCard } from "@/components/clinica/FichaCard";
 
 const UNIDADES = [
   { key: "Hospital",           label: "Hospital",           emoji: "🏥", header: "bg-blue-600",   chip: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -81,6 +83,9 @@ interface Procedimento {
   documentos_necessarios: string | null;
   suspende_medicacao: string | null;
   medicos: string[] | null;
+  // Migração 046
+  dias: string | null;
+  horarios: string | null;
 }
 
 // Lista de médicos de um item: prefere `medicos[]`; senão divide o
@@ -116,6 +121,9 @@ const EMPTY_FORM = {
   documentos_necessarios: "",
   suspende_medicacao: "",
   medicos: "",
+  // Migração 046
+  dias: "",
+  horarios: "",
 };
 
 export default function ProcedimentosPage() {
@@ -127,6 +135,7 @@ export default function ProcedimentosPage() {
   const [unidadeAtiva, setUnidadeAtiva] = useState<string>("Hospital");
   const [tipoAtivo, setTipoAtivo] = useState<string>("todos");
   const [medicoAtivo, setMedicoAtivo] = useState<string>("todos");
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set(["exame", "procedimento"]));
   const [aviso, setAviso] = useState("");
 
@@ -278,6 +287,8 @@ export default function ProcedimentosPage() {
       documentos_necessarios: p.documentos_necessarios ?? "",
       suspende_medicacao: p.suspende_medicacao ?? "",
       medicos: (p.medicos ?? []).join(", "),
+      dias: p.dias ?? "",
+      horarios: p.horarios ?? "",
     });
     setFormError("");
     setShowForm(true);
@@ -314,6 +325,9 @@ export default function ProcedimentosPage() {
         documentos_necessarios: form.documentos_necessarios.trim() || null,
         suspende_medicacao: form.suspende_medicacao.trim() || null,
         medicos: form.medicos,
+        // 046 — dias/horários (texto livre)
+        dias: form.dias.trim() || null,
+        horarios: form.horarios.trim() || null,
       };
       const url = editingId ? `/api/procedimentos/${editingId}` : "/api/procedimentos";
       const method = editingId ? "PATCH" : "POST";
@@ -344,7 +358,7 @@ export default function ProcedimentosPage() {
   const f = (field:
     | "nome" | "descricao" | "preparacao" | "categoria" | "unidade_medida"
     | "protocolo" | "profissional" | "documentos_necessarios"
-    | "suspende_medicacao" | "convenios" | "medicos"
+    | "suspende_medicacao" | "convenios" | "medicos" | "dias" | "horarios"
   ) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -358,6 +372,9 @@ export default function ProcedimentosPage() {
   };
 
   const totalUnidade = items.filter(p => p.unidade === unidadeAtiva).length;
+
+  // Quantidade de filtros ativos (tipo + médico) — exibida no badge do botão Filtros
+  const filtrosAtivos = (tipoAtivo !== "todos" ? 1 : 0) + (medicoAtivo !== "todos" ? 1 : 0);
 
   // Renderiza um item (card) — reutilizado dentro de cada categoria
   const renderItem = (p: Procedimento) => {
@@ -384,122 +401,122 @@ export default function ProcedimentosPage() {
       chips.push({ icon: Pill, texto: "Suspender medicação", titulo: p.suspende_medicacao });
     }
 
-    return (
-      <div
-        key={p.id}
-        className={`px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 ${!p.ativo ? "opacity-50" : ""}`}
-      >
-        <Badge className={`inline-flex items-center gap-1 text-xs shrink-0 mt-0.5 self-start ${tipoInfo.cor}`}>
+    const uInfo = UNIDADES.find(u => u.key === p.unidade) ?? unidadeInfo;
+
+    // Badges ao lado do título: tipo (Exame/Procedimento) + médicos
+    const tituloBadges = (
+      <>
+        <Badge className={`inline-flex items-center gap-1 text-xs ${tipoInfo.cor}`}>
           <Icon size={11} />
           {p.tipo === "exame" ? "Exame" : "Procedimento"}
         </Badge>
+        {meds.map(m => (
+          <Badge key={m} variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
+            <User size={9} /> {m}
+          </Badge>
+        ))}
+      </>
+    );
 
-        <div className="flex-1 min-w-0 space-y-1.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-medium text-gray-900 text-sm">{p.nome}</p>
-            {meds.map(m => (
-              <Badge key={m} variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
-                <User size={9} /> {m}
-              </Badge>
-            ))}
-          </div>
+    // Bloco de valor/preço (mesmo layout de antes)
+    const valor = p.preco != null ? (
+      <div className="sm:text-right space-y-1">
+        <p className="font-bold text-gray-900 text-base whitespace-nowrap leading-tight">
+          {fmtBRL.format(p.preco)}
+          {p.unidade_medida ? <span className="block font-normal text-[11px] text-gray-400"> /{p.unidade_medida}</span> : null}
+        </p>
+        {p.parcelas_max ? (
+          <Badge variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
+            <CreditCard size={9} />
+            em até {p.parcelas_max}x{parcela != null ? ` de ${fmtBRL.format(parcela)}` : ""}
+          </Badge>
+        ) : null}
+      </div>
+    ) : undefined;
 
-          {/* Convênios + Particular */}
-          {(p.convenios?.length || p.atende_particular) ? (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(p.convenios ?? []).map(c => (
-                <Badge key={c} className="text-[10px] font-normal bg-green-100 text-green-800 border-green-200">
-                  {c}
-                </Badge>
-              ))}
-              {p.atende_particular && (
-                <Badge variant="outline" className="text-[10px] font-normal text-gray-500 border-gray-200 bg-gray-50">
-                  Particular
-                </Badge>
-              )}
-            </div>
-          ) : null}
+    // Ações (editar / ativar-desativar) — só quando pode editar
+    const acoes = podeEditar ? (
+      <>
+        <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
+          <Pencil size={13} />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          title={p.ativo ? "Desativar" : "Ativar"}
+          onClick={() => toggleAtivo(p)}
+          className={p.ativo ? "text-green-600 hover:text-green-800" : "text-gray-400 hover:text-gray-600"}
+        >
+          {p.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+        </Button>
+      </>
+    ) : undefined;
 
-          {/* Preparo estruturado (chips) */}
-          {chips.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {chips.map((c, i) => {
-                const CIcon = c.icon;
-                return (
-                  <span
-                    key={i}
-                    title={c.titulo}
-                    className={`inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600 ${c.titulo ? "cursor-help" : ""}`}
-                  >
-                    <CIcon size={10} /> {c.texto}
-                  </span>
-                );
-              })}
-            </div>
-          )}
+    // Conteúdo específico de procedimentos que o FichaCard não cobre:
+    // chips de preparo, pacote/protocolo e observações de preparo (texto livre).
+    const temExtras = chips.length > 0 || temPacote || !!p.protocolo || !!p.preparacao;
 
-          {p.descricao && (
-            <p className="text-xs text-gray-500 flex items-start gap-1">
-              <Info size={11} className="shrink-0 mt-0.5" />
-              {p.descricao}
-            </p>
-          )}
+    return (
+      <div key={p.id}>
+        <FichaCard
+          titulo={p.nome}
+          tituloBadges={tituloBadges}
+          unidade={{ label: uInfo.label, emoji: uInfo.emoji, cor: uInfo.chip }}
+          especialidade={p.categoria}
+          dias={p.dias}
+          horarios={p.horarios}
+          convenios={p.convenios}
+          particular={!!p.atende_particular}
+          observacoes={p.descricao}
+          valor={valor}
+          acoes={acoes}
+          inativo={!p.ativo}
+        />
 
-          {/* Pacote destacado (ou protocolo legado como fallback) */}
-          {temPacote ? (
-            <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-800">
-              <Package size={12} className="shrink-0" />
-              <span>
-                <strong>{p.pacote_sessoes} sessões:</strong> {fmtBRL.format(p.pacote_preco ?? 0)}
-                {economia > 0 && (
-                  <span className="text-emerald-600"> · economize {fmtBRL.format(economia)}</span>
-                )}
-              </span>
-            </div>
-          ) : p.protocolo ? (
-            <p className="text-xs text-gray-400">{p.protocolo}</p>
-          ) : null}
+        {temExtras && (
+          <div className={`px-4 pb-3.5 -mt-1 space-y-2 ${!p.ativo ? "opacity-50" : ""}`}>
+            {/* Preparo estruturado (chips) */}
+            {chips.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {chips.map((c, i) => {
+                  const CIcon = c.icon;
+                  return (
+                    <span
+                      key={i}
+                      title={c.titulo}
+                      className={`inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600 ${c.titulo ? "cursor-help" : ""}`}
+                    >
+                      <CIcon size={10} /> {c.texto}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
 
-          {/* Observações de preparo (texto livre) */}
-          {p.preparacao && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-1.5">
-              <p className="text-xs text-yellow-800 flex items-start gap-1">
-                <AlertCircle size={11} className="shrink-0 mt-0.5" />
-                <span><strong>Observações de preparo:</strong> {p.preparacao}</span>
-              </p>
-            </div>
-          )}
-        </div>
-
-        {p.preco != null && (
-          <div className="shrink-0 sm:text-right space-y-1">
-            <p className="font-bold text-gray-900 text-base whitespace-nowrap leading-tight">
-              {fmtBRL.format(p.preco)}
-              {p.unidade_medida ? <span className="block font-normal text-[11px] text-gray-400"> /{p.unidade_medida}</span> : null}
-            </p>
-            {p.parcelas_max ? (
-              <Badge variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
-                <CreditCard size={9} />
-                em até {p.parcelas_max}x{parcela != null ? ` de ${fmtBRL.format(parcela)}` : ""}
-              </Badge>
+            {/* Pacote destacado (ou protocolo legado como fallback) */}
+            {temPacote ? (
+              <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-800">
+                <Package size={12} className="shrink-0" />
+                <span>
+                  <strong>{p.pacote_sessoes} sessões:</strong> {fmtBRL.format(p.pacote_preco ?? 0)}
+                  {economia > 0 && (
+                    <span className="text-emerald-600"> · economize {fmtBRL.format(economia)}</span>
+                  )}
+                </span>
+              </div>
+            ) : p.protocolo ? (
+              <p className="text-xs text-gray-400">{p.protocolo}</p>
             ) : null}
-          </div>
-        )}
 
-        {podeEditar && (
-          <div className="flex items-center gap-1 shrink-0">
-            <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
-              <Pencil size={13} />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              title={p.ativo ? "Desativar" : "Ativar"}
-              onClick={() => toggleAtivo(p)}
-              className={p.ativo ? "text-green-600 hover:text-green-800" : "text-gray-400 hover:text-gray-600"}
-            >
-              {p.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-            </Button>
+            {/* Observações de preparo (texto livre) */}
+            {p.preparacao && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-1.5">
+                <p className="text-xs text-yellow-800 flex items-start gap-1">
+                  <AlertCircle size={11} className="shrink-0 mt-0.5" />
+                  <span><strong>Observações de preparo:</strong> {p.preparacao}</span>
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -528,25 +545,6 @@ export default function ProcedimentosPage() {
             </Button>
           )}
         </div>
-
-        {/* Tabs de unidade */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          {UNIDADES.map(u => (
-            <Button
-              key={u.key}
-              size="sm"
-              onClick={() => setUnidadeAtiva(u.key)}
-              variant="outline"
-              className={`rounded-full text-sm h-8 px-3 ${
-                unidadeAtiva === u.key
-                  ? "bg-white text-gray-900 border-white hover:bg-white/90"
-                  : "bg-white/20 text-white border-white/40 hover:bg-white/30"
-              }`}
-            >
-              {u.emoji} {u.label}
-            </Button>
-          ))}
-        </div>
       </div>
 
       {/* Aviso de migração pendente */}
@@ -560,47 +558,96 @@ export default function ProcedimentosPage() {
         </Alert>
       )}
 
-      {/* Barra de busca + filtro de tipo + filtro de médico */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center">
-        <div className="relative flex-1 w-full">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar nome, descrição, categoria ou médico..."
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-            className="pl-9"
-          />
+      {/* Barra de busca + botão de filtros (busca sempre visível) */}
+      <div className="space-y-3">
+        <div className="flex gap-3 items-center">
+          <div className="relative flex-1 w-full">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar nome, descrição, categoria ou médico..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setMostrarFiltros(v => !v)}
+            className="gap-1.5 shrink-0"
+          >
+            <SlidersHorizontal size={15} />
+            Filtros
+            {filtrosAtivos > 0 && (
+              <Badge className="ml-0.5 h-5 min-w-5 justify-center rounded-full px-1.5 text-[10px]">
+                {filtrosAtivos}
+              </Badge>
+            )}
+            {mostrarFiltros ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </Button>
         </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          {["todos", ...TIPOS.map(t => t.key)].map(k => {
-            const label = k === "todos" ? "Todos" : TIPOS.find(t => t.key === k)?.label ?? k;
-            return (
-              <Button
-                key={k}
-                size="sm"
-                variant={tipoAtivo === k ? "default" : "outline"}
-                onClick={() => setTipoAtivo(k)}
-                className="rounded-full text-xs h-7"
-              >
-                {label}
-              </Button>
-            );
-          })}
-          {medicosUnidade.length > 0 && (
-            <Select value={medicoAtivo} onValueChange={setMedicoAtivo}>
-              <SelectTrigger className="h-7 w-auto min-w-[9rem] rounded-full text-xs gap-1">
-                <User size={13} className="text-muted-foreground" />
-                <SelectValue placeholder="Médico" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Médico: Todos</SelectItem>
-                {medicosUnidade.map(m => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+
+        {/* Painel de filtros (recolhido por padrão) */}
+        {mostrarFiltros && (
+          <div className="rounded-xl border bg-gray-50/60 p-4 space-y-4">
+            {/* Unidade */}
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Unidade</p>
+              <div className="flex flex-wrap gap-2">
+                {UNIDADES.map(u => (
+                  <Button
+                    key={u.key}
+                    size="sm"
+                    variant={unidadeAtiva === u.key ? "default" : "outline"}
+                    onClick={() => setUnidadeAtiva(u.key)}
+                    className="rounded-full text-xs h-7"
+                  >
+                    {u.emoji} {u.label}
+                  </Button>
                 ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
+              </div>
+            </div>
+
+            {/* Tipo */}
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo</p>
+              <div className="flex flex-wrap gap-2 items-center">
+                {["todos", ...TIPOS.map(t => t.key)].map(k => {
+                  const label = k === "todos" ? "Todos" : TIPOS.find(t => t.key === k)?.label ?? k;
+                  return (
+                    <Button
+                      key={k}
+                      size="sm"
+                      variant={tipoAtivo === k ? "default" : "outline"}
+                      onClick={() => setTipoAtivo(k)}
+                      className="rounded-full text-xs h-7"
+                    >
+                      {label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Médico */}
+            {medicosUnidade.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Médico</p>
+                <Select value={medicoAtivo} onValueChange={setMedicoAtivo}>
+                  <SelectTrigger className="h-8 w-auto min-w-[12rem] rounded-full text-xs gap-1">
+                    <User size={13} className="text-muted-foreground" />
+                    <SelectValue placeholder="Médico" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Médico: Todos</SelectItem>
+                    {medicosUnidade.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Loading */}
@@ -787,6 +834,23 @@ export default function ProcedimentosPage() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
                     <Input type="number" min="0" step="0.01" placeholder="0,00" className="pl-9" value={form.pacote_preco ?? ""} onChange={num("pacote_preco")} />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Seção: Dias & horários */}
+            <div className="pt-2 border-t">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 mb-3">
+                <CalendarDays size={13} /> Dias &amp; horários
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Dias</Label>
+                  <Input placeholder="Seg a Sex" value={form.dias} onChange={f("dias")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Horários</Label>
+                  <Input placeholder="08:00–17:00" value={form.horarios} onChange={f("horarios")} />
                 </div>
               </div>
             </div>
