@@ -151,6 +151,62 @@ export function atendeNoDia(
   return diasDoTexto(dias).has(dia);
 }
 
+// Turnos do dia. Faixas em minutos desde 00:00.
+export type Turno = "manha" | "tarde" | "noite";
+export const TURNO_LABEL: Record<Turno, string> = { manha: "Manhã", tarde: "Tarde", noite: "Noite" };
+const TURNO_RANGE: Record<Turno, [number, number]> = {
+  manha: [0, 12 * 60],
+  tarde: [12 * 60, 18 * 60],
+  noite: [18 * 60, 24 * 60],
+};
+
+function hhmmParaMin(h: string): number | null {
+  const m = h.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+/** Extrai faixas [início, fim] em minutos de um texto de horários ("08:00–12:00 / 14:00–18:00"). */
+function faixasDeTexto(horarios: string): [number, number][] {
+  const out: [number, number][] = [];
+  const re = /(\d{1,2}):(\d{2})\s*[–\-a]{1,3}\s*(\d{1,2}):(\d{2})/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(horarios))) {
+    const s = Number(m[1]) * 60 + Number(m[2]);
+    const e = Number(m[3]) * 60 + Number(m[4]);
+    if (e > s) out.push([s, e]);
+  }
+  return out;
+}
+
+/**
+ * Turnos (manhã/tarde/noite) em que o profissional atende, a partir da agenda
+ * estruturada (quando existe) ou do texto livre de horários.
+ */
+export function turnosDe(
+  agenda: AgendaEntry[] | null | undefined,
+  horarios: string | null | undefined,
+): Set<Turno> {
+  const faixas: [number, number][] = [];
+  if (Array.isArray(agenda) && agenda.length > 0) {
+    for (const e of agenda) {
+      const s = hhmmParaMin(e.inicio);
+      const f = hhmmParaMin(e.fim);
+      if (s != null && f != null && f > s) faixas.push([s, f]);
+    }
+  } else if (horarios) {
+    faixas.push(...faixasDeTexto(horarios));
+  }
+  const set = new Set<Turno>();
+  for (const [s, e] of faixas) {
+    for (const t of ["manha", "tarde", "noite"] as Turno[]) {
+      const [ts, te] = TURNO_RANGE[t];
+      if (s < te && e > ts) set.add(t); // há sobreposição com o turno
+    }
+  }
+  return set;
+}
+
 /**
  * Detecta erro de coluna inexistente para "agenda" (migração 039 não aplicada).
  * Postgres: 42703 (undefined_column); PostgREST: PGRST204 (coluna fora do schema cache).

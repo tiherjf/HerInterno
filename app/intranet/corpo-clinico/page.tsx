@@ -19,7 +19,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 import { AgendaEditor } from "@/components/corpo-clinico/AgendaEditor";
-import { agendaDoDia, atendeNoDia, type AgendaEntry } from "@/components/corpo-clinico/agenda";
+import { agendaDoDia, atendeNoDia, turnosDe, TURNO_LABEL, type Turno, type AgendaEntry } from "@/components/corpo-clinico/agenda";
+
+// Chips do filtro de disponibilidade (multisseleção)
+const DISPONIBILIDADE: { key: string; label: string }[] = [
+  { key: "hoje", label: "Hoje" },
+  { key: "manha", label: TURNO_LABEL.manha },
+  { key: "tarde", label: TURNO_LABEL.tarde },
+  { key: "noite", label: TURNO_LABEL.noite },
+];
 
 const UNIDADES = [
   { key: "Hospital",           label: "Hospital",            emoji: "🏥", cor: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -119,7 +127,13 @@ export default function CorpoClinicoPage() {
   const [busca, setBusca] = useState("");
   const [grupoAtivo, setGrupoAtivo] = useState<string | null>(null);
   const [unidadeAtiva, setUnidadeAtiva] = useState<string | null>(null);
-  const [apenasHoje, setApenasHoje] = useState(false);
+  const [disponibilidade, setDisponibilidade] = useState<Set<string>>(new Set());
+  const toggleDisponibilidade = (key: string) =>
+    setDisponibilidade(prev => {
+      const s = new Set(prev);
+      if (s.has(key)) s.delete(key); else s.add(key);
+      return s;
+    });
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
 
@@ -173,7 +187,14 @@ export default function CorpoClinicoPage() {
       ...g,
       profissionais: g.profissionais.filter(p => {
         if (unidadeAtiva && p.unidade !== unidadeAtiva) return false;
-        if (apenasHoje && !atendeNoDia(p.agenda, p.dias, hoje)) return false;
+        if (disponibilidade.size > 0) {
+          if (disponibilidade.has("hoje") && !atendeNoDia(p.agenda, p.dias, hoje)) return false;
+          const turnosSel = Array.from(disponibilidade).filter(d => d !== "hoje") as Turno[];
+          if (turnosSel.length > 0) {
+            const ts = turnosDe(p.agenda, p.horarios);
+            if (!turnosSel.some(t => ts.has(t))) return false;
+          }
+        }
         if (!termo) return true;
         return (
           p.nome.toLowerCase().includes(termo) ||
@@ -186,7 +207,7 @@ export default function CorpoClinicoPage() {
         );
       }),
     })).filter(g => g.profissionais.length > 0);
-  }, [busca, grupoAtivo, unidadeAtiva, apenasHoje, grupos]);
+  }, [busca, grupoAtivo, unidadeAtiva, disponibilidade, grupos]);
 
   const toggleExpandido = (nome: string) => {
     setExpandidos(prev => {
@@ -328,8 +349,7 @@ export default function CorpoClinicoPage() {
   const grupoFinalLabel = form.grupo === "__novo__" ? form.grupo_novo : form.grupo;
   const totalProfissionais = profissionais.length;
   const hoje = new Date().getDay();
-  const filtrosAtivos =
-    (grupoAtivo !== null ? 1 : 0) + (apenasHoje ? 1 : 0);
+  const filtrosAtivos = grupoAtivo !== null ? 1 : 0;
 
   // Registro em edição sem agenda estruturada, mas com textos legados de dias/horários
   const registroEmEdicao = editingId ? profissionais.find(p => p.id === editingId) : undefined;
@@ -428,6 +448,31 @@ export default function CorpoClinicoPage() {
         </Button>
       </div>
 
+      {/* Disponibilidade — sempre visível, multisseleção */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Disponibilidade</p>
+        <div className="flex flex-wrap gap-2">
+          {DISPONIBILIDADE.map(d => {
+            const ativo = disponibilidade.has(d.key);
+            return (
+              <Button
+                key={d.key}
+                variant="outline"
+                size="sm"
+                onClick={() => toggleDisponibilidade(d.key)}
+                className={`rounded-full gap-1.5 h-7 text-xs px-3 ${
+                  ativo
+                    ? "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white"
+                    : "text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800"
+                }`}
+              >
+                {d.key === "hoje" && <Clock size={13} />} {d.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Painel de filtros (colapsável) */}
       {filtrosAbertos && (
         <div className="rounded-xl border bg-muted/30 p-4 space-y-4">
@@ -457,22 +502,6 @@ export default function CorpoClinicoPage() {
             </div>
           </div>
 
-          {/* Atendem hoje */}
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Disponibilidade</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setApenasHoje(v => !v)}
-              className={`rounded-full gap-1.5 h-7 ${
-                apenasHoje
-                  ? "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white"
-                  : "text-green-700 border-green-300 hover:bg-green-50 hover:text-green-800"
-              }`}
-            >
-              <Clock size={14} /> Atendem hoje
-            </Button>
-          </div>
         </div>
       )}
 

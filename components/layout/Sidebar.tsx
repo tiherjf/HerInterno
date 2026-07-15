@@ -127,7 +127,7 @@ function ChatUnreadBadge() {
 
 export function Sidebar({ role, menuItems }: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const { isOpen: mobileOpen, close } = useMobileSidebar();
   // Filtra os grupos admin conforme o papel (mesmo mapa do middleware)
   const visibleAdminGroups = adminGroups
