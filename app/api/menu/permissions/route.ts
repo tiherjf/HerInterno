@@ -15,7 +15,7 @@ async function getAuthorizedUser() {
     .single();
 
   // Somente admin pode alterar permissões de menu
-  if (!profile || profile.role !== "admin") return null;
+  if (!profile || !["admin", "ti"].includes(profile.role)) return null;
   return profile as { id: string; role: StaffRole };
 }
 

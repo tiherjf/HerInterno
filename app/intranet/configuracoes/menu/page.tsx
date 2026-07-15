@@ -7,7 +7,7 @@ import { MenuPermissionsEditor } from "./MenuPermissionsEditor";
 export default async function MenuConfigPage() {
   const profile = await requireStaff();
   // Edição de permissões de menu é exclusiva do admin
-  if (profile.role !== "admin") {
+  if (!["admin", "ti"].includes(profile.role)) {
     redirect("/intranet");
   }
 

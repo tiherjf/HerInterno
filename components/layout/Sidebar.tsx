@@ -137,7 +137,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
     }))
     .filter((group) => group.items.length > 0);
   // Edição de permissões de menu é exclusiva do admin
-  const canConfig = role === "admin";
+  const canConfig = ["admin", "ti"].includes(role);
 
   // Agrupar itens por categoria na ordem definida
   const grouped = CATEGORY_ORDER.map((cat) => ({
