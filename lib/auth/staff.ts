@@ -88,7 +88,7 @@ export function canManageDocuments(role: StaffRole): boolean {
 }
 
 export function canManageUsers(role: StaffRole): boolean {
-  return role === "admin";
+  return ["admin", "ti"].includes(role);
 }
 
 export function canViewTrainingReports(role: StaffRole): boolean {

@@ -82,7 +82,7 @@ const adminGroups: { label: string; items: AdminMenuItem[] }[] = [
     label: "Gestão",
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard, roles: ["admin"] },
-      { href: "/admin/usuarios", label: "Usuários", icon: Users, roles: ["admin"] },
+      { href: "/admin/usuarios", label: "Usuários", icon: Users, roles: ["admin", "ti"] },
     ],
   },
   {

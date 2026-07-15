@@ -23,7 +23,7 @@ function isUnderPath(pathname: string, prefix: string): boolean {
  * - /admin/inventario/** → admin, ti
  * - /admin/chatbot/**    → admin, ti
  * - /admin/ponto/**      → admin (RH/TI usam /intranet/ponto/rh)
- * - /admin/usuarios/**   → admin
+ * - /admin/usuarios/**   → admin, ti
  * - demais rotas /admin (incl. dashboard raiz) → admin
  */
 function adminPathAllowed(pathname: string, role: string): boolean {
@@ -31,7 +31,11 @@ function adminPathAllowed(pathname: string, role: string): boolean {
   if (isUnderPath(pathname, "/admin/chamados")) {
     return ADMIN_TEAM_ROLES.includes(role);
   }
-  if (isUnderPath(pathname, "/admin/inventario") || isUnderPath(pathname, "/admin/chatbot")) {
+  if (
+    isUnderPath(pathname, "/admin/inventario") ||
+    isUnderPath(pathname, "/admin/chatbot") ||
+    isUnderPath(pathname, "/admin/usuarios")
+  ) {
     return role === "ti";
   }
   return false;
