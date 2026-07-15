@@ -48,9 +48,9 @@ const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" 
 /** Monta o bloco compacto de valores, omitindo os que estão nulos. */
 function blocoValores(p: Profissional): string[] {
   const partes: string[] = [];
-  if (p.valor_particular != null) partes.push(`Particular ${BRL.format(p.valor_particular)}`);
-  if (p.valor_convenio != null) partes.push(`Convênio ${BRL.format(p.valor_convenio)}`);
-  if (p.valor_desconto != null) partes.push(`Desconto ${BRL.format(p.valor_desconto)}`);
+  if (p.valor_particular != null) partes.push(`Consulta Particular ${BRL.format(p.valor_particular)}`);
+  if (p.valor_convenio != null) partes.push(`Pequenos Convênios ${BRL.format(p.valor_convenio)}`);
+  if (p.valor_desconto != null) partes.push(`Particular com desconto ${BRL.format(p.valor_desconto)}`);
   return partes;
 }
 
@@ -823,7 +823,7 @@ export default function CorpoClinicoPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Particular (R$)</Label>
+                  <Label className="text-xs">Consulta Particular (R$)</Label>
                   <Input
                     type="number" min={0} step="0.01" inputMode="decimal" placeholder="0,00"
                     value={form.valor_particular ?? ""}
@@ -831,7 +831,7 @@ export default function CorpoClinicoPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Convênio (R$)</Label>
+                  <Label className="text-xs">Pequenos Convênios (R$)</Label>
                   <Input
                     type="number" min={0} step="0.01" inputMode="decimal" placeholder="0,00"
                     value={form.valor_convenio ?? ""}
@@ -839,7 +839,7 @@ export default function CorpoClinicoPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Desconto (R$)</Label>
+                  <Label className="text-xs">Particular com desconto (R$)</Label>
                   <Input
                     type="number" min={0} step="0.01" inputMode="decimal" placeholder="0,00"
                     value={form.valor_desconto ?? ""}
