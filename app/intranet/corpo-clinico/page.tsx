@@ -329,7 +329,7 @@ export default function CorpoClinicoPage() {
   const totalProfissionais = profissionais.length;
   const hoje = new Date().getDay();
   const filtrosAtivos =
-    (unidadeAtiva !== null ? 1 : 0) + (grupoAtivo !== null ? 1 : 0) + (apenasHoje ? 1 : 0);
+    (grupoAtivo !== null ? 1 : 0) + (apenasHoje ? 1 : 0);
 
   // Registro em edição sem agenda estruturada, mas com textos legados de dias/horários
   const registroEmEdicao = editingId ? profissionais.find(p => p.id === editingId) : undefined;
@@ -374,6 +374,32 @@ export default function CorpoClinicoPage() {
         </Alert>
       )}
 
+      {/* Unidade — sempre visível */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Unidade</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={unidadeAtiva === null ? "default" : "outline"}
+            onClick={() => setUnidadeAtiva(null)}
+            className="rounded-full text-xs h-7 px-3"
+          >
+            Todas as unidades
+          </Button>
+          {UNIDADES.map(u => (
+            <Button
+              key={u.key}
+              size="sm"
+              variant={unidadeAtiva === u.key ? "default" : "outline"}
+              onClick={() => setUnidadeAtiva(unidadeAtiva === u.key ? null : u.key)}
+              className="rounded-full text-xs h-7 px-3"
+            >
+              {u.emoji} {u.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Busca + botão de filtros */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -405,32 +431,6 @@ export default function CorpoClinicoPage() {
       {/* Painel de filtros (colapsável) */}
       {filtrosAbertos && (
         <div className="rounded-xl border bg-muted/30 p-4 space-y-4">
-          {/* Unidades */}
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Unidade</p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant={unidadeAtiva === null ? "default" : "outline"}
-                onClick={() => setUnidadeAtiva(null)}
-                className="rounded-full text-xs h-7 px-3"
-              >
-                Todas as unidades
-              </Button>
-              {UNIDADES.map(u => (
-                <Button
-                  key={u.key}
-                  size="sm"
-                  variant={unidadeAtiva === u.key ? "default" : "outline"}
-                  onClick={() => setUnidadeAtiva(unidadeAtiva === u.key ? null : u.key)}
-                  className="rounded-full text-xs h-7 px-3"
-                >
-                  {u.emoji} {u.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
           {/* Grupos / especialidades */}
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Especialidade</p>

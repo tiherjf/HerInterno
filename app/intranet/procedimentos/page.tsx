@@ -594,6 +594,24 @@ export default function ProcedimentosPage() {
 
       {/* Barra de busca + botão de filtros (busca sempre visível) */}
       <div className="space-y-3">
+        {/* Unidade — sempre visível */}
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Unidade</p>
+          <div className="flex flex-wrap gap-2">
+            {UNIDADES.map(u => (
+              <Button
+                key={u.key}
+                size="sm"
+                variant={unidadeAtiva === u.key ? "default" : "outline"}
+                onClick={() => setUnidadeAtiva(u.key)}
+                className="rounded-full text-xs h-7"
+              >
+                {u.emoji} {u.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-3 items-center">
           <div className="relative flex-1 w-full">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -623,24 +641,6 @@ export default function ProcedimentosPage() {
         {/* Painel de filtros (recolhido por padrão) */}
         {mostrarFiltros && (
           <div className="rounded-xl border bg-gray-50/60 p-4 space-y-4">
-            {/* Unidade */}
-            <div className="space-y-1.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Unidade</p>
-              <div className="flex flex-wrap gap-2">
-                {UNIDADES.map(u => (
-                  <Button
-                    key={u.key}
-                    size="sm"
-                    variant={unidadeAtiva === u.key ? "default" : "outline"}
-                    onClick={() => setUnidadeAtiva(u.key)}
-                    className="rounded-full text-xs h-7"
-                  >
-                    {u.emoji} {u.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
             {/* Tipo */}
             <div className="space-y-1.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tipo</p>
