@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FichaCard } from "@/components/clinica/FichaCard";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -520,94 +520,172 @@ export default function CorpoClinicoPage() {
               </Button>
 
               {expandidos.has(g.nome) && (
-                <div className="divide-y">
-                  {g.profissionais.map(prof => {
-                    const ud = unidadeInfo(prof.unidade);
-                    const entradasHoje = agendaDoDia(prof.agenda, hoje);
-                    const hojeAtende = atendeNoDia(prof.agenda, prof.dias, hoje);
-                    const valores = blocoValores(prof);
-                    return (
-                      <div key={prof.id} className={prof.sem_agenda ? "bg-amber-50" : ""}>
-                        <FichaCard
-                          titulo={prof.nome}
-                          tituloBadges={
-                            <>
-                              {prof.sem_agenda && <AlertTriangle size={14} className="text-amber-500 shrink-0" />}
-                              {prof.subespecialidade && (
-                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium shrink-0">
-                                  {prof.subespecialidade}
-                                </Badge>
-                              )}
-                              {hojeAtende && (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold shrink-0"
-                                >
-                                  {entradasHoje.length > 0
-                                    ? `Hoje · ${entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}`
-                                    : "Hoje"}
-                                </Badge>
-                              )}
-                              {prof.idade_minima != null && (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-sky-50 text-sky-700 border-sky-200 text-[10px] px-1.5 py-0 font-medium shrink-0"
-                                >
-                                  <Baby size={10} className="mr-0.5" /> a partir de {prof.idade_minima} anos
-                                </Badge>
-                              )}
-                            </>
-                          }
-                          unidade={{ label: ud.label, emoji: ud.emoji, cor: ud.cor }}
-                          especialidade={prof.especialidade}
-                          dias={prof.sem_agenda ? "Sem agenda" : prof.dias}
-                          horarios={prof.sem_agenda ? null : prof.horarios}
-                          local={prof.local}
-                          convenios={prof.convenios}
-                          observacoes={prof.sem_agenda ? "Não liberou horário" : prof.observacoes}
-                          valor={
-                            valores.length > 0 ? (
-                              <div className="flex items-center gap-1 text-xs font-medium text-emerald-700 sm:justify-end">
-                                <Wallet size={11} className="shrink-0" />
-                                <span>{valores.join(" · ")}</span>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Profissional</TableHead>
+                        <TableHead className="hidden md:table-cell">Unidade</TableHead>
+                        <TableHead>Especialidade</TableHead>
+                        <TableHead className="hidden md:table-cell">Dias</TableHead>
+                        <TableHead className="hidden md:table-cell">Horários</TableHead>
+                        <TableHead className="hidden lg:table-cell">Convênios</TableHead>
+                        <TableHead className="hidden lg:table-cell">Observações</TableHead>
+                        <TableHead>Valores</TableHead>
+                        {podeEditar && (
+                          <TableHead className="text-right">
+                            <span className="sr-only">Ações</span>
+                          </TableHead>
+                        )}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {g.profissionais.map(prof => {
+                        const ud = unidadeInfo(prof.unidade);
+                        const entradasHoje = agendaDoDia(prof.agenda, hoje);
+                        const hojeAtende = atendeNoDia(prof.agenda, prof.dias, hoje);
+                        const valores = blocoValores(prof);
+                        const observacoesTexto = prof.sem_agenda ? "Não liberou horário" : prof.observacoes;
+                        return (
+                          <TableRow key={prof.id} className={prof.sem_agenda ? "bg-amber-50" : ""}>
+                            {/* Profissional */}
+                            <TableCell className="align-top">
+                              <div className="flex flex-col gap-1">
+                                <span className="font-medium text-foreground">{prof.nome}</span>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {prof.sem_agenda && <AlertTriangle size={13} className="text-amber-500 shrink-0" />}
+                                  {prof.subespecialidade && (
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium shrink-0">
+                                      {prof.subespecialidade}
+                                    </Badge>
+                                  )}
+                                  {hojeAtende && (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold shrink-0"
+                                    >
+                                      {entradasHoje.length > 0
+                                        ? `Hoje · ${entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}`
+                                        : "Hoje"}
+                                    </Badge>
+                                  )}
+                                  {prof.sem_agenda && (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 font-medium shrink-0"
+                                    >
+                                      sem agenda
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
-                            ) : undefined
-                          }
-                          acoes={podeEditar ? (
-                            <>
-                              <Button size="sm" variant="ghost" onClick={() => openEdit(prof)}>
-                                <Pencil size={14} />
-                              </Button>
-                              <Button
-                                size="sm" variant="ghost"
-                                className="text-red-500 hover:text-red-700"
-                                onClick={() => remove(prof)}
-                              >
-                                <Trash2 size={14} />
-                              </Button>
-                            </>
-                          ) : undefined}
-                        />
-                      </div>
-                    );
-                  })}
-                  {podeEditar && (
-                    <div className="bg-gray-50 px-4 py-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
-                        onClick={() => {
-                          setEditingId(null);
-                          setForm({ ...EMPTY_FORM, grupo: g.nome });
-                          setFormError("");
-                          setShowForm(true);
-                        }}
-                      >
-                        <Plus size={12} /> Adicionar em {g.nome}
-                      </Button>
-                    </div>
-                  )}
+                            </TableCell>
+
+                            {/* Unidade */}
+                            <TableCell className="hidden md:table-cell align-top">
+                              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${ud.cor}`}>
+                                <span>{ud.emoji}</span>
+                                <span>{ud.label}</span>
+                              </span>
+                            </TableCell>
+
+                            {/* Especialidade */}
+                            <TableCell className="align-top">{prof.especialidade}</TableCell>
+
+                            {/* Dias */}
+                            <TableCell className="hidden md:table-cell align-top text-sm">
+                              {prof.sem_agenda ? "Sem agenda" : prof.dias}
+                            </TableCell>
+
+                            {/* Horários */}
+                            <TableCell className="hidden md:table-cell align-top text-sm">
+                              {prof.sem_agenda ? "—" : prof.horarios}
+                            </TableCell>
+
+                            {/* Convênios */}
+                            <TableCell className="hidden lg:table-cell align-top">
+                              {prof.convenios && prof.convenios.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {prof.convenios.map(c => (
+                                    <Badge key={c} variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+                                      {c}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+
+                            {/* Observações (+ idade mínima + local) */}
+                            <TableCell className="hidden lg:table-cell align-top">
+                              <div className="flex flex-col gap-0.5 text-sm text-muted-foreground max-w-[16rem]">
+                                {observacoesTexto && <span>{observacoesTexto}</span>}
+                                {prof.idade_minima != null && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-sky-700">
+                                    <Baby size={11} /> a partir de {prof.idade_minima} anos
+                                  </span>
+                                )}
+                                {prof.local && <span className="text-xs">{prof.local}</span>}
+                                {!observacoesTexto && prof.idade_minima == null && !prof.local && (
+                                  <span>—</span>
+                                )}
+                              </div>
+                            </TableCell>
+
+                            {/* Valores */}
+                            <TableCell className="align-top">
+                              {valores.length > 0 ? (
+                                <div className="flex items-start gap-1 text-xs font-medium text-emerald-700">
+                                  <Wallet size={11} className="mt-0.5 shrink-0" />
+                                  <div className="flex flex-col gap-0.5">
+                                    {valores.map(v => <span key={v}>{v}</span>)}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+
+                            {/* Ações */}
+                            {podeEditar && (
+                              <TableCell className="align-top text-right whitespace-nowrap">
+                                <Button size="sm" variant="ghost" onClick={() => openEdit(prof)}>
+                                  <Pencil size={14} />
+                                </Button>
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className="text-red-500 hover:text-red-700"
+                                  onClick={() => remove(prof)}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      })}
+                      {podeEditar && (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={9} className="bg-gray-50 py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
+                              onClick={() => {
+                                setEditingId(null);
+                                setForm({ ...EMPTY_FORM, grupo: g.nome });
+                                setFormError("");
+                                setShowForm(true);
+                              }}
+                            >
+                              <Plus size={12} /> Adicionar em {g.nome}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </Card>

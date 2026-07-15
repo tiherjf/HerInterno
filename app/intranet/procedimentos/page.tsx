@@ -4,8 +4,8 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search, Plus, Pencil, ClipboardList, ChevronDown, ChevronUp,
   AlertCircle, ToggleLeft, ToggleRight, Stethoscope, FlaskConical,
-  Sparkles, Syringe, Scissors, Slice, Grid2x2, Clock, CalendarCheck,
-  FileText, Pill, Package, CreditCard, User, CalendarDays, SlidersHorizontal,
+  Sparkles, Syringe, Scissors, Slice, Grid2x2, Clock,
+  Package, CreditCard, User, CalendarDays, SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
-import { FichaCard } from "@/components/clinica/FichaCard";
 
 const UNIDADES = [
   { key: "Hospital",           label: "Hospital",           emoji: "🏥", header: "bg-blue-600",   chip: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -376,7 +376,25 @@ export default function ProcedimentosPage() {
   // Quantidade de filtros ativos (tipo + médico) — exibida no badge do botão Filtros
   const filtrosAtivos = (tipoAtivo !== "todos" ? 1 : 0) + (medicoAtivo !== "todos" ? 1 : 0);
 
-  // Renderiza um item (card) — reutilizado dentro de cada categoria
+  // Cabeçalho de colunas da tabela (mesmo padrão do Corpo Clínico).
+  // A coluna "Ações" só aparece quando o usuário pode editar.
+  const cabecalhoTabela = (
+    <TableHeader>
+      <TableRow>
+        <TableHead>Item</TableHead>
+        <TableHead className="hidden md:table-cell">Unidade</TableHead>
+        <TableHead>Categoria</TableHead>
+        <TableHead className="hidden md:table-cell">Dias</TableHead>
+        <TableHead className="hidden md:table-cell">Horários</TableHead>
+        <TableHead className="hidden lg:table-cell">Convênios</TableHead>
+        <TableHead className="hidden lg:table-cell">Observações</TableHead>
+        <TableHead>Preço</TableHead>
+        {podeEditar && <TableHead className="text-right">Ações</TableHead>}
+      </TableRow>
+    </TableHeader>
+  );
+
+  // Renderiza um item como linha da tabela — reutilizado dentro de cada categoria
   const renderItem = (p: Procedimento) => {
     const tipoInfo = TIPOS.find(t => t.key === p.tipo) ?? TIPOS[0];
     const Icon = tipoInfo.icon;
@@ -387,141 +405,157 @@ export default function ProcedimentosPage() {
       ? p.preco * (p.pacote_sessoes ?? 0) - (p.pacote_preco ?? 0)
       : 0;
 
-    // Chips de preparo estruturado
-    const chips: { icon: LucideIcon; texto: string; titulo?: string }[] = [];
-    if (p.jejum_horas != null) {
-      chips.push({ icon: Clock, texto: p.jejum_horas === 0 ? "Sem jejum" : `Jejum ${p.jejum_horas}h` });
-    }
-    if (p.requer_agendamento) chips.push({ icon: CalendarCheck, texto: "Requer agendamento" });
-    if (p.duracao_min != null) chips.push({ icon: Clock, texto: `${p.duracao_min} min` });
-    if (p.documentos_necessarios) {
-      chips.push({ icon: FileText, texto: "Documentos", titulo: p.documentos_necessarios });
-    }
-    if (p.suspende_medicacao) {
-      chips.push({ icon: Pill, texto: "Suspender medicação", titulo: p.suspende_medicacao });
-    }
+    // Detalhes de preparo condensados em texto (nada se perde)
+    const detalhes: string[] = [];
+    if (p.jejum_horas != null) detalhes.push(p.jejum_horas === 0 ? "Sem jejum" : `Jejum ${p.jejum_horas}h`);
+    if (p.requer_agendamento) detalhes.push("Requer agendamento");
+    if (p.duracao_min != null) detalhes.push(`${p.duracao_min} min`);
+    if (p.documentos_necessarios) detalhes.push(`Documentos: ${p.documentos_necessarios}`);
+    if (p.suspende_medicacao) detalhes.push(`Suspender medicação: ${p.suspende_medicacao}`);
+    if (p.preparacao) detalhes.push(`Preparo: ${p.preparacao}`);
 
     const uInfo = UNIDADES.find(u => u.key === p.unidade) ?? unidadeInfo;
-
-    // Badges ao lado do título: tipo (Exame/Procedimento) + médicos
-    const tituloBadges = (
-      <>
-        <Badge className={`inline-flex items-center gap-1 text-xs ${tipoInfo.cor}`}>
-          <Icon size={11} />
-          {p.tipo === "exame" ? "Exame" : "Procedimento"}
-        </Badge>
-        {meds.map(m => (
-          <Badge key={m} variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
-            <User size={9} /> {m}
-          </Badge>
-        ))}
-      </>
-    );
-
-    // Bloco de valor/preço (mesmo layout de antes)
-    const valor = p.preco != null ? (
-      <div className="sm:text-right space-y-1">
-        <p className="font-bold text-gray-900 text-base whitespace-nowrap leading-tight">
-          {fmtBRL.format(p.preco)}
-          {p.unidade_medida ? <span className="block font-normal text-[11px] text-gray-400"> /{p.unidade_medida}</span> : null}
-        </p>
-        {p.parcelas_max ? (
-          <Badge variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
-            <CreditCard size={9} />
-            em até {p.parcelas_max}x{parcela != null ? ` de ${fmtBRL.format(parcela)}` : ""}
-          </Badge>
-        ) : null}
-      </div>
-    ) : undefined;
-
-    // Ações (editar / ativar-desativar) — só quando pode editar
-    const acoes = podeEditar ? (
-      <>
-        <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
-          <Pencil size={13} />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          title={p.ativo ? "Desativar" : "Ativar"}
-          onClick={() => toggleAtivo(p)}
-          className={p.ativo ? "text-green-600 hover:text-green-800" : "text-gray-400 hover:text-gray-600"}
-        >
-          {p.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-        </Button>
-      </>
-    ) : undefined;
-
-    // Conteúdo específico de procedimentos que o FichaCard não cobre:
-    // chips de preparo, pacote/protocolo e observações de preparo (texto livre).
-    const temExtras = chips.length > 0 || temPacote || !!p.protocolo || !!p.preparacao;
+    const convenios = p.convenios ?? [];
+    const temPreco = p.preco != null || temPacote || !!p.protocolo;
 
     return (
-      <div key={p.id}>
-        <FichaCard
-          titulo={p.nome}
-          tituloBadges={tituloBadges}
-          unidade={{ label: uInfo.label, emoji: uInfo.emoji, cor: uInfo.chip }}
-          especialidade={p.categoria}
-          dias={p.dias}
-          horarios={p.horarios}
-          convenios={p.convenios}
-          particular={!!p.atende_particular}
-          observacoes={p.descricao}
-          valor={valor}
-          acoes={acoes}
-          inativo={!p.ativo}
-        />
+      <TableRow key={p.id} className={!p.ativo ? "opacity-50 align-top" : "align-top"}>
+        {/* Item — nome + badges (tipo + médicos) */}
+        <TableCell>
+          <div className="space-y-1">
+            <p className="font-medium text-gray-900 leading-tight">{p.nome}</p>
+            <div className="flex flex-wrap items-center gap-1">
+              <Badge className={`inline-flex items-center gap-1 text-xs ${tipoInfo.cor}`}>
+                <Icon size={11} />
+                {p.tipo === "exame" ? "Exame" : "Procedimento"}
+              </Badge>
+              {meds.map(m => (
+                <Badge key={m} variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
+                  <User size={9} /> {m}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </TableCell>
 
-        {temExtras && (
-          <div className={`px-4 pb-3.5 -mt-1 space-y-2 ${!p.ativo ? "opacity-50" : ""}`}>
-            {/* Preparo estruturado (chips) */}
-            {chips.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {chips.map((c, i) => {
-                  const CIcon = c.icon;
-                  return (
-                    <span
-                      key={i}
-                      title={c.titulo}
-                      className={`inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600 ${c.titulo ? "cursor-help" : ""}`}
-                    >
-                      <CIcon size={10} /> {c.texto}
-                    </span>
-                  );
-                })}
-              </div>
+        {/* Unidade — chip colorido (emoji + label) */}
+        <TableCell className="hidden md:table-cell">
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs whitespace-nowrap ${uInfo.chip}`}>
+            {uInfo.emoji} {uInfo.label}
+          </span>
+        </TableCell>
+
+        {/* Categoria */}
+        <TableCell className="text-sm text-gray-600">
+          {p.categoria?.trim() ? p.categoria : "—"}
+        </TableCell>
+
+        {/* Dias */}
+        <TableCell className="hidden md:table-cell text-sm text-muted-foreground whitespace-nowrap">
+          {p.dias?.trim() ? p.dias : "—"}
+        </TableCell>
+
+        {/* Horários */}
+        <TableCell className="hidden md:table-cell text-sm text-muted-foreground whitespace-nowrap">
+          {p.horarios?.trim() ? p.horarios : "—"}
+        </TableCell>
+
+        {/* Convênios + Particular */}
+        <TableCell className="hidden lg:table-cell">
+          <div className="flex flex-wrap gap-1">
+            {convenios.map(c => (
+              <Badge key={c} variant="outline" className="text-[10px] font-normal text-gray-600 border-gray-200">
+                {c}
+              </Badge>
+            ))}
+            {p.atende_particular && (
+              <Badge variant="outline" className="text-[10px] font-normal text-emerald-700 border-emerald-200 bg-emerald-50">
+                Particular
+              </Badge>
             )}
+            {convenios.length === 0 && !p.atende_particular && (
+              <span className="text-sm text-muted-foreground">—</span>
+            )}
+          </div>
+        </TableCell>
 
-            {/* Pacote destacado (ou protocolo legado como fallback) */}
+        {/* Observações — descrição + detalhes de preparo condensados */}
+        <TableCell className="hidden lg:table-cell">
+          <div className="space-y-1 max-w-[24rem]">
+            {p.descricao && <p className="text-sm text-gray-600">{p.descricao}</p>}
+            {detalhes.length > 0 && (
+              <p className="text-xs text-muted-foreground">{detalhes.join(" · ")}</p>
+            )}
+            {!p.descricao && detalhes.length === 0 && (
+              <span className="text-sm text-muted-foreground">—</span>
+            )}
+          </div>
+        </TableCell>
+
+        {/* Preço — valor + /medida + parcelas + pacote/protocolo */}
+        <TableCell>
+          <div className="space-y-1">
+            {p.preco != null ? (
+              <p className="font-bold text-gray-900 text-sm whitespace-nowrap leading-tight">
+                {fmtBRL.format(p.preco)}
+                {p.unidade_medida ? <span className="block font-normal text-[11px] text-gray-400">/{p.unidade_medida}</span> : null}
+              </p>
+            ) : null}
+            {p.parcelas_max ? (
+              <Badge variant="outline" className="inline-flex items-center gap-1 text-[10px] font-normal text-gray-500 border-gray-200">
+                <CreditCard size={9} />
+                em até {p.parcelas_max}x{parcela != null ? ` de ${fmtBRL.format(parcela)}` : ""}
+              </Badge>
+            ) : null}
             {temPacote ? (
-              <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-800">
-                <Package size={12} className="shrink-0" />
+              <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">
+                <Package size={11} className="shrink-0" />
                 <span>
                   <strong>{p.pacote_sessoes} sessões:</strong> {fmtBRL.format(p.pacote_preco ?? 0)}
                   {economia > 0 && (
-                    <span className="text-emerald-600"> · economize {fmtBRL.format(economia)}</span>
+                    <span className="block text-emerald-600">economize {fmtBRL.format(economia)}</span>
                   )}
                 </span>
               </div>
             ) : p.protocolo ? (
-              <p className="text-xs text-gray-400">{p.protocolo}</p>
+              <p className="text-[11px] text-gray-400">{p.protocolo}</p>
             ) : null}
-
-            {/* Observações de preparo (texto livre) */}
-            {p.preparacao && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-1.5">
-                <p className="text-xs text-yellow-800 flex items-start gap-1">
-                  <AlertCircle size={11} className="shrink-0 mt-0.5" />
-                  <span><strong>Observações de preparo:</strong> {p.preparacao}</span>
-                </p>
-              </div>
-            )}
+            {!temPreco && <span className="text-sm text-muted-foreground">—</span>}
           </div>
+        </TableCell>
+
+        {/* Ações — editar / ativar-desativar */}
+        {podeEditar && (
+          <TableCell className="text-right whitespace-nowrap">
+            <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
+              <Pencil size={13} />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              title={p.ativo ? "Desativar" : "Ativar"}
+              onClick={() => toggleAtivo(p)}
+              className={p.ativo ? "text-green-600 hover:text-green-800" : "text-gray-400 hover:text-gray-600"}
+            >
+              {p.ativo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+            </Button>
+          </TableCell>
         )}
-      </div>
+      </TableRow>
     );
   };
+
+  // Renderiza uma tabela (cabeçalho + linhas) para uma lista de itens
+  const renderTabela = (lista: Procedimento[]) => (
+    <div className="overflow-x-auto">
+      <Table>
+        {cabecalhoTabela}
+        <TableBody>
+          {lista.map(renderItem)}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -696,9 +730,7 @@ export default function ProcedimentosPage() {
                         )}
                       </div>
                     ) : semSubgrupos ? (
-                      <div className="divide-y">
-                        {grupos[0].items.map(renderItem)}
-                      </div>
+                      renderTabela(grupos[0].items)
                     ) : (
                       <div className="divide-y">
                         {grupos.map(g => {
@@ -711,9 +743,7 @@ export default function ProcedimentosPage() {
                                   {g.cat === SEM_CATEGORIA ? "Geral" : g.cat}
                                 </p>
                               </div>
-                              <div className="divide-y">
-                                {g.items.map(renderItem)}
-                              </div>
+                              {renderTabela(g.items)}
                             </div>
                           );
                         })}
