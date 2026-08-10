@@ -707,33 +707,52 @@ export default function CorpoClinicoPage() {
       )}
 
       {!loading && (
-        <div className="space-y-4">
-          {gruposFiltrados.map(g => (
-            <Card key={g.nome} className="overflow-hidden">
+        // Grade: recolhidas, as especialidades ocupam a largura em 2–3 colunas
+        // em vez de empilhar barras quase vazias. A aberta ocupa a linha toda.
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {gruposFiltrados.map(g => {
+            const aberto = expandidos.has(g.nome);
+            const semAgenda = g.profissionais.filter(p => p.sem_agenda).length;
+            return (
+            <Card
+              key={g.nome}
+              className={`overflow-hidden transition-shadow ${
+                aberto
+                  ? "sm:col-span-2 xl:col-span-3 shadow-sm"
+                  : "hover:shadow-sm hover:border-primary/30"
+              }`}
+            >
               <Button
                 variant="ghost"
-                className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 bg-muted hover:bg-muted/80 transition-colors text-left h-auto rounded-none"
+                // whitespace-normal: a base do Button traz nowrap, e num tile de
+                // 1/3 de largura os nomes longos precisam quebrar.
+                className={`w-full flex items-start justify-between gap-3 px-4 py-3.5 text-left h-auto rounded-none whitespace-normal hover:bg-muted/50 ${
+                  aberto ? "bg-muted/40 border-b" : ""
+                }`}
                 onClick={() => toggleExpandido(g.nome)}
               >
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-                  <span className="font-semibold text-foreground text-sm sm:text-base wrap-break-word">{g.nome}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {g.profissionais.length} {g.profissionais.length === 1 ? "profissional" : "profissionais"}
-                  </Badge>
-                  {g.profissionais.some(p => p.sem_agenda) && (
-                    <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
-                      <AlertTriangle size={13} />
-                      {g.profissionais.filter(p => p.sem_agenda).length} sem agenda
+                <span className="min-w-0 flex flex-col gap-1">
+                  <span className="font-semibold text-foreground text-sm wrap-break-word leading-snug">
+                    {g.nome}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-normal text-muted-foreground">
+                    <span>
+                      {g.profissionais.length} {g.profissionais.length === 1 ? "profissional" : "profissionais"}
                     </span>
-                  )}
-                </div>
-                {expandidos.has(g.nome)
-                  ? <ChevronUp size={18} className="text-gray-400 shrink-0" />
-                  : <ChevronDown size={18} className="text-gray-400 shrink-0" />
+                    {semAgenda > 0 && (
+                      <span className="inline-flex items-center gap-1 text-amber-600">
+                        <AlertTriangle size={11} /> {semAgenda} sem agenda
+                      </span>
+                    )}
+                  </span>
+                </span>
+                {aberto
+                  ? <ChevronUp size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+                  : <ChevronDown size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
                 }
               </Button>
 
-              {expandidos.has(g.nome) && (
+              {aberto && (
                 <>
                   {/* Cards — no celular a tabela virava scroll horizontal */}
                   <div className="md:hidden divide-y">
@@ -889,7 +908,8 @@ export default function CorpoClinicoPage() {
                 </>
               )}
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
