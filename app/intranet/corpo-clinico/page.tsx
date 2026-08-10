@@ -718,7 +718,7 @@ export default function CorpoClinicoPage() {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
                   <span className="font-semibold text-foreground text-sm sm:text-base wrap-break-word">{g.nome}</span>
                   <Badge variant="secondary" className="text-xs">
-                    {g.profissionais.length} profissional{g.profissionais.length !== 1 ? "is" : ""}
+                    {g.profissionais.length} {g.profissionais.length === 1 ? "profissional" : "profissionais"}
                   </Badge>
                   {g.profissionais.some(p => p.sem_agenda) && (
                     <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
