@@ -54,6 +54,38 @@ function blocoValores(p: Profissional): string[] {
   return partes;
 }
 
+/** Quantos convênios aparecem antes do "+N". Há médicos com mais de 40. */
+const CONVENIOS_VISIVEIS = 6;
+
+/**
+ * Lista de convênios em etiquetas. Acima de CONVENIOS_VISIVEIS mostra um
+ * botão "+N" que expande no lugar, para a coluna não estourar a largura.
+ */
+function ListaConvenios({ convenios }: { convenios: string[] }) {
+  const [aberto, setAberto] = useState(false);
+  const excedente = convenios.length - CONVENIOS_VISIVEIS;
+  const visiveis = aberto ? convenios : convenios.slice(0, CONVENIOS_VISIVEIS);
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {visiveis.map(c => (
+        <Badge key={c} variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+          {c}
+        </Badge>
+      ))}
+      {excedente > 0 && (
+        <button
+          type="button"
+          onClick={() => setAberto(v => !v)}
+          className="rounded-full border border-dashed border-muted-foreground/40 px-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+        >
+          {aberto ? "mostrar menos" : `+${excedente}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface Profissional {
   id: string;
   nome: string;
@@ -632,15 +664,9 @@ export default function CorpoClinicoPage() {
                             </TableCell>
 
                             {/* Convênios */}
-                            <TableCell className="hidden lg:table-cell align-top">
+                            <TableCell className="hidden lg:table-cell align-top max-w-[20rem]">
                               {prof.convenios && prof.convenios.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {prof.convenios.map(c => (
-                                    <Badge key={c} variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
-                                      {c}
-                                    </Badge>
-                                  ))}
-                                </div>
+                                <ListaConvenios convenios={prof.convenios} />
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}

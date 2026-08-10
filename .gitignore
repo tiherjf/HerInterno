@@ -28,6 +28,9 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# saída dos scripts de sincronização (ids inseridos, dumps de conferência)
+/scripts/tmp/
+
 # vercel
 .vercel
 
