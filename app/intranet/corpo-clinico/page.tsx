@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search, AlertTriangle, Clock, CalendarDays, Stethoscope,
-  ChevronDown, ChevronUp, Plus, Pencil, Trash2, Wallet, Baby, SlidersHorizontal,
+  ChevronDown, ChevronUp, Plus, Pencil, Trash2, Wallet, Baby, SlidersHorizontal, X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 import { AgendaEditor } from "@/components/corpo-clinico/AgendaEditor";
-import { agendaDoDia, atendeNoDia, turnosDe, TURNO_LABEL, type Turno, type AgendaEntry } from "@/components/corpo-clinico/agenda";
+import { agendaDoDia, atendeNoDia, turnosDe, normalizarTexto, TURNO_LABEL, type Turno, type AgendaEntry } from "@/components/corpo-clinico/agenda";
 
 // Chips do filtro de disponibilidade (multisseleção)
 const DISPONIBILIDADE: { key: string; label: string }[] = [
@@ -54,8 +54,24 @@ function blocoValores(p: Profissional): string[] {
   return partes;
 }
 
+const VAZIO = (v?: string | null) => !v || v.trim() === "" || v.trim() === "—";
+
+/**
+ * Dias e horários numa linha só ("Seg/Qua/Sex · 08:00–12:00").
+ * 85% dos registros não têm horário e 63% não têm dias — duas colunas separadas
+ * ficavam quase sempre vazias, empurrando o conteúdo útil para fora da tela.
+ */
+function textoAtendimento(p: Profissional): string | null {
+  if (p.sem_agenda) return null;
+  const partes = [p.dias, p.horarios].filter(v => !VAZIO(v)).map(v => v!.trim());
+  return partes.length ? partes.join(" · ") : null;
+}
+
 /** Quantos convênios aparecem antes do "+N". Há médicos com mais de 40. */
 const CONVENIOS_VISIVEIS = 6;
+
+/** Até esta quantidade de grupos a página já abre com todos expandidos. */
+const GRUPOS_ABERTOS_AUTO = 8;
 
 /**
  * Lista de convênios em etiquetas. Acima de CONVENIOS_VISIVEIS mostra um
@@ -109,6 +125,94 @@ interface Profissional {
 interface Grupo {
   nome: string;
   profissionais: Profissional[];
+}
+
+/* ---------------------------------------------------------------------------
+ * Blocos compartilhados entre a tabela (md+) e os cards (mobile), para as duas
+ * visões nunca divergirem no conteúdo.
+ * ------------------------------------------------------------------------- */
+
+function ChipUnidade({ unidade }: { unidade: string }) {
+  const ud = unidadeInfo(unidade);
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${ud.cor}`}>
+      <span>{ud.emoji}</span>
+      <span>{ud.label}</span>
+    </span>
+  );
+}
+
+/** Subespecialidade, "Hoje" e "sem agenda" — a linha de etiquetas sob o nome. */
+function EtiquetasProfissional({ prof, hoje }: { prof: Profissional; hoje: number }) {
+  const entradasHoje = agendaDoDia(prof.agenda, hoje);
+  const atendeHoje = atendeNoDia(prof.agenda, prof.dias, hoje);
+  if (!prof.subespecialidade && !atendeHoje && !prof.sem_agenda) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {prof.subespecialidade && (
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+          {prof.subespecialidade}
+        </Badge>
+      )}
+      {atendeHoje && (
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold">
+          {entradasHoje.length > 0
+            ? `Hoje · ${entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}`
+            : "Hoje"}
+        </Badge>
+      )}
+      {prof.sem_agenda && (
+        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 font-medium">
+          <AlertTriangle size={10} className="mr-0.5" /> sem agenda
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+function Valores({ prof }: { prof: Profissional }) {
+  const partes = blocoValores(prof);
+  if (partes.length === 0) return <span className="text-muted-foreground text-sm">—</span>;
+  return (
+    <div className="flex items-start gap-1 text-xs font-medium text-emerald-700">
+      <Wallet size={11} className="mt-0.5 shrink-0" />
+      <div className="flex flex-col gap-0.5">
+        {partes.map(v => <span key={v}>{v}</span>)}
+      </div>
+    </div>
+  );
+}
+
+/** Observações + idade mínima + local. `vazio` controla se mostra "—". */
+function Detalhes({ prof, vazio = true }: { prof: Profissional; vazio?: boolean }) {
+  const texto = prof.sem_agenda ? "Não liberou horário" : prof.observacoes;
+  const nada = !texto && prof.idade_minima == null && !prof.local;
+  if (nada) return vazio ? <span className="text-muted-foreground text-sm">—</span> : null;
+  return (
+    <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
+      {texto && <span>{texto}</span>}
+      {prof.idade_minima != null && (
+        <span className="inline-flex items-center gap-1 text-xs text-sky-700">
+          <Baby size={11} /> a partir de {prof.idade_minima} anos
+        </span>
+      )}
+      {prof.local && <span className="text-xs">{prof.local}</span>}
+    </div>
+  );
+}
+
+/** Dias e horários numa linha só; "Sem agenda" quando não há nada. */
+function Atendimento({ prof }: { prof: Profissional }) {
+  const texto = textoAtendimento(prof);
+  if (!texto) {
+    return <span className="text-muted-foreground text-sm">{prof.sem_agenda ? "Sem agenda" : "—"}</span>;
+  }
+  return (
+    <span className="inline-flex items-start gap-1.5 text-sm">
+      <CalendarDays size={13} className="mt-0.5 shrink-0 text-muted-foreground" />
+      <span>{texto}</span>
+    </span>
+  );
 }
 
 interface FormState {
@@ -183,7 +287,10 @@ export default function CorpoClinicoPage() {
       const json = await res.json();
       const lista: Profissional[] = json.profissionais ?? [];
       setProfissionais(lista);
-      setExpandidos(new Set(lista.map((p: Profissional) => p.grupo)));
+      // Recolhido por padrão: com ~40 grupos, abrir tudo vira uma parede de
+      // scroll. Só expande sozinho quando a lista é pequena o bastante.
+      const nomes = Array.from(new Set(lista.map((p: Profissional) => p.grupo)));
+      setExpandidos(new Set(nomes.length <= GRUPOS_ABERTOS_AUTO ? nomes : []));
     } finally {
       setLoading(false);
     }
@@ -210,7 +317,9 @@ export default function CorpoClinicoPage() {
   }, [profissionais]);
 
   const gruposFiltrados = useMemo(() => {
-    const termo = busca.toLowerCase().trim();
+    // Sem acento: "cirurgiao" acha "Cirurgião", "pediatrica" acha "Pediátrica".
+    const termo = normalizarTexto(busca).trim();
+    const contem = (v?: string | null) => !!v && normalizarTexto(v).includes(termo);
     const hoje = new Date().getDay();
     return grupos.filter(g => {
       if (grupoAtivo && g.nome !== grupoAtivo) return false;
@@ -229,13 +338,16 @@ export default function CorpoClinicoPage() {
         }
         if (!termo) return true;
         return (
-          p.nome.toLowerCase().includes(termo) ||
-          p.especialidade.toLowerCase().includes(termo) ||
-          p.dias.toLowerCase().includes(termo) ||
-          p.unidade.toLowerCase().includes(termo) ||
-          (p.subespecialidade?.toLowerCase().includes(termo) ?? false) ||
-          (p.local?.toLowerCase().includes(termo) ?? false) ||
-          (p.convenios?.some(c => c.toLowerCase().includes(termo)) ?? false)
+          contem(p.nome) ||
+          contem(p.especialidade) ||
+          contem(p.grupo) ||
+          contem(p.dias) ||
+          contem(p.horarios) ||
+          contem(p.unidade) ||
+          contem(p.subespecialidade) ||
+          contem(p.local) ||
+          contem(p.observacoes) ||
+          (p.convenios?.some(c => contem(c)) ?? false)
         );
       }),
     })).filter(g => g.profissionais.length > 0);
@@ -381,7 +493,32 @@ export default function CorpoClinicoPage() {
   const grupoFinalLabel = form.grupo === "__novo__" ? form.grupo_novo : form.grupo;
   const totalProfissionais = profissionais.length;
   const hoje = new Date().getDay();
-  const filtrosAtivos = grupoAtivo !== null ? 1 : 0;
+
+  const totalFiltrado = useMemo(
+    () => gruposFiltrados.reduce((n, g) => n + g.profissionais.length, 0),
+    [gruposFiltrados]
+  );
+
+  // Conta os três filtros — antes só olhava o grupo, então dava para estar
+  // filtrando por unidade e turno com o botão marcando zero.
+  const filtrosAtivos =
+    (grupoAtivo !== null ? 1 : 0) + (unidadeAtiva !== null ? 1 : 0) + disponibilidade.size;
+  const temFiltro = filtrosAtivos > 0 || busca.trim() !== "";
+
+  const limparFiltros = () => {
+    setBusca("");
+    setGrupoAtivo(null);
+    setUnidadeAtiva(null);
+    setDisponibilidade(new Set());
+  };
+
+  // Com a lista recolhida por padrão, filtrar e ver só cabeçalhos fechados seria
+  // frustrante: quando o filtro estreita o bastante, abre os grupos que sobraram.
+  useEffect(() => {
+    if (!temFiltro) return;
+    if (gruposFiltrados.length === 0 || gruposFiltrados.length > GRUPOS_ABERTOS_AUTO) return;
+    setExpandidos(new Set(gruposFiltrados.map(g => g.nome)));
+  }, [temFiltro, gruposFiltrados]);
 
   // Registro em edição sem agenda estruturada, mas com textos legados de dias/horários
   const registroEmEdicao = editingId ? profissionais.find(p => p.id === editingId) : undefined;
@@ -400,7 +537,9 @@ export default function CorpoClinicoPage() {
               <h2 className="text-xl sm:text-2xl font-bold">Corpo Clínico</h2>
               {!loading && (
                 <p className="text-primary-foreground/70 text-sm">
-                  {grupos.length} especialidades · {totalProfissionais} profissionais
+                  {temFiltro
+                    ? `${gruposFiltrados.length} de ${grupos.length} especialidades · ${totalFiltrado} de ${totalProfissionais} profissionais`
+                    : `${grupos.length} especialidades · ${totalProfissionais} profissionais`}
                 </p>
               )}
             </div>
@@ -478,6 +617,15 @@ export default function CorpoClinicoPage() {
             ? <ChevronUp size={15} className="text-muted-foreground" />
             : <ChevronDown size={15} className="text-muted-foreground" />}
         </Button>
+        {temFiltro && (
+          <Button
+            variant="ghost"
+            onClick={limparFiltros}
+            className="gap-2 shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <X size={15} /> Limpar
+          </Button>
+        )}
       </div>
 
       {/* Disponibilidade — sempre visível, multisseleção */}
@@ -549,6 +697,11 @@ export default function CorpoClinicoPage() {
           <CardContent className="p-8 text-center text-muted-foreground">
             <Stethoscope size={32} className="mx-auto mb-2 opacity-30" />
             <p>Nenhum profissional encontrado{busca ? ` para "${busca}"` : ""}.</p>
+            {temFiltro && (
+              <Button variant="outline" size="sm" onClick={limparFiltros} className="mt-4 gap-2">
+                <X size={14} /> Limpar filtros
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -559,11 +712,11 @@ export default function CorpoClinicoPage() {
             <Card key={g.nome} className="overflow-hidden">
               <Button
                 variant="ghost"
-                className="w-full flex items-center justify-between px-5 py-4 bg-muted hover:bg-muted/80 transition-colors text-left h-auto rounded-none"
+                className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 bg-muted hover:bg-muted/80 transition-colors text-left h-auto rounded-none"
                 onClick={() => toggleExpandido(g.nome)}
               >
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-foreground text-base">{g.nome}</span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                  <span className="font-semibold text-foreground text-sm sm:text-base wrap-break-word">{g.nome}</span>
                   <Badge variant="secondary" className="text-xs">
                     {g.profissionais.length} profissional{g.profissionais.length !== 1 ? "is" : ""}
                   </Badge>
@@ -581,89 +734,104 @@ export default function CorpoClinicoPage() {
               </Button>
 
               {expandidos.has(g.nome) && (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Profissional</TableHead>
-                        <TableHead className="hidden md:table-cell">Unidade</TableHead>
-                        <TableHead>Especialidade</TableHead>
-                        <TableHead className="hidden md:table-cell">Dias</TableHead>
-                        <TableHead className="hidden md:table-cell">Horários</TableHead>
-                        <TableHead className="hidden lg:table-cell">Convênios</TableHead>
-                        <TableHead className="hidden lg:table-cell">Observações</TableHead>
-                        <TableHead>Valores</TableHead>
-                        {podeEditar && (
-                          <TableHead className="text-right">
-                            <span className="sr-only">Ações</span>
-                          </TableHead>
+                <>
+                  {/* Cards — no celular a tabela virava scroll horizontal */}
+                  <div className="md:hidden divide-y">
+                    {g.profissionais.map(prof => (
+                      <div key={prof.id} className={`p-4 space-y-2 ${prof.sem_agenda ? "bg-amber-50" : ""}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 space-y-1">
+                            <p className="font-medium text-foreground wrap-break-word">{prof.nome}</p>
+                            {prof.especialidade !== g.nome && (
+                              <p className="text-xs text-muted-foreground">{prof.especialidade}</p>
+                            )}
+                            <EtiquetasProfissional prof={prof} hoje={hoje} />
+                          </div>
+                          {podeEditar && (
+                            <div className="flex shrink-0">
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(prof)}>
+                                <Pencil size={14} />
+                              </Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className="text-red-500 hover:text-red-700"
+                                onClick={() => remove(prof)}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+
+                        <ChipUnidade unidade={prof.unidade} />
+                        <Atendimento prof={prof} />
+                        <Valores prof={prof} />
+                        <Detalhes prof={prof} vazio={false} />
+
+                        {prof.convenios && prof.convenios.length > 0 && (
+                          <ListaConvenios convenios={prof.convenios} />
                         )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {g.profissionais.map(prof => {
-                        const ud = unidadeInfo(prof.unidade);
-                        const entradasHoje = agendaDoDia(prof.agenda, hoje);
-                        const hojeAtende = atendeNoDia(prof.agenda, prof.dias, hoje);
-                        const valores = blocoValores(prof);
-                        const observacoesTexto = prof.sem_agenda ? "Não liberou horário" : prof.observacoes;
-                        return (
+                      </div>
+                    ))}
+                    {podeEditar && (
+                      <div className="bg-gray-50 p-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
+                          onClick={() => {
+                            setEditingId(null);
+                            setForm({ ...EMPTY_FORM, grupo: g.nome });
+                            setFormError("");
+                            setShowForm(true);
+                          }}
+                        >
+                          <Plus size={12} /> Adicionar em {g.nome}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tabela — md para cima */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Profissional</TableHead>
+                          <TableHead>Unidade</TableHead>
+                          <TableHead>Atendimento</TableHead>
+                          <TableHead className="hidden lg:table-cell">Convênios</TableHead>
+                          <TableHead className="hidden lg:table-cell">Observações</TableHead>
+                          <TableHead>Valores</TableHead>
+                          {podeEditar && (
+                            <TableHead className="text-right">
+                              <span className="sr-only">Ações</span>
+                            </TableHead>
+                          )}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {g.profissionais.map(prof => (
                           <TableRow key={prof.id} className={prof.sem_agenda ? "bg-amber-50" : ""}>
-                            {/* Profissional */}
                             <TableCell className="align-top">
                               <div className="flex flex-col gap-1">
                                 <span className="font-medium text-foreground">{prof.nome}</span>
-                                <div className="flex flex-wrap items-center gap-1">
-                                  {prof.sem_agenda && <AlertTriangle size={13} className="text-amber-500 shrink-0" />}
-                                  {prof.subespecialidade && (
-                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium shrink-0">
-                                      {prof.subespecialidade}
-                                    </Badge>
-                                  )}
-                                  {hojeAtende && (
-                                    <Badge
-                                      variant="outline"
-                                      className="bg-green-50 text-green-700 border-green-300 text-[10px] px-1.5 py-0 font-semibold shrink-0"
-                                    >
-                                      {entradasHoje.length > 0
-                                        ? `Hoje · ${entradasHoje.map(e => `${e.inicio}–${e.fim}`).join(" / ")}`
-                                        : "Hoje"}
-                                    </Badge>
-                                  )}
-                                  {prof.sem_agenda && (
-                                    <Badge
-                                      variant="outline"
-                                      className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 font-medium shrink-0"
-                                    >
-                                      sem agenda
-                                    </Badge>
-                                  )}
-                                </div>
+                                {/* Só quando difere do título do card, que já é o grupo */}
+                                {prof.especialidade !== g.nome && (
+                                  <span className="text-xs text-muted-foreground">{prof.especialidade}</span>
+                                )}
+                                <EtiquetasProfissional prof={prof} hoje={hoje} />
                               </div>
                             </TableCell>
 
-                            {/* Unidade */}
-                            <TableCell className="hidden md:table-cell align-top">
-                              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${ud.cor}`}>
-                                <span>{ud.emoji}</span>
-                                <span>{ud.label}</span>
-                              </span>
+                            <TableCell className="align-top">
+                              <ChipUnidade unidade={prof.unidade} />
                             </TableCell>
 
-                            {/* Especialidade */}
-                            <TableCell className="align-top">{prof.especialidade}</TableCell>
-
-                            {/* Dias */}
-                            <TableCell className="hidden md:table-cell align-top text-sm">
-                              {prof.sem_agenda ? "Sem agenda" : prof.dias}
+                            <TableCell className="align-top">
+                              <Atendimento prof={prof} />
                             </TableCell>
 
-                            {/* Horários */}
-                            <TableCell className="hidden md:table-cell align-top text-sm">
-                              {prof.sem_agenda ? "—" : prof.horarios}
-                            </TableCell>
-
-                            {/* Convênios */}
                             <TableCell className="hidden lg:table-cell align-top max-w-[20rem]">
                               {prof.convenios && prof.convenios.length > 0 ? (
                                 <ListaConvenios convenios={prof.convenios} />
@@ -672,37 +840,14 @@ export default function CorpoClinicoPage() {
                               )}
                             </TableCell>
 
-                            {/* Observações (+ idade mínima + local) */}
-                            <TableCell className="hidden lg:table-cell align-top">
-                              <div className="flex flex-col gap-0.5 text-sm text-muted-foreground max-w-[16rem]">
-                                {observacoesTexto && <span>{observacoesTexto}</span>}
-                                {prof.idade_minima != null && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-sky-700">
-                                    <Baby size={11} /> a partir de {prof.idade_minima} anos
-                                  </span>
-                                )}
-                                {prof.local && <span className="text-xs">{prof.local}</span>}
-                                {!observacoesTexto && prof.idade_minima == null && !prof.local && (
-                                  <span>—</span>
-                                )}
-                              </div>
+                            <TableCell className="hidden lg:table-cell align-top max-w-[16rem]">
+                              <Detalhes prof={prof} />
                             </TableCell>
 
-                            {/* Valores */}
                             <TableCell className="align-top">
-                              {valores.length > 0 ? (
-                                <div className="flex items-start gap-1 text-xs font-medium text-emerald-700">
-                                  <Wallet size={11} className="mt-0.5 shrink-0" />
-                                  <div className="flex flex-col gap-0.5">
-                                    {valores.map(v => <span key={v}>{v}</span>)}
-                                  </div>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
+                              <Valores prof={prof} />
                             </TableCell>
 
-                            {/* Ações */}
                             {podeEditar && (
                               <TableCell className="align-top text-right whitespace-nowrap">
                                 <Button size="sm" variant="ghost" onClick={() => openEdit(prof)}>
@@ -718,30 +863,30 @@ export default function CorpoClinicoPage() {
                               </TableCell>
                             )}
                           </TableRow>
-                        );
-                      })}
-                      {podeEditar && (
-                        <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={9} className="bg-gray-50 py-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
-                              onClick={() => {
-                                setEditingId(null);
-                                setForm({ ...EMPTY_FORM, grupo: g.nome });
-                                setFormError("");
-                                setShowForm(true);
-                              }}
-                            >
-                              <Plus size={12} /> Adicionar em {g.nome}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                        ))}
+                        {podeEditar && (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={7} className="bg-gray-50 py-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs text-blue-600 hover:text-blue-800 h-7 px-2"
+                                onClick={() => {
+                                  setEditingId(null);
+                                  setForm({ ...EMPTY_FORM, grupo: g.nome });
+                                  setFormError("");
+                                  setShowForm(true);
+                                }}
+                              >
+                                <Plus size={12} /> Adicionar em {g.nome}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </Card>
           ))}

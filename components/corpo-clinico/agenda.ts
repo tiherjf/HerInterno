@@ -93,7 +93,8 @@ const PREFIXO_DIA: [string, number][] = [
   ["dom", 0], ["seg", 1], ["ter", 2], ["qua", 3], ["qui", 4], ["sex", 5], ["sab", 6],
 ];
 
-function normalizarTexto(s: string): string {
+/** Minúsculas sem acento — para comparar e buscar texto em português. */
+export function normalizarTexto(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
