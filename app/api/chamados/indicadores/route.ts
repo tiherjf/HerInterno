@@ -227,6 +227,31 @@ export async function GET(req: NextRequest) {
       console.warn(`[indicadores] consulta atingiu o limite de ${ROW_LIMIT} linhas — resultados truncados (period=${periodLabel})`);
     }
 
+    // As consultas de segunda rodada dependem só dos dados acima: disparadas juntas
+    // aqui e aguardadas onde são usadas (antes eram 4 idas ao banco em sequência)
+    const agentIdsForNames = Array.from(new Set(
+      [...resolvedRows, ...received].map(t => t.assigned_to).filter((id): id is string => !!id)
+    ));
+    const breachedRows = resolvedRows
+      .filter(r => r.resolved_at && r.sla_deadline && new Date(r.resolved_at) > new Date(r.sla_deadline))
+      .sort((a, b) => new Date(b.resolved_at!).getTime() - new Date(a.resolved_at!).getTime())
+      .slice(0, 100);
+    const reopenedP = resolvedRows.length > 0
+      ? countReopened(supabase, resolvedRows.map(r => r.id))
+      : Promise.resolve(0);
+    const prevReopenedP = prevResolved.length > 0
+      ? countReopened(supabase, prevResolved.map(r => r.id))
+      : Promise.resolve(0);
+    const agentProfilesP = agentIdsForNames.length > 0
+      ? supabase.from("profiles").select("id, full_name").in("id", agentIdsForNames)
+      : Promise.resolve({ data: [] as { id: string; full_name: string }[] });
+    const breachReasonsP = breachedRows.length > 0
+      ? supabase.from("tickets").select("id, sla_breach_reason").in("id", breachedRows.map(r => r.id))
+      : null;
+    const [reopenedCount, prevReopenedCount, agentProfilesRes, breachReasonsRes] = await Promise.all([
+      reopenedP, prevReopenedP, agentProfilesP, breachReasonsP,
+    ]);
+
     // ── KPIs ──
     const total = received.length;
     const resolvedCount = resolvedRows.length;
@@ -259,9 +284,6 @@ export async function GET(req: NextRequest) {
     const { csat, count: ratedCount } = csatOf(resolvedRows);
 
     // Taxa de reabertura — % dos resolvidos no período com ação "reopened" no histórico
-    const reopenedCount = resolvedCount > 0
-      ? await countReopened(supabase, resolvedRows.map(r => r.id))
-      : 0;
     const reopenRate = resolvedCount > 0 ? Math.round((reopenedCount / resolvedCount) * 1000) / 10 : null;
 
     // ── Aging do backlog (open/in_progress; aguardando usuário/terceiros à parte) ──
@@ -320,14 +342,9 @@ export async function GET(req: NextRequest) {
       aggFor(t.assigned_to).attended.add(t.id);
     });
     const agentIds = Object.keys(byAgentMap);
-    let agentNames: Record<string, string> = {};
-    if (agentIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", agentIds);
-      agentNames = Object.fromEntries((profiles ?? []).map((p: { id: string; full_name: string }) => [p.id, p.full_name]));
-    }
+    const agentNames: Record<string, string> = Object.fromEntries(
+      (agentProfilesRes.data ?? []).map((p: { id: string; full_name: string }) => [p.id, p.full_name])
+    );
     const by_agent = agentIds
       .map(id => ({
         id,
@@ -349,11 +366,6 @@ export async function GET(req: NextRequest) {
        O motivo (sla_breach_reason) é da migração 042: buscado numa consulta separada
        e defensiva — se a coluna ainda não existir (42703/PGRST204), a seção inteira
        é omitida (breached_tickets = null). */
-    const breachedRows = resolvedRows
-      .filter(r => r.resolved_at && r.sla_deadline && new Date(r.resolved_at) > new Date(r.sla_deadline))
-      .sort((a, b) => new Date(b.resolved_at!).getTime() - new Date(a.resolved_at!).getTime())
-      .slice(0, 100);
-
     let breached_tickets:
       | {
           number: number | null;
@@ -365,11 +377,8 @@ export async function GET(req: NextRequest) {
           sla_breach_reason: string | null;
         }[]
       | null = [];
-    if (breachedRows.length > 0) {
-      const { data: reasonRows, error: reasonErr } = await supabase
-        .from("tickets")
-        .select("id, sla_breach_reason")
-        .in("id", breachedRows.map(r => r.id));
+    if (breachReasonsRes) {
+      const { data: reasonRows, error: reasonErr } = breachReasonsRes;
       if (reasonErr) {
         if (!erroColunaChamados(reasonErr, ["sla_breach_reason"])) {
           console.warn("[indicadores] falha ao buscar sla_breach_reason:", reasonErr.message);
@@ -491,9 +500,6 @@ export async function GET(req: NextRequest) {
     // ── Comparativo com a janela anterior ──
     const prevSla = slaStats(prevResolved);
     const prevCsat = csatOf(prevResolved);
-    const prevReopenedCount = prevResolved.length > 0
-      ? await countReopened(supabase, prevResolved.map(r => r.id))
-      : 0;
     const previous = {
       from: prevFromIso,
       to: fromIso,
