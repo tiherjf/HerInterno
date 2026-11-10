@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { getProcedimentos } from "@/lib/procedimentos/server";
 import { canEditMenuItem } from "@/lib/menu/server";
 import type { StaffRole } from "@/lib/menu/types";
 
@@ -103,24 +104,7 @@ function coerceText(v: unknown): string | null {
 export async function GET() {
   try {
     const profile = await requireStaff();
-    const canEdit = await canEditMenuItem("procedimentos", profile.role as StaffRole);
-    const supabase = canEdit ? createServiceClient() : createClient();
-
-    let query = supabase
-      .from("procedimentos")
-      .select("*")
-      .order("unidade")
-      .order("tipo")
-      .order("order_num")
-      .order("nome");
-
-    if (!canEdit) {
-      query = query.eq("ativo", true);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return NextResponse.json({ procedimentos: data ?? [] });
+    return NextResponse.json({ procedimentos: await getProcedimentos(profile.role as StaffRole) });
   } catch (err) {
     return apiError(err);
   }

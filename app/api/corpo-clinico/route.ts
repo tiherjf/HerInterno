@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { getProfissionais } from "@/lib/corpo-clinico/server";
 import { canEditMenuItem } from "@/lib/menu/server";
 import type { StaffRole } from "@/lib/menu/types";
 import { validarAgenda, formatarDias, formatarHorarios, erroColunaAgenda, coerceCampos045, erroColuna045, COLUNAS_045, AVISO_045 } from "@/components/corpo-clinico/agenda";
@@ -9,16 +10,7 @@ import { validarAgenda, formatarDias, formatarHorarios, erroColunaAgenda, coerce
 export async function GET() {
   try {
     await requireStaff();
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("corpo_clinico")
-      .select("*")
-      .eq("ativo", true)
-      .order("grupo")
-      .order("order_num")
-      .order("nome");
-    if (error) throw error;
-    return NextResponse.json({ profissionais: data ?? [] });
+    return NextResponse.json({ profissionais: await getProfissionais() });
   } catch (err) {
     return apiError(err);
   }

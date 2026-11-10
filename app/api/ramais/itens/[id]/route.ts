@@ -3,6 +3,8 @@ import { requireStaff } from "@/lib/auth/staff";
 import { canEditMenuItem } from "@/lib/menu/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { revalidateTag } from "next/cache";
+import { RAMAIS_CACHE_TAG } from "@/lib/ramais/server";
 import type { StaffRole } from "@/lib/auth/staff";
 
 type Params = { params: { id: string } };
@@ -23,6 +25,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const svc = createServiceClient();
     const { error } = await svc.from("ramais").update(updates).eq("id", params.id);
     if (error) throw error;
+    revalidateTag(RAMAIS_CACHE_TAG);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return apiError(err);
@@ -38,6 +41,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const svc = createServiceClient();
     const { error } = await svc.from("ramais").update({ active: false }).eq("id", params.id);
     if (error) throw error;
+    revalidateTag(RAMAIS_CACHE_TAG);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return apiError(err);

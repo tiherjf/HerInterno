@@ -3,6 +3,8 @@ import { requireStaff } from "@/lib/auth/staff";
 import { canEditMenuItem } from "@/lib/menu/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { revalidateTag } from "next/cache";
+import { RAMAIS_CACHE_TAG } from "@/lib/ramais/server";
 import type { StaffRole } from "@/lib/auth/staff";
 
 export async function POST(req: NextRequest) {
@@ -20,6 +22,7 @@ export async function POST(req: NextRequest) {
     }).select("id").single();
 
     if (error) throw error;
+    revalidateTag(RAMAIS_CACHE_TAG);
     return NextResponse.json({ ok: true, id: data.id }, { status: 201 });
   } catch (err) {
     return apiError(err);
