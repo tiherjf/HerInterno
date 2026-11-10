@@ -18,6 +18,7 @@ import {
   Loader2, Bold, Italic, List, ListOrdered, Save, Eye, CalendarClock, Heading2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { compressImage } from "@/lib/image-compress";
 
 const CATEGORIES = ["Institucional", "RH", "Qualidade", "TI", "Eventos"];
 
@@ -73,10 +74,11 @@ export function NewsForm({ initialData }: NewsFormProps) {
 
   async function uploadCover(): Promise<string | null> {
     if (!coverFile) return initialData?.cover_url ?? null;
-    const ext = coverFile.name.split(".").pop();
+    const file = await compressImage(coverFile);
+    const ext = file.name.split(".").pop();
     const path = `news/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage
-      .from("media").upload(path, coverFile, { upsert: true });
+      .from("media").upload(path, file, { upsert: true, contentType: file.type });
     if (uploadError) throw new Error("Erro ao fazer upload da imagem.");
     const { data: urlData } = supabase.storage.from("media").getPublicUrl(path);
     return urlData.publicUrl;

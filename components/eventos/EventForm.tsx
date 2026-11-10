@@ -16,6 +16,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { compressImage } from "@/lib/image-compress";
 
 const CATEGORIES = [
   { value: "palestra", label: "Palestra" },
@@ -86,16 +87,19 @@ export default function EventForm({ initialData }: Props) {
   const needsLink = ["online", "hibrido"].includes(form.type);
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const original = e.target.files?.[0];
+    if (!original) return;
+    setUploading(true);
+    // Comprime antes de checar o limite: fotos grandes de celular passam a caber
+    const file = await compressImage(original);
     if (file.size > 5 * 1024 * 1024) {
       setError("Imagem deve ter no máximo 5MB.");
+      setUploading(false);
       return;
     }
-    setUploading(true);
     const ext = file.name.split(".").pop();
     const path = `events/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from("media").upload(path, file);
+    const { error: upErr } = await supabase.storage.from("media").upload(path, file, { contentType: file.type });
     if (upErr) { setError("Erro ao enviar imagem."); setUploading(false); return; }
     const { data } = supabase.storage.from("media").getPublicUrl(path);
     setForm(f => ({ ...f, cover_url: data.publicUrl }));

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ROLE_LABELS, ROLE_COLORS } from "@/lib/utils";
+import { compressImage } from "@/lib/image-compress";
 
 interface PerfilData {
   id: string;
@@ -103,7 +104,8 @@ export default function PerfilPage() {
 
     setUploadingAvatar(true);
     const form = new FormData();
-    form.append("avatar", file);
+    // Avatar aparece pequeno: 512px sobra até para telas de alta densidade
+    form.append("avatar", await compressImage(file, { maxSize: 512 }));
     const res = await fetch("/api/perfil/avatar", { method: "POST", body: form });
     setUploadingAvatar(false);
 
