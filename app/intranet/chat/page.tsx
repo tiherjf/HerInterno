@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MessageCircle, Search, ChevronDown, ChevronRight, ChevronLeft,
   Send, Loader2, AlertTriangle, Paperclip, FileText, X, Check, CheckCheck,
@@ -103,6 +103,202 @@ function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) {
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 }
+
+// ─── Listas memoizadas ──────────────────────────────────────
+// Ficam fora da página e com memo() porque o rascunho (draft) mora no topo da
+// página: sem isso, cada tecla redesenhava o diretório inteiro e todas as
+// mensagens abertas. As props delas não mudam enquanto se digita.
+
+const MessageList = memo(function MessageList({ messages, myId }: {
+  messages: ChatMessage[];
+  myId: string | undefined;
+}) {
+  return (
+    <>
+      {messages.map((msg, i) => {
+        const mine = msg.sender_id === myId;
+        const showDay = i === 0 || dayKey(msg.created_at) !== dayKey(messages[i - 1].created_at);
+        return (
+          <div key={msg.id}>
+            {showDay && (
+              <div className="flex justify-center py-2">
+                <span className="text-[11px] text-gray-400 bg-gray-100 rounded-full px-2.5 py-0.5">
+                  {formatDay(msg.created_at)}
+                </span>
+              </div>
+            )}
+            <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm whitespace-pre-wrap break-words ${
+                  mine
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-white border rounded-bl-sm text-gray-800"
+                } ${msg.urgent ? "border-2 border-red-500" : ""}`}
+              >
+                {msg.urgent && (
+                  <span className="inline-flex items-center gap-1 mb-1 rounded bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 tracking-wide">
+                    <AlertTriangle size={9} />
+                    URGENTE
+                  </span>
+                )}
+                {msg.attachment_path && (
+                  isImageName(msg.attachment_name) ? (
+                    <a
+                      href={`/api/chat-interno/anexos/${msg.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block mb-1"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/chat-interno/anexos/${msg.id}`}
+                        alt={msg.attachment_name ?? "Imagem"}
+                        className="max-w-full max-h-56 rounded-lg"
+                        loading="lazy"
+                      />
+                    </a>
+                  ) : (
+                    <a
+                      href={`/api/chat-interno/anexos/${msg.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 mb-1 border ${
+                        mine
+                          ? "border-primary-foreground/30 bg-primary-foreground/10 hover:bg-primary-foreground/20"
+                          : "border-gray-200 bg-gray-50 hover:bg-gray-100"
+                      }`}
+                    >
+                      <FileText size={18} className="shrink-0" />
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                        {msg.attachment_name}
+                      </span>
+                      <span className={`text-[10px] shrink-0 ${mine ? "text-primary-foreground/60" : "text-gray-400"}`}>
+                        {formatBytes(msg.attachment_size)}
+                      </span>
+                    </a>
+                  )
+                )}
+                {msg.content}
+                {msg.urgent && msg.urgent_reason && (
+                  <span className={`block text-[11px] italic mt-0.5 ${
+                    mine ? "text-primary-foreground/70" : "text-gray-500"
+                  }`}>
+                    Motivo: {msg.urgent_reason}
+                  </span>
+                )}
+                <span
+                  className={`flex items-center justify-end gap-1 text-[10px] mt-0.5 ${
+                    mine ? "text-primary-foreground/60" : "text-gray-400"
+                  }`}
+                >
+                  {formatTime(msg.created_at)}
+                  {mine && (
+                    msg.read_at ? (
+                      <CheckCheck size={13} className="text-sky-300" aria-label="Lida" />
+                    ) : (
+                      <Check size={13} aria-label="Enviada" />
+                    )
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+});
+
+interface DirectoryGroup {
+  sector: string;
+  members: Person[];
+  online: number;
+}
+
+const DirectoryList = memo(function DirectoryList({
+  groups, collapsed, onToggleSector, statusOf, unreadOf, conversations,
+  selectedId, myId, onOpen, foraExpediente, offlineLabel,
+}: {
+  groups: DirectoryGroup[];
+  collapsed: Set<string>;
+  onToggleSector: (sector: string) => void;
+  statusOf: (id: string) => Status | null;
+  unreadOf: (id: string) => number;
+  conversations: Record<string, Conversation>;
+  selectedId: string | undefined;
+  myId: string | undefined;
+  onOpen: (person: Person) => void;
+  foraExpediente: boolean;
+  offlineLabel: string;
+}) {
+  return (
+    <>
+      {groups.map(group => {
+        const isCollapsed = collapsed.has(group.sector);
+        return (
+          <div key={group.sector}>
+            <button
+              type="button"
+              onClick={() => onToggleSector(group.sector)}
+              className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-50"
+            >
+              {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              <span className="truncate">{group.sector}</span>
+              <span className="ml-auto font-normal normal-case text-gray-400">
+                {group.online}/{group.members.length} online
+              </span>
+            </button>
+            {!isCollapsed && group.members.map(person => {
+              const status = statusOf(person.id);
+              const conv = conversations[person.id];
+              const unread = unreadOf(person.id);
+              const isActive = selectedId === person.id;
+              return (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => onOpen(person)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+                    isActive ? "bg-primary/10" : "hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="relative shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium">
+                      {initials(person.full_name)}
+                    </div>
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                        status ? STATUS_META[status].dot : OFFLINE_DOT
+                      }`}
+                      title={status ? STATUS_META[status].label : offlineLabel}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800 truncate">{person.full_name}</p>
+                    {conv?.last_message ? (
+                      <p className="text-xs text-gray-400 truncate">
+                        {conv.last_message.sender_id === myId ? "Você: " : ""}
+                        {conv.last_message.content ||
+                          (conv.last_message.attachment_name ? `📎 ${conv.last_message.attachment_name}` : "")}
+                      </p>
+                    ) : !status && foraExpediente ? (
+                      <p className="text-xs text-gray-400 truncate">Fora do expediente</p>
+                    ) : null}
+                  </div>
+                  {unread > 0 && (
+                    <span className="shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </>
+  );
+});
 
 // ─── Página ─────────────────────────────────────────────────
 export default function ChatInternoPage() {
@@ -505,14 +701,14 @@ export default function ChatInternoPage() {
       }));
   }, [directory, me?.id, search, chat?.onlineMap]);
 
-  function toggleSector(sector: string) {
+  const toggleSector = useCallback((sector: string) => {
     setCollapsed(prev => {
       const next = new Set(prev);
       if (next.has(sector)) next.delete(sector);
       else next.add(sector);
       return next;
     });
-  }
+  }, []);
 
   async function copyExt(ext: string) {
     try {
@@ -596,69 +792,19 @@ export default function ChatInternoPage() {
             ) : groups.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">Nenhum colaborador encontrado.</p>
             ) : (
-              groups.map(group => {
-                const isCollapsed = collapsed.has(group.sector);
-                return (
-                  <div key={group.sector}>
-                    <button
-                      type="button"
-                      onClick={() => toggleSector(group.sector)}
-                      className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-50"
-                    >
-                      {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                      <span className="truncate">{group.sector}</span>
-                      <span className="ml-auto font-normal normal-case text-gray-400">
-                        {group.online}/{group.members.length} online
-                      </span>
-                    </button>
-                    {!isCollapsed && group.members.map(person => {
-                      const status = statusOf(person.id);
-                      const conv = conversations[person.id];
-                      const unread = unreadOf(person.id);
-                      const isActive = selected?.id === person.id;
-                      return (
-                        <button
-                          key={person.id}
-                          type="button"
-                          onClick={() => openConversation(person)}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                            isActive ? "bg-primary/10" : "hover:bg-gray-50"
-                          }`}
-                        >
-                          <div className="relative shrink-0">
-                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-medium">
-                              {initials(person.full_name)}
-                            </div>
-                            <span
-                              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                                status ? STATUS_META[status].dot : OFFLINE_DOT
-                              }`}
-                              title={status ? STATUS_META[status].label : offlineLabel}
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-800 truncate">{person.full_name}</p>
-                            {conv?.last_message ? (
-                              <p className="text-xs text-gray-400 truncate">
-                                {conv.last_message.sender_id === me?.id ? "Você: " : ""}
-                                {conv.last_message.content ||
-                                  (conv.last_message.attachment_name ? `📎 ${conv.last_message.attachment_name}` : "")}
-                              </p>
-                            ) : !status && foraExpediente ? (
-                              <p className="text-xs text-gray-400 truncate">Fora do expediente</p>
-                            ) : null}
-                          </div>
-                          {unread > 0 && (
-                            <span className="shrink-0 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">
-                              {unread > 99 ? "99+" : unread}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })
+              <DirectoryList
+                groups={groups}
+                collapsed={collapsed}
+                onToggleSector={toggleSector}
+                statusOf={statusOf}
+                unreadOf={unreadOf}
+                conversations={conversations}
+                selectedId={selected?.id}
+                myId={me?.id}
+                onOpen={openConversation}
+                foraExpediente={foraExpediente}
+                offlineLabel={offlineLabel}
+              />
             )}
           </div>
         </div>
@@ -767,96 +913,7 @@ export default function ChatInternoPage() {
                     Nenhuma mensagem ainda. Diga olá!
                   </p>
                 ) : (
-                  messages.map((msg, i) => {
-                    const mine = msg.sender_id === me?.id;
-                    const showDay = i === 0 || dayKey(msg.created_at) !== dayKey(messages[i - 1].created_at);
-                    return (
-                      <div key={msg.id}>
-                        {showDay && (
-                          <div className="flex justify-center py-2">
-                            <span className="text-[11px] text-gray-400 bg-gray-100 rounded-full px-2.5 py-0.5">
-                              {formatDay(msg.created_at)}
-                            </span>
-                          </div>
-                        )}
-                        <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                          <div
-                            className={`max-w-[85%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm whitespace-pre-wrap break-words ${
-                              mine
-                                ? "bg-primary text-primary-foreground rounded-br-sm"
-                                : "bg-white border rounded-bl-sm text-gray-800"
-                            } ${msg.urgent ? "border-2 border-red-500" : ""}`}
-                          >
-                            {msg.urgent && (
-                              <span className="inline-flex items-center gap-1 mb-1 rounded bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 tracking-wide">
-                                <AlertTriangle size={9} />
-                                URGENTE
-                              </span>
-                            )}
-                            {msg.attachment_path && (
-                              isImageName(msg.attachment_name) ? (
-                                <a
-                                  href={`/api/chat-interno/anexos/${msg.id}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block mb-1"
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={`/api/chat-interno/anexos/${msg.id}`}
-                                    alt={msg.attachment_name ?? "Imagem"}
-                                    className="max-w-full max-h-56 rounded-lg"
-                                    loading="lazy"
-                                  />
-                                </a>
-                              ) : (
-                                <a
-                                  href={`/api/chat-interno/anexos/${msg.id}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={`flex items-center gap-2 rounded-lg px-2 py-1.5 mb-1 border ${
-                                    mine
-                                      ? "border-primary-foreground/30 bg-primary-foreground/10 hover:bg-primary-foreground/20"
-                                      : "border-gray-200 bg-gray-50 hover:bg-gray-100"
-                                  }`}
-                                >
-                                  <FileText size={18} className="shrink-0" />
-                                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                                    {msg.attachment_name}
-                                  </span>
-                                  <span className={`text-[10px] shrink-0 ${mine ? "text-primary-foreground/60" : "text-gray-400"}`}>
-                                    {formatBytes(msg.attachment_size)}
-                                  </span>
-                                </a>
-                              )
-                            )}
-                            {msg.content}
-                            {msg.urgent && msg.urgent_reason && (
-                              <span className={`block text-[11px] italic mt-0.5 ${
-                                mine ? "text-primary-foreground/70" : "text-gray-500"
-                              }`}>
-                                Motivo: {msg.urgent_reason}
-                              </span>
-                            )}
-                            <span
-                              className={`flex items-center justify-end gap-1 text-[10px] mt-0.5 ${
-                                mine ? "text-primary-foreground/60" : "text-gray-400"
-                              }`}
-                            >
-                              {formatTime(msg.created_at)}
-                              {mine && (
-                                msg.read_at ? (
-                                  <CheckCheck size={13} className="text-sky-300" aria-label="Lida" />
-                                ) : (
-                                  <Check size={13} aria-label="Enviada" />
-                                )
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                  <MessageList messages={messages} myId={me?.id} />
                 )}
                 <div ref={bottomRef} />
               </div>
