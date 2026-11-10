@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import { sendEmail } from "@/lib/email/resend";
 import { pontoStatusEmail } from "@/lib/email/templates/ponto-status";
+import { inBackground } from "@/lib/background";
 
 type Params = { params: { id: string } };
 
@@ -112,10 +113,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       observation: observation?.trim() || null,
     });
 
-    // Notificação por e-mail ao colaborador (falha silenciosa)
-    const userRecord = await supabase.auth.admin.getUserById(current.user_id);
-    const userEmail = userRecord.data.user?.email;
-    if (userEmail) {
+    // Notificação por e-mail ao colaborador (falha silenciosa, depois da resposta —
+    // o gestor/RH não espera o envio)
+    inBackground("ponto-status-email", async () => {
+      const userRecord = await supabase.auth.admin.getUserById(current.user_id);
+      const userEmail = userRecord.data.user?.email;
+      if (!userEmail) return;
       const userName = (current.profiles as unknown as { full_name: string } | null)?.full_name ?? "Colaborador";
       const typeName = (current.justification_types as unknown as { name: string } | null)?.name ?? "Justificativa";
       const { subject, html } = pontoStatusEmail({
@@ -126,7 +129,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         observation: observation?.trim() || null,
       });
       await sendEmail({ to: userEmail, subject, html });
-    }
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

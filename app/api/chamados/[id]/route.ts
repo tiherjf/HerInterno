@@ -7,6 +7,7 @@ import { chamadoStatusEmail } from "@/lib/email/templates/chamado-atualizado";
 import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
 import { erroColunaChamados, erroCheckStatus, erroCheckPrioridade, MSG_MIGRACAO_042 } from "@/lib/chamados/migracao";
 import { isAgentForTicket } from "@/lib/chamados/equipe";
+import { inBackground } from "@/lib/background";
 
 type Params = { params: { id: string } };
 
@@ -295,33 +296,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (error) throw error;
 
-    // Notifica o solicitante por e-mail quando o status muda (melhor esforço)
+    // Notifica o solicitante por e-mail quando o status muda (melhor esforço,
+    // depois da resposta — o agente não espera o envio)
+    const requesterId = current.requester_id;
     if (
       action === "set_status" &&
       rest.status !== current.status &&
-      current.requester_id &&
-      current.requester_id !== profile.id
+      requesterId &&
+      requesterId !== profile.id
     ) {
-      try {
-        const { data: authUser } = await supabase.auth.admin.getUserById(current.requester_id);
+      inBackground("chamado-status-email", async () => {
+        const [{ data: authUser }, { data: requester }] = await Promise.all([
+          supabase.auth.admin.getUserById(requesterId),
+          supabase.from("profiles").select("full_name").eq("id", requesterId).single(),
+        ]);
         const email = authUser?.user?.email;
-        if (email) {
-          const { data: requester } = await supabase
-            .from("profiles").select("full_name").eq("id", current.requester_id).single();
-          const { subject, html } = chamadoStatusEmail({
-            userName: requester?.full_name ?? "Colaborador",
-            ticketNumber: current.number,
-            ticketTitle: current.title,
-            newStatus: rest.status,
-            solution: rest.status === "resolved" ? rest.solution : null,
-          });
-          await sendEmail({ to: email, subject, html });
-        }
-      } catch { /* e-mail é melhor esforço — não quebra o fluxo */ }
+        if (!email) return;
+        const { subject, html } = chamadoStatusEmail({
+          userName: requester?.full_name ?? "Colaborador",
+          ticketNumber: current.number,
+          ticketTitle: current.title,
+          newStatus: rest.status,
+          solution: rest.status === "resolved" ? rest.solution : null,
+        });
+        await sendEmail({ to: email, subject, html });
+      });
     }
 
     // Notifica clientes conectados em tempo real (melhor esforço)
-    await broadcastTicketUpdate(supabase, params.id, "status");
+    inBackground("chamado-broadcast", () => broadcastTicketUpdate(supabase, params.id, "status"));
 
     return NextResponse.json(aviso ? { ok: true, aviso } : { ok: true });
   } catch (err) {

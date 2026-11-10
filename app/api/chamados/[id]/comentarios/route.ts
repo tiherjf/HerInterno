@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/email/resend";
 import { chamadoComentarioEmail } from "@/lib/email/templates/chamado-atualizado";
 import { broadcastTicketUpdate } from "@/lib/chamados/realtime";
 import { isAgentForTicket } from "@/lib/chamados/equipe";
+import { inBackground } from "@/lib/background";
 
 type Params = { params: { id: string } };
 
@@ -116,27 +117,29 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Notifica o solicitante por e-mail quando um agente responde (exceto notas internas
     // e respostas do próprio solicitante)
-    if (isAgent && !is_internal && ticket.requester_id && ticket.requester_id !== profile.id) {
-      try {
-        const { data: authUser } = await supabase.auth.admin.getUserById(ticket.requester_id);
+    // (melhor esforço, depois da resposta — o agente não espera o envio)
+    const requesterId = ticket.requester_id;
+    if (isAgent && !is_internal && requesterId && requesterId !== profile.id) {
+      inBackground("chamado-comentario-email", async () => {
+        const [{ data: authUser }, { data: requester }] = await Promise.all([
+          supabase.auth.admin.getUserById(requesterId),
+          supabase.from("profiles").select("full_name").eq("id", requesterId).single(),
+        ]);
         const email = authUser?.user?.email;
-        if (email) {
-          const { data: requester } = await supabase
-            .from("profiles").select("full_name").eq("id", ticket.requester_id).single();
-          const { subject, html } = chamadoComentarioEmail({
-            userName: requester?.full_name ?? "Colaborador",
-            ticketNumber: ticket.number,
-            ticketTitle: ticket.title,
-            authorName: profile.full_name,
-            comment: content.trim(),
-          });
-          await sendEmail({ to: email, subject, html });
-        }
-      } catch { /* e-mail é melhor esforço — não quebra o fluxo */ }
+        if (!email) return;
+        const { subject, html } = chamadoComentarioEmail({
+          userName: requester?.full_name ?? "Colaborador",
+          ticketNumber: ticket.number,
+          ticketTitle: ticket.title,
+          authorName: profile.full_name,
+          comment: content.trim(),
+        });
+        await sendEmail({ to: email, subject, html });
+      });
     }
 
     // Notifica clientes conectados em tempo real (melhor esforço)
-    await broadcastTicketUpdate(supabase, params.id, "comment");
+    inBackground("chamado-broadcast", () => broadcastTicketUpdate(supabase, params.id, "comment"));
 
     return NextResponse.json({ ok: true, comment: data }, { status: 201 });
   } catch (err) {
