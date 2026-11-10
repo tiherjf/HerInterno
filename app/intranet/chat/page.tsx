@@ -277,9 +277,13 @@ export default function ChatInternoPage() {
   }
 
   // ─── Broadcasts do provider: mensagens novas + confirmações ─
+  // Depende só das funções estáveis de inscrição — depender de `chat` inteiro
+  // re-inscrevia a cada evento de presença/digitação
+  const subscribeMessages = chat?.subscribeMessages;
+  const subscribeReads = chat?.subscribeReads;
   useEffect(() => {
-    if (!chat) return;
-    const unsubMsg = chat.subscribeMessages((incoming: ChatBroadcastMessage) => {
+    if (!subscribeMessages || !subscribeReads) return;
+    const unsubMsg = subscribeMessages((incoming: ChatBroadcastMessage) => {
       const msg: ChatMessage = incoming;
       const counterpart = msg.sender_id;
       setConversations(prev => ({
@@ -291,7 +295,7 @@ export default function ChatInternoPage() {
         markRead(counterpart);
       }
     });
-    const unsubRead = chat.subscribeReads((by: string) => {
+    const unsubRead = subscribeReads((by: string) => {
       // O interlocutor leu minhas mensagens → ✓✓ ao vivo
       if (selectedRef.current !== by) return;
       const now = new Date().toISOString();
@@ -305,7 +309,7 @@ export default function ChatInternoPage() {
       unsubMsg();
       unsubRead();
     };
-  }, [chat, markRead]);
+  }, [subscribeMessages, subscribeReads, markRead]);
 
   // ─── Canal de digitação (envia "typing" para o interlocutor) ─
   useEffect(() => {

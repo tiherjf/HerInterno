@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getDevSession, devSessionToStaffProfile, isDev } from "./dev-mode";
@@ -25,7 +26,9 @@ export interface StaffProfile {
   manager_id?: string | null;
 }
 
-export async function getStaffProfile(): Promise<StaffProfile | null> {
+// cache(): layout e página da mesma requisição compartilham o resultado,
+// evitando repetir getUser + consulta de perfil a cada nível da árvore
+export const getStaffProfile = cache(async function getStaffProfile(): Promise<StaffProfile | null> {
   // Dev mode: retorna perfil fake sem Supabase
   if (isDev) {
     const devSession = getDevSession();
@@ -48,7 +51,7 @@ export async function getStaffProfile(): Promise<StaffProfile | null> {
     .single();
 
   return data;
-}
+});
 
 export async function requireStaff() {
   const profile = await getStaffProfile();

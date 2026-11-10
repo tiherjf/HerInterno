@@ -16,28 +16,35 @@ export default async function IntranetHome() {
   try {
     const supabase = createClient();
 
-    const { data: eventsData } = await supabase
-      .from("events")
-      .select("id, title, event_date, location, slots_used, max_slots")
-      .eq("active", true)
-      .gte("event_date", new Date().toISOString())
-      .order("event_date", { ascending: true })
-      .limit(3);
+    // Eventos não dependem dos treinamentos → em paralelo com a cadeia concluídos → pendentes
+    const pendingTrainingsQuery = async () => {
+      const { data: completedTrainings } = await supabase
+        .from("training_completions")
+        .select("training_id")
+        .eq("user_id", profile.id);
+
+      const completedIds = completedTrainings?.map((c: { training_id: string }) => c.training_id) || [];
+
+      const { data } = await supabase
+        .from("trainings")
+        .select("id, title, workload_hours")
+        .eq("active", true)
+        .not("id", "in", completedIds.length > 0 ? `(${completedIds.join(",")})` : "(null)")
+        .limit(3);
+      return data;
+    };
+
+    const [{ data: eventsData }, pendingData] = await Promise.all([
+      supabase
+        .from("events")
+        .select("id, title, event_date, location, slots_used, max_slots")
+        .eq("active", true)
+        .gte("event_date", new Date().toISOString())
+        .order("event_date", { ascending: true })
+        .limit(3),
+      pendingTrainingsQuery(),
+    ]);
     events = eventsData || [];
-
-    const { data: completedTrainings } = await supabase
-      .from("training_completions")
-      .select("training_id")
-      .eq("user_id", profile.id);
-
-    const completedIds = completedTrainings?.map((c: { training_id: string }) => c.training_id) || [];
-
-    const { data: pendingData } = await supabase
-      .from("trainings")
-      .select("id, title, workload_hours")
-      .eq("active", true)
-      .not("id", "in", completedIds.length > 0 ? `(${completedIds.join(",")})` : "(null)")
-      .limit(3);
     pendingTrainings = pendingData || [];
   } catch {
     // Supabase não configurado — dados ficam vazios

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ShieldCheck, LayoutDashboard, AlertTriangle, BarChart2, FileText, ClipboardList, Settings2, Plus, Loader2, ShieldAlert, Brain, Network } from "lucide-react";
 import { PainelTab } from "./PainelTab";
 import { NCsTab } from "./NCsTab";
-import { IndicadoresTab } from "./IndicadoresTab";
+// Sob demanda: é a única aba com recharts, que pesa no bundle da página inteira
+const IndicadoresTab = dynamic(
+  () => import("./IndicadoresTab").then((m) => m.IndicadoresTab),
+  { ssr: false, loading: () => <Loader2 className="mx-auto my-12 animate-spin text-muted-foreground" /> }
+);
 import { DocumentosTab } from "./DocumentosTab";
 import { AuditoriasTab } from "./AuditoriasTab";
 import { RiscosTab } from "./RiscosTab";

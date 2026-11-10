@@ -25,17 +25,21 @@ export async function GET(req: NextRequest) {
     ? `https://${process.env.VERCEL_URL}`
     : new URL(req.url).origin;
 
-  const results: Record<string, unknown> = {};
-  for (const path of JOBS) {
-    try {
-      const r = await fetch(`${base}${path}`, {
-        headers: { Authorization: `Bearer ${secret}` },
-      });
-      results[path] = { status: r.status, body: await r.json().catch(() => null) };
-    } catch (err) {
-      results[path] = { error: err instanceof Error ? err.message : "falha" };
-    }
-  }
+  // Rotinas independentes → em paralelo: o tempo total passa a ser o da mais lenta,
+  // não a soma de todas (menor risco de estourar o limite de duração da função)
+  const entries = await Promise.all(
+    JOBS.map(async (path) => {
+      try {
+        const r = await fetch(`${base}${path}`, {
+          headers: { Authorization: `Bearer ${secret}` },
+        });
+        return [path, { status: r.status, body: await r.json().catch(() => null) }] as const;
+      } catch (err) {
+        return [path, { error: err instanceof Error ? err.message : "falha" }] as const;
+      }
+    })
+  );
+  const results: Record<string, unknown> = Object.fromEntries(entries);
 
   return NextResponse.json({ ok: true, ranAt: new Date().toISOString(), results });
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { NewsInteractions } from "@/components/news/NewsInteractions";
+import { refreshNoticiasUnread } from "@/components/news/NotificacaoDot";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { Edit, Newspaper, ChevronDown } from "lucide-react";
@@ -189,7 +190,9 @@ export function NewsFeed({
   const handleRead = useCallback(async (id: string) => {
     if (markedRef.current.has(id)) return;
     markedRef.current.add(id);
-    await fetch(`/api/noticias/${id}/lida`, { method: "POST" }).catch(() => {});
+    await fetch(`/api/noticias/${id}/lida`, { method: "POST" })
+      .then(refreshNoticiasUnread)
+      .catch(() => {});
   }, []);
 
   if (items.length === 0) {

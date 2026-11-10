@@ -67,16 +67,24 @@ async function countReopened(
   supabase: ReturnType<typeof createServiceClient>,
   ticketIds: string[],
 ): Promise<number> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ticketIds.length; i += 200) chunks.push(ticketIds.slice(i, i + 200));
+
+  // Lotes em paralelo (antes eram até 25 idas ao banco em sequência)
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      supabase
+        .from("ticket_history")
+        .select("ticket_id")
+        .eq("action", "reopened")
+        .in("ticket_id", chunk)
+    )
+  );
+
   const reopened = new Set<string>();
-  for (let i = 0; i < ticketIds.length; i += 200) {
-    const chunk = ticketIds.slice(i, i + 200);
-    const { data } = await supabase
-      .from("ticket_history")
-      .select("ticket_id")
-      .eq("action", "reopened")
-      .in("ticket_id", chunk);
-    (data ?? []).forEach((h: { ticket_id: string }) => reopened.add(h.ticket_id));
-  }
+  results.forEach(({ data }) =>
+    (data ?? []).forEach((h: { ticket_id: string }) => reopened.add(h.ticket_id))
+  );
   return reopened.size;
 }
 

@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
     const priority = req.nextUrl.searchParams.get("priority") ?? "";
     const category = req.nextUrl.searchParams.get("category") ?? "";
     const search = req.nextUrl.searchParams.get("q") ?? "";
-    const limit = parseInt(req.nextUrl.searchParams.get("limit") ?? "50");
+    // Teto: sem ele, ?limit=100000 despeja a tabela inteira com joins
+    const limit = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get("limit") ?? "50") || 50, 1), 500);
     const dateFrom = req.nextUrl.searchParams.get("date_from") ?? "";
     const dateTo = req.nextUrl.searchParams.get("date_to") ?? "";
     const sector = req.nextUrl.searchParams.get("sector") ?? "";

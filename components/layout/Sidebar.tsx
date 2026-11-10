@@ -125,6 +125,51 @@ function ChatUnreadBadge() {
   );
 }
 
+// Fora do Sidebar de propósito: declarado dentro, virava um tipo novo a cada render
+// e todos os links (e o NotificacaoDot, que faz fetch ao montar) eram remontados
+function NavLink({
+  href,
+  label,
+  icon: Icon,
+  showBadge,
+  showChatBadge,
+  pathname,
+  collapsed,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  showBadge?: boolean;
+  showChatBadge?: boolean;
+  pathname: string;
+  collapsed: boolean;
+  onNavigate: () => void;
+}) {
+  const isActive =
+    href === "/intranet"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + "/");
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+        isActive
+          ? "bg-primary-foreground text-primary font-medium"
+          : "text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground"
+      )}
+      title={collapsed ? label : undefined}
+    >
+      <Icon size={18} className="shrink-0" />
+      {!collapsed && <span>{label}</span>}
+      {!collapsed && showBadge && <NotificacaoDot />}
+      {!collapsed && showChatBadge && <ChatUnreadBadge />}
+    </Link>
+  );
+}
+
 export function Sidebar({ role, menuItems }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(true);
@@ -161,43 +206,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
   ).map(([category, items]) => ({ category, items }));
 
   const allGroups = [...grouped, ...extraGroups];
-
-  function NavLink({
-    href,
-    label,
-    icon: Icon,
-    showBadge,
-    showChatBadge,
-  }: {
-    href: string;
-    label: string;
-    icon: LucideIcon;
-    showBadge?: boolean;
-    showChatBadge?: boolean;
-  }) {
-    const isActive =
-      href === "/intranet"
-        ? pathname === href
-        : pathname === href || pathname.startsWith(href + "/");
-    return (
-      <Link
-        href={href}
-        onClick={close}
-        className={cn(
-          "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-          isActive
-            ? "bg-primary-foreground text-primary font-medium"
-            : "text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground"
-        )}
-        title={collapsed ? label : undefined}
-      >
-        <Icon size={18} className="shrink-0" />
-        {!collapsed && <span>{label}</span>}
-        {!collapsed && showBadge && <NotificacaoDot />}
-        {!collapsed && showChatBadge && <ChatUnreadBadge />}
-      </Link>
-    );
-  }
+  const linkProps = { pathname, collapsed, onNavigate: close };
 
   return (
     <>
@@ -241,7 +250,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
       <nav className="flex-1 py-3 overflow-y-auto">
         {/* Início — sempre fixo */}
         <div className="px-2 mb-2">
-          <NavLink href="/intranet" label="Início" icon={Home} />
+          <NavLink href="/intranet" label="Início" icon={Home} {...linkProps} />
         </div>
 
         {/* Grupos de categorias */}
@@ -257,7 +266,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
               {items.map((item) => {
                 const Icon = ICON_MAP[item.icon] ?? FileText;
                 return (
-                  <NavLink
+                  <NavLink {...linkProps}
                     key={item.key}
                     href={item.href}
                     label={item.label}
@@ -281,7 +290,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
             )}
             {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
             <div className="px-2">
-              <NavLink
+              <NavLink {...linkProps}
                 href="/intranet/configuracoes/menu"
                 label="Permissões de Menu"
                 icon={Settings}
@@ -301,7 +310,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
             {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
             <div className="px-2 space-y-0.5">
               {group.items.map((item) => (
-                <NavLink
+                <NavLink {...linkProps}
                   key={item.href}
                   href={item.href}
                   label={item.label}

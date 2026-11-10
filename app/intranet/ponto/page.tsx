@@ -38,17 +38,9 @@ export default async function PontoDashboard() {
   try {
     const supabase = createServiceClient();
 
-    // Minhas justificativas recentes
-    const { data: j } = await supabase
-      .from("justifications")
-      .select("id, occurrence_date, status, justification_types!type_id(name)")
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false })
-      .limit(5);
-    myJustifications = (j || []) as Record<string, unknown>[];
-
-    // Contagem para gestores
-    if (isGestor) {
+    // Contagem para gestores (única cadeia dependente: subordinados → contagem)
+    const countPendingTeam = async (): Promise<number> => {
+      if (!isGestor) return 0;
       // Gestor comum: conta apenas subordinados diretos (mesmo filtro da tela de aprovações)
       let subordinateIds: string[] | null = null;
       if (!isRH) {
@@ -59,33 +51,44 @@ export default async function PontoDashboard() {
           .eq("active", true);
         subordinateIds = (subordinates || []).map((u: { id: string }) => u.id);
       }
-      if (isRH || (subordinateIds && subordinateIds.length > 0)) {
-        let teamQuery = supabase
-          .from("justifications")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending");
-        if (subordinateIds) teamQuery = teamQuery.in("user_id", subordinateIds);
-        const { count: teamCount } = await teamQuery;
-        pendingTeam = teamCount || 0;
-      }
-    }
-
-    // Contagem para RH
-    if (isRH) {
-      const { count: rhCount } = await supabase
+      if (!isRH && (!subordinateIds || subordinateIds.length === 0)) return 0;
+      let teamQuery = supabase
         .from("justifications")
         .select("id", { count: "exact", head: true })
-        .eq("status", "manager_approved");
-      pendingRH = rhCount || 0;
-    }
+        .eq("status", "pending");
+      if (subordinateIds) teamQuery = teamQuery.in("user_id", subordinateIds);
+      const { count: teamCount } = await teamQuery;
+      return teamCount || 0;
+    };
 
-    // Banco de horas (últimos 3 meses)
-    const { data: hb } = await supabase
-      .from("hour_bank")
-      .select("overtime_minutes, reference_month")
-      .eq("user_id", profile.id)
-      .order("reference_month", { ascending: false })
-      .limit(3);
+    // Consultas independentes em paralelo (antes eram 4–5 idas ao banco em sequência)
+    const [{ data: j }, teamCount, rhRes, { data: hb }] = await Promise.all([
+      // Minhas justificativas recentes
+      supabase
+        .from("justifications")
+        .select("id, occurrence_date, status, justification_types!type_id(name)")
+        .eq("user_id", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      countPendingTeam(),
+      // Contagem para RH
+      isRH
+        ? supabase
+            .from("justifications")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "manager_approved")
+        : Promise.resolve({ count: 0 }),
+      // Banco de horas (últimos 3 meses)
+      supabase
+        .from("hour_bank")
+        .select("overtime_minutes, reference_month")
+        .eq("user_id", profile.id)
+        .order("reference_month", { ascending: false })
+        .limit(3),
+    ]);
+    myJustifications = (j || []) as Record<string, unknown>[];
+    pendingTeam = teamCount;
+    pendingRH = rhRes.count || 0;
     hourBank = (hb || []) as { overtime_minutes: number; reference_month: string }[];
   } catch {
     // sem Supabase

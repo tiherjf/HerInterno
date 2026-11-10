@@ -42,35 +42,36 @@ export default async function EventoDetailPage({ params }: Params) {
   const profile = await requireStaff();
   const svc = createServiceClient();
 
-  const { data: ev } = await svc
-    .from("events")
-    .select("*")
-    .eq("id", params.id)
-    .eq("active", true)
-    .single();
+  // Tudo depende só de params.id e do usuário → uma rodada em paralelo
+  // (antes eram 5 idas ao banco em sequência)
+  const [{ data: ev }, { data: reg }, { data: wl }, { count: wlCount }, isOrganizer] =
+    await Promise.all([
+      svc
+        .from("events")
+        .select("*")
+        .eq("id", params.id)
+        .eq("active", true)
+        .single(),
+      svc
+        .from("event_registrations")
+        .select("checked_in, checked_in_at")
+        .eq("event_id", params.id)
+        .eq("user_id", profile.id)
+        .maybeSingle(),
+      svc
+        .from("event_waitlist")
+        .select("joined_at")
+        .eq("event_id", params.id)
+        .eq("user_id", profile.id)
+        .maybeSingle(),
+      svc
+        .from("event_waitlist")
+        .select("*", { count: "exact", head: true })
+        .eq("event_id", params.id),
+      canEditMenuItem("eventos", profile.role as StaffRole),
+    ]);
 
   if (!ev) notFound();
-
-  const { data: reg } = await svc
-    .from("event_registrations")
-    .select("checked_in, checked_in_at")
-    .eq("event_id", params.id)
-    .eq("user_id", profile.id)
-    .maybeSingle();
-
-  const { data: wl } = await svc
-    .from("event_waitlist")
-    .select("joined_at")
-    .eq("event_id", params.id)
-    .eq("user_id", profile.id)
-    .maybeSingle();
-
-  const { count: wlCount } = await svc
-    .from("event_waitlist")
-    .select("*", { count: "exact", head: true })
-    .eq("event_id", params.id);
-
-  const isOrganizer = await canEditMenuItem("eventos", profile.role as StaffRole);
   const isPast = new Date(ev.event_date) < new Date();
 
   return (

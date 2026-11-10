@@ -1,21 +1,32 @@
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { unstable_cache } from "next/cache";
+import { createServiceClient } from "@/lib/supabase/server";
 import { DEFAULT_MENU } from "./config";
 import type { MenuItemConfig, StaffRole, UserMenuPermission } from "./types";
 
-async function fetchAllItems(): Promise<MenuItemConfig[]> {
-  try {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("menu_permissions")
-      .select("*")
-      .eq("active", true)
-      .order("order_num");
-    if (data && data.length > 0) return data as MenuItemConfig[];
-  } catch {
-    // Supabase não disponível — usa defaults
-  }
-  return DEFAULT_MENU;
-}
+/** Tag do cache do menu — invalidada em PUT /api/menu/permissions */
+export const MENU_CACHE_TAG = "menu-permissions";
+
+// A configuração do menu é igual para todos os usuários (o filtro por papel é feito
+// em memória), então fica em cache entre requisições em vez de ir ao banco a cada
+// navegação. Usa o service client porque o cache não pode depender de cookies.
+// O revalidate cobre alterações feitas fora da API (scripts de seed).
+const fetchAllItems = unstable_cache(
+  async (): Promise<MenuItemConfig[]> => {
+    try {
+      const { data } = await createServiceClient()
+        .from("menu_permissions")
+        .select("*")
+        .eq("active", true)
+        .order("order_num");
+      if (data && data.length > 0) return data as MenuItemConfig[];
+    } catch {
+      // Supabase não disponível — usa defaults
+    }
+    return DEFAULT_MENU;
+  },
+  ["menu-permissions-active"],
+  { tags: [MENU_CACHE_TAG], revalidate: 300 }
+);
 
 export async function getAllMenuItems(): Promise<MenuItemConfig[]> {
   return fetchAllItems();

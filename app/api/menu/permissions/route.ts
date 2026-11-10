@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { revalidateTag } from "next/cache";
 import type { StaffRole } from "@/lib/menu/types";
+import { MENU_CACHE_TAG } from "@/lib/menu/server";
 
 async function getAuthorizedUser() {
   const supabase = createClient();
@@ -57,6 +59,9 @@ export async function PUT(req: NextRequest) {
       if (error) errors.push(`${key}: ${error.message}`);
     })
   );
+
+  // Mesmo com erro parcial alguns itens podem ter sido gravados
+  revalidateTag(MENU_CACHE_TAG);
 
   if (errors.length > 0) {
     return NextResponse.json({ error: errors.join("; ") }, { status: 500 });
