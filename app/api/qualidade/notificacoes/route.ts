@@ -13,56 +13,55 @@ async function runQualityAlertsJob() {
     const in30days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const ago7days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // 1. NCs com prazo vencido (abertas)
-    const { data: overdue } = await svc
-      .from("quality_ncs")
-      .select("id, number, title, deadline, responsible_id, responsible:responsible_id(id)")
-      .not("status", "in", '("concluida","cancelada")')
-      .lt("deadline", today)
-      .not("deadline", "is", null);
+    // As 4 verificações são independentes → em paralelo
+    const [{ data: overdue }, { data: noPlans }, { data: expiringDocs }, { data: indicators }] = await Promise.all([
+      // 1. NCs com prazo vencido (abertas)
+      svc
+        .from("quality_ncs")
+        .select("id, number, title, deadline, responsible_id, responsible:responsible_id(id)")
+        .not("status", "in", '("concluida","cancelada")')
+        .lt("deadline", today)
+        .not("deadline", "is", null),
+      // 2. NCs abertas há mais de 7 dias (o filtro "sem plano de ação" vem abaixo)
+      svc
+        .from("quality_ncs")
+        .select("id, number, title, created_at, responsible_id")
+        .in("status", ["aberta", "em_analise"])
+        .lt("created_at", ago7days),
+      // 3. Documentos vencendo nos próximos 30 dias
+      svc
+        .from("quality_documents")
+        .select("id, code, title, valid_until, created_by")
+        .gte("valid_until", today)
+        .lte("valid_until", in30days)
+        .eq("status", "publicado"),
+      // 4. Indicadores com mínimo definido + APENAS o registro mais recente de cada um
+      //    (antes vinham todos, sem ordem, e o "último" do array era um mês qualquer)
+      svc
+        .from("quality_indicators")
+        .select("id, name, unit, min_value, responsible_id, quality_indicator_records(actual_value, reference_month)")
+        .eq("active", true)
+        .not("min_value", "is", null)
+        .order("reference_month", { referencedTable: "quality_indicator_records", ascending: false })
+        .limit(1, { referencedTable: "quality_indicator_records" }),
+    ]);
 
-    // 2. NCs abertas há mais de 7 dias sem nenhum plano de ação
-    const { data: noPlans } = await svc
-      .from("quality_ncs")
-      .select("id, number, title, created_at, responsible_id")
-      .in("status", ["aberta", "em_analise"])
-      .lt("created_at", ago7days);
-
-    const noPlansFiltered: typeof noPlans = [];
-    if (noPlans) {
-      for (const nc of noPlans) {
-        const { count } = await svc
-          .from("quality_action_plans")
-          .select("*", { count: "exact", head: true })
-          .eq("nc_id", nc.id);
-        if ((count ?? 0) === 0) noPlansFiltered.push(nc);
-      }
+    // NCs sem plano de ação: uma consulta para todas (antes era uma por NC)
+    let noPlansFiltered: NonNullable<typeof noPlans> = [];
+    if (noPlans && noPlans.length > 0) {
+      const { data: plans } = await svc
+        .from("quality_action_plans")
+        .select("nc_id")
+        .in("nc_id", noPlans.map(nc => nc.id));
+      const withPlan = new Set((plans ?? []).map((p: { nc_id: string }) => p.nc_id));
+      noPlansFiltered = noPlans.filter(nc => !withPlan.has(nc.id));
     }
 
-    // 3. Documentos vencendo nos próximos 30 dias
-    const { data: expiringDocs } = await svc
-      .from("quality_documents")
-      .select("id, code, title, valid_until, created_by")
-      .gte("valid_until", today)
-      .lte("valid_until", in30days)
-      .eq("status", "publicado");
-
-    // 4. Indicadores em estado crítico (abaixo do mínimo)
-    const { data: indicators } = await svc
-      .from("quality_indicators")
-      .select("id, name, unit, min_value, responsible_id, quality_indicator_records(actual_value, reference_month)")
-      .eq("active", true)
-      .not("min_value", "is", null);
-
-    const criticalInds: typeof indicators = [];
-    if (indicators) {
-      for (const ind of indicators) {
-        const recs = (ind.quality_indicator_records as { actual_value: number }[] | null) ?? [];
-        if (recs.length === 0) continue;
-        const last = recs[recs.length - 1];
-        if (last.actual_value < (ind.min_value as number)) criticalInds.push(ind);
-      }
-    }
+    // Indicador crítico: registro mais recente abaixo do mínimo aceitável
+    const criticalInds = (indicators ?? []).filter(ind => {
+      const latest = (ind.quality_indicator_records as { actual_value: number }[] | null)?.[0];
+      return !!latest && latest.actual_value < (ind.min_value as number);
+    });
 
     // Collect all responsible user IDs
     const userIds = new Set<string>();
@@ -98,17 +97,30 @@ async function runQualityAlertsJob() {
       detail: "Indicador abaixo do mínimo aceitável", urgency: "alta",
     }));
 
-    // Send emails
+    // Destinatários: nomes numa consulta só e e-mails em paralelo (antes eram
+    // 2 idas ao banco em sequência por pessoa, intercaladas com os envios)
+    const uids = Array.from(alertsByUser.keys());
+    const [{ data: profs }, emails] = await Promise.all([
+      uids.length > 0
+        ? svc.from("profiles").select("id, full_name").in("id", uids)
+        : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+      Promise.all(uids.map(uid =>
+        svc.auth.admin.getUserById(uid)
+          .then(({ data }) => data?.user?.email ?? null)
+          .catch(() => null)
+      )),
+    ]);
+    const nameById = new Map((profs ?? []).map((p: { id: string; full_name: string }) => [p.id, p.full_name]));
+
+    // Envios seguem um por vez: o Resend limita a ~2 req/s
     let sent = 0;
-    for (const [uid, alerts] of Array.from(alertsByUser.entries())) {
+    for (let i = 0; i < uids.length; i++) {
+      const email = emails[i];
+      if (!email) continue;
       try {
-        const { data: authUser } = await svc.auth.admin.getUserById(uid);
-        const email = authUser?.user?.email;
-        const { data: prof } = await svc.from("profiles").select("full_name").eq("id", uid).single();
-        if (!email) continue;
         const { subject, html } = qualidadeAlertaEmail({
-          recipientName: (prof?.full_name as string | null) ?? "Colaborador",
-          alerts,
+          recipientName: nameById.get(uids[i]) ?? "Colaborador",
+          alerts: alertsByUser.get(uids[i])!,
         });
         await sendEmail({ to: email, subject, html });
         sent++;
