@@ -23,7 +23,7 @@ export default async function AdminDashboard() {
   try {
     const supabase = createClient();
     const [r1, r2, r3, r4, r5] = await Promise.all([
-      supabase.from("profiles").select("*", { count: "exact", head: true }).eq("active", true),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("active", true),
       supabase.from("news").select("*", { count: "exact", head: true }).eq("status", "published"),
       supabase.from("trainings").select("*", { count: "exact", head: true }).eq("active", true),
       supabase.from("patients").select("*", { count: "exact", head: true }),

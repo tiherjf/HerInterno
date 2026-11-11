@@ -14,6 +14,10 @@ export type StaffRole =
   | "manutencao"
   | "qualidade";
 
+/** Colunas de profiles que qualquer usuário logado pode ler (tudo menos birth_date). */
+export const PROFILE_PUBLIC_COLUMNS =
+  "id, full_name, role, sector, unit, phone_ext, active, created_at, is_manager, manager_id, avatar_url";
+
 export interface StaffProfile {
   id: string;
   full_name: string;
@@ -43,9 +47,10 @@ export const getStaffProfile = cache(async function getStaffProfile(): Promise<S
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Colunas explícitas: birth_date não é legível pelo usuário logado (migração 049)
   const { data } = await supabase
     .from("profiles")
-    .select("*")
+    .select(PROFILE_PUBLIC_COLUMNS)
     .eq("id", user.id)
     .eq("active", true)
     .single();

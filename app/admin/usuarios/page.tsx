@@ -89,14 +89,12 @@ export default function UsuariosPage() {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("profiles")
-      // "*" para não quebrar antes da migração 048 (birth_date)
-      .select("*")
-      .order("full_name");
+    // Via API (service client): birth_date não é legível direto do navegador (migração 049)
+    const res = await fetch("/api/admin/users");
+    const { users: data } = res.ok ? await res.json() : { users: [] };
     setUsers(data || []);
     setLoading(false);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     fetchUsers();

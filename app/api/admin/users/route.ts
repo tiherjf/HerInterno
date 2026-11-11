@@ -14,7 +14,12 @@ export async function GET() {
     const supabase = createServiceClient();
     const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, role, sector, unit, phone_ext, active, is_manager, manager_id")
+      // birth_date só para quem gerencia usuários (admin); os painéis de chamados/inventário não recebem
+      .select(
+        canManageUsers(profile.role)
+          ? "id, full_name, role, sector, unit, phone_ext, active, is_manager, manager_id, birth_date"
+          : "id, full_name, role, sector, unit, phone_ext, active, is_manager, manager_id"
+      )
       .order("full_name");
     return NextResponse.json({ users: data || [] });
   } catch (err) {
