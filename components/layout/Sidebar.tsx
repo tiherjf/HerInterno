@@ -41,6 +41,7 @@ import { NotificacaoDot } from "@/components/news/NotificacaoDot";
 import { useChatUnread } from "@/components/chat/ChatProvider";
 import { useMobileSidebar } from "@/components/layout/MobileSidebarContext";
 import { CATEGORY_ORDER } from "@/lib/menu/types";
+import { activeHref } from "@/lib/menu/active";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Newspaper,
@@ -129,7 +130,7 @@ function NavLink({
   icon: Icon,
   showBadge,
   showChatBadge,
-  pathname,
+  currentHref,
   collapsed,
   onNavigate,
 }: {
@@ -138,14 +139,12 @@ function NavLink({
   icon: LucideIcon;
   showBadge?: boolean;
   showChatBadge?: boolean;
-  pathname: string;
+  /** Link aceso agora (o mais específico que casa com a rota) */
+  currentHref: string | null;
   collapsed: boolean;
   onNavigate: () => void;
 }) {
-  const isActive =
-    href === "/intranet"
-      ? pathname === href
-      : pathname === href || pathname.startsWith(href + "/");
+  const isActive = href === currentHref;
   return (
     <Link
       href={href}
@@ -206,7 +205,14 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
   ).map(([category, items]) => ({ category, items }));
 
   const allGroups = [...grouped, ...extraGroups];
-  const linkProps = { pathname, collapsed, onNavigate: close };
+  // Só um item aceso: o mais específico (antes /admin acendia junto com /admin/chamados)
+  const currentHref = activeHref(pathname, [
+    "/intranet",
+    ...menuItems.map((i) => i.href),
+    ...(canConfig ? ["/intranet/configuracoes/menu"] : []),
+    ...visibleAdminGroups.flatMap((g) => g.items.map((i) => i.href)),
+  ]);
+  const linkProps = { currentHref, collapsed, onNavigate: close };
 
   return (
     <>

@@ -111,7 +111,7 @@ export function Header({ profile }: HeaderProps) {
         <div className="flex items-center gap-2.5 pl-2 border-l ml-1">
           <Link href="/intranet/perfil" title="Meu perfil">
             <Avatar className="h-8 w-8 ring-2 ring-transparent hover:ring-primary/40 transition-all cursor-pointer">
-              <AvatarFallback className="brand-gradient text-white text-xs font-semibold">
+              <AvatarFallback className="bg-primary text-white text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
