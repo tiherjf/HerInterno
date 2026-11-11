@@ -151,14 +151,18 @@ function NavLink({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+        "group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
         isActive
-          ? "bg-primary-foreground text-primary font-medium"
-          : "text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground"
+          ? "bg-accent text-primary font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-full before:bg-primary"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
       )}
       title={collapsed ? label : undefined}
+      aria-current={isActive ? "page" : undefined}
     >
-      <Icon size={18} className="shrink-0" />
+      <Icon
+        size={18}
+        className={cn("shrink-0", isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600")}
+      />
       {!collapsed && <span>{label}</span>}
       {!collapsed && showBadge && <NotificacaoDot />}
       {!collapsed && showChatBadge && <ChatUnreadBadge />}
@@ -216,7 +220,7 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
       )}
       <aside
         className={cn(
-          "flex flex-col bg-primary text-primary-foreground transition-all duration-300",
+          "flex flex-col bg-white border-r border-border text-slate-600 transition-all duration-300",
           // Mobile: overlay fixo
           "fixed inset-y-0 left-0 z-50",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
@@ -226,16 +230,29 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
         )}
       >
       {/* Logo */}
-      <div className="flex items-center justify-between p-4 border-b border-primary-foreground/15">
-        {!collapsed && (
-          <div className="flex flex-col">
-            <span className="font-bold text-sm leading-tight">Hospital Evandro</span>
-            <span className="font-bold text-sm leading-tight">Ribeiro</span>
-          </div>
+      <div
+        className={cn(
+          "flex items-center gap-2 h-16 border-b border-border",
+          collapsed ? "flex-col justify-center px-2 h-auto py-3" : "justify-between px-4"
         )}
+      >
+        <Link href="/intranet" onClick={close} className="shrink-0" title="Início">
+          {collapsed ? (
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-[11px] font-bold tracking-wide text-white">
+              HER
+            </span>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/brand/logo-horizontal.png"
+              alt="Hospital Evandro Ribeiro"
+              className="h-10 w-auto"
+            />
+          )}
+        </Link>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1 rounded hover:bg-primary-foreground/10 transition-colors ml-auto"
+          className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
           title={collapsed ? "Expandir menu" : "Recolher menu"}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -253,11 +270,11 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
         {allGroups.map(({ category, items }) => (
           <div key={category} className="mb-2">
             {!collapsed && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-primary-foreground/50 uppercase tracking-wider">
+              <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 {category}
               </p>
             )}
-            {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
+            {collapsed && <div className="border-t border-border my-1 mx-2" />}
             <div className="px-2 space-y-0.5">
               {items.map((item) => {
                 const Icon = ICON_MAP[item.icon] ?? FileText;
@@ -280,11 +297,11 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
         {canConfig && (
           <div className="mb-2">
             {!collapsed && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-primary-foreground/50 uppercase tracking-wider">
+              <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 Configurações
               </p>
             )}
-            {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
+            {collapsed && <div className="border-t border-border my-1 mx-2" />}
             <div className="px-2">
               <NavLink {...linkProps}
                 href="/intranet/configuracoes/menu"
@@ -299,11 +316,11 @@ export function Sidebar({ role, menuItems }: SidebarProps) {
         {visibleAdminGroups.map((group) => (
           <div key={group.label} className="mb-2">
             {!collapsed && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-primary-foreground/50 uppercase tracking-wider">
+              <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 {group.label}
               </p>
             )}
-            {collapsed && <div className="border-t border-primary-foreground/15 my-1 mx-2" />}
+            {collapsed && <div className="border-t border-border my-1 mx-2" />}
             <div className="px-2 space-y-0.5">
               {group.items.map((item) => (
                 <NavLink {...linkProps}
