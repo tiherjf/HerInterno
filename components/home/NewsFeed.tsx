@@ -56,7 +56,7 @@ function AuthorAvatar({ name, avatarUrl, role }: { name: string; avatarUrl: stri
 
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-2xl border overflow-hidden animate-pulse">
+    <div className="bg-white rounded-2xl border border-border overflow-hidden animate-pulse">
       <div className="h-44 bg-gray-200" />
       <div className="p-4 space-y-3">
         <div className="flex gap-2">
@@ -71,8 +71,10 @@ function SkeletonCard() {
   );
 }
 
-export function NewsFeed() {
-  const [news, setNews] = useState<NewsItem[]>([]);
+/** excludeId: notícia já mostrada em destaque na página inicial (não repete na lista). */
+export function NewsFeed({ excludeId }: { excludeId?: string } = {}) {
+  const [allNews, setNews] = useState<NewsItem[]>([]);
+  const news = excludeId ? allNews.filter((n) => n.id !== excludeId) : allNews;
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -126,9 +128,9 @@ export function NewsFeed() {
 
   if (news.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white rounded-2xl border">
+      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground bg-white rounded-2xl border border-border">
         <Newspaper size={40} className="mb-3 opacity-20" />
-        <p>Nenhuma notícia publicada ainda.</p>
+        <p>{excludeId ? "Nenhuma outra notícia por enquanto." : "Nenhuma notícia publicada ainda."}</p>
       </div>
     );
   }
@@ -136,7 +138,7 @@ export function NewsFeed() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {news.map((item) => (
-        <div key={item.id} className="bg-white rounded-2xl border overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+        <div key={item.id} className="bg-white rounded-2xl border border-border overflow-hidden hover:shadow-md transition-shadow flex flex-col">
           {/* Cover */}
           <Link href={`/intranet/noticias/${item.id}`} className="block">
             {item.cover_url ? (
