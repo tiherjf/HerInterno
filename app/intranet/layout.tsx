@@ -25,14 +25,14 @@ export default async function IntranetLayout({
     <MenuPermissionsProvider permissions={permissions}>
       <ChatProvider me={{ id: profile.id, name: profile.full_name, sector: profile.sector ?? "" }}>
         <MobileSidebarProvider>
-          <div className="flex min-h-screen bg-gray-50">
+          <div className="flex min-h-screen bg-background">
             <Sidebar
               role={profile.role}
               menuItems={menuItems}
             />
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
               <Header profile={profile} />
-              <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+              <main className="flex-1 overflow-y-auto p-4 md:p-8"><div className="mx-auto max-w-7xl">{children}</div></main>
             </div>
           </div>
         </MobileSidebarProvider>
