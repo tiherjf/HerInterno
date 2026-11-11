@@ -100,12 +100,8 @@ const adminGroups: { label: string; items: AdminMenuItem[] }[] = [
       { href: "/admin/inventario", label: "Inventário TI", icon: Package, roles: ["admin", "ti"] },
     ],
   },
-  {
-    label: "RH",
-    items: [
-      { href: "/admin/ponto", label: "Ponto / RH", icon: BarChart3, roles: ["admin"] },
-    ],
-  },
+  // "RH → Ponto / RH" (/admin/ponto) oculto por ora, junto com o módulo de ponto.
+  // Para voltar: { label: "RH", items: [{ href: "/admin/ponto", label: "Ponto / RH", icon: BarChart3, roles: ["admin"] }] }
 ];
 
 interface SidebarProps {
