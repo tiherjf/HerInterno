@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, LogOut, Menu } from "lucide-react";
+import { useState } from "react";
+import { Bell, LogOut, Menu, Search, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,7 @@ import Link from "next/link";
 import { NotificacaoDot } from "@/components/news/NotificacaoDot";
 import { useMobileSidebar } from "@/components/layout/MobileSidebarContext";
 import { useChatContext, type ChatStatus } from "@/components/chat/ChatProvider";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
 
 const CHAT_STATUS_META: Record<ChatStatus, { label: string; dot: string; next: ChatStatus }> = {
   disponivel: { label: "Disponível", dot: "bg-green-500", next: "ausente" },
@@ -45,6 +47,7 @@ export function Header({ profile }: HeaderProps) {
   const router = useRouter();
   const supabase = createClient();
   const { toggle } = useMobileSidebar();
+  const [mobileSearch, setMobileSearch] = useState(false);
 
   const initials = profile.full_name
     .split(" ")
@@ -59,29 +62,44 @@ export function Header({ profile }: HeaderProps) {
   }
 
   return (
-    <header className="h-16 border-b bg-white/95 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-4 md:px-6 shadow-sm">
-      {/* Marca */}
-      <div className="flex items-center gap-3">
+    <header className="h-16 border-b border-border bg-white sticky top-0 z-30 flex items-center justify-between gap-4 px-4 md:px-8">
+      {/* Busca expandida no celular: ocupa o cabeçalho inteiro */}
+      {mobileSearch && (
+        <div className="absolute inset-0 z-10 flex items-center gap-2 bg-white px-3 sm:hidden">
+          <GlobalSearch className="flex-1" autoFocus />
+          <Button variant="ghost" size="icon" onClick={() => setMobileSearch(false)} aria-label="Fechar busca">
+            <X size={18} />
+          </Button>
+        </div>
+      )}
+
+      {/* Esquerda: menu mobile + logo (só no mobile; no desktop o logo está no menu) + busca */}
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden -ml-1 text-gray-600"
+          className="lg:hidden -ml-1 text-slate-600"
           onClick={toggle}
           aria-label="Abrir menu"
         >
           <Menu size={22} />
         </Button>
-        <div className="w-8 h-8 brand-gradient rounded-lg flex items-center justify-center shrink-0">
-          <span className="text-white font-bold text-sm leading-none">HER</span>
-        </div>
-        <div className="hidden sm:block">
-          <p className="text-sm font-semibold text-gray-800 leading-tight">Intranet HER</p>
-          <p className="text-[10px] text-gray-400 leading-tight">Hospital Evandro Ribeiro</p>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/logo-horizontal.png" alt="Hospital Evandro Ribeiro" className="h-7 w-auto lg:hidden" />
+        <GlobalSearch className="hidden sm:block w-full max-w-md" />
       </div>
 
       {/* Ações */}
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="sm:hidden text-slate-500"
+          onClick={() => setMobileSearch(true)}
+          aria-label="Buscar"
+        >
+          <Search size={18} />
+        </Button>
         <ChatStatusDot />
         <Link href="/intranet/noticias" title="Notificações" className="relative inline-flex">
           <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-800">
