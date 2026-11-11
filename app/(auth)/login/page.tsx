@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2, Hospital } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,17 +37,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 to-zinc-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4">
-            <Hospital size={40} className="text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">Hospital Evandro Ribeiro</h1>
-          <p className="text-zinc-400 text-sm mt-1">Portal do Colaborador — Juiz de Fora, MG</p>
-        </div>
-
+    <AuthShell subtitle="Portal do Colaborador · Juiz de Fora, MG">
         <Card className="shadow-2xl">
           <CardHeader>
             <CardTitle>Acesso Colaborador</CardTitle>
@@ -108,11 +99,6 @@ export default function LoginPage() {
 
           </CardContent>
         </Card>
-
-        <p className="text-center text-zinc-500 text-xs mt-6">
-          Acesso restrito a colaboradores. Em caso de problemas, contate o suporte de TI.
-        </p>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

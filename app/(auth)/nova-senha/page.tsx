@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Hospital, Loader2, CheckCircle, Lock } from "lucide-react";
+import { AlertCircle, Loader2, CheckCircle, Lock } from "lucide-react";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 export default function NovaSenhaPage() {
   const supabase = createClient();
@@ -54,16 +55,7 @@ export default function NovaSenhaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 to-zinc-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg mb-4">
-            <Hospital size={40} className="text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">Hospital Evandro Ribeiro</h1>
-          <p className="text-zinc-400 text-sm mt-1">Redefinição de senha</p>
-        </div>
-
+    <AuthShell subtitle="Redefinição de senha">
         <Card className="shadow-2xl">
           {done ? (
             <>
@@ -141,7 +133,6 @@ export default function NovaSenhaPage() {
             </>
           )}
         </Card>
-      </div>
-    </div>
+    </AuthShell>
   );
 }
