@@ -20,6 +20,7 @@ interface PerfilData {
   unit: string | null;
   phone_ext: string | null;
   avatar_url: string | null;
+  birth_date: string | null;
 }
 
 type Msg = { text: string; ok: boolean } | null;
@@ -36,6 +37,7 @@ export default function PerfilPage() {
   const [perfil, setPerfil] = useState<PerfilData | null>(null);
   const [nome, setNome] = useState("");
   const [ramal, setRamal] = useState("");
+  const [nascimento, setNascimento] = useState("");
   const [savingPerfil, setSavingPerfil] = useState(false);
   const [msgPerfil, setMsgPerfil] = useState<Msg>(null);
 
@@ -54,6 +56,7 @@ export default function PerfilPage() {
         setPerfil(d);
         setNome(d.full_name ?? "");
         setRamal(d.phone_ext ?? "");
+        setNascimento(d.birth_date ?? "");
       });
   }, []);
 
@@ -62,14 +65,20 @@ export default function PerfilPage() {
     const res = await fetch("/api/perfil", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: nome, phone_ext: ramal }),
+      body: JSON.stringify({
+        full_name: nome,
+        phone_ext: ramal,
+        // só envia a data quando mudou
+        ...(nascimento !== (perfil?.birth_date ?? "") ? { birth_date: nascimento || null } : {}),
+      }),
     });
     setSavingPerfil(false);
     if (res.ok) {
-      setPerfil((p) => p ? { ...p, full_name: nome, phone_ext: ramal } : p);
+      setPerfil((p) => p ? { ...p, full_name: nome, phone_ext: ramal, birth_date: nascimento || null } : p);
       feedback(setMsgPerfil, "Dados salvos com sucesso!", true);
     } else {
-      feedback(setMsgPerfil, "Erro ao salvar. Tente novamente.", false);
+      const err = await res.json().catch(() => null);
+      feedback(setMsgPerfil, err?.error ?? "Erro ao salvar. Tente novamente.", false);
     }
   }
 
@@ -220,6 +229,18 @@ export default function PerfilPage() {
                 className="bg-gray-50 text-muted-foreground"
               />
             </div>
+          </div>
+          <div className="space-y-2 sm:w-1/2">
+            <Label>Data de nascimento</Label>
+            <Input
+              type="date"
+              value={nascimento}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setNascimento(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Para os colegas aparecem só o dia e o mês, no card de aniversariantes.
+            </p>
           </div>
           {msgPerfil && (
             <Alert variant={msgPerfil.ok ? "success" : "destructive"}>

@@ -50,6 +50,7 @@ interface User {
   active: boolean;
   is_manager: boolean;
   manager_id: string | null;
+  birth_date?: string | null;
   email?: string;
 }
 
@@ -73,6 +74,7 @@ const EMPTY_FORM = {
   password: "",
   is_manager: false,
   manager_id: "",
+  birth_date: "",
 };
 
 export default function UsuariosPage() {
@@ -89,7 +91,8 @@ export default function UsuariosPage() {
     setLoading(true);
     const { data } = await supabase
       .from("profiles")
-      .select("id, full_name, role, sector, unit, phone_ext, active, is_manager, manager_id")
+      // "*" para não quebrar antes da migração 048 (birth_date)
+      .select("*")
       .order("full_name");
     setUsers(data || []);
     setLoading(false);
@@ -132,16 +135,20 @@ export default function UsuariosPage() {
       password: "",
       is_manager: user.is_manager || false,
       manager_id: user.manager_id || "",
+      birth_date: user.birth_date || "",
     });
     setDialogOpen(true);
   }
 
   async function handleSave() {
     setSaving(true);
+    const { birth_date, ...rest } = form;
     const payload = {
-      ...form,
+      ...rest,
       is_manager: form.is_manager,
       manager_id: form.manager_id || null,
+      // Só envia a data se ela mudou (assim editar outros campos funciona mesmo sem a migração 048)
+      ...(editUser && birth_date !== (editUser.birth_date || "") ? { birth_date: birth_date || null } : {}),
     };
 
     if (editUser) {
@@ -388,6 +395,19 @@ export default function UsuariosPage() {
                 />
               </div>
             </div>
+
+            {editUser && (
+              <div className="space-y-2">
+                <Label>Data de nascimento</Label>
+                <Input
+                  type="date"
+                  value={form.birth_date}
+                  onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
+                  className="sm:w-1/2"
+                />
+                <p className="text-xs text-muted-foreground">Na página inicial aparecem só o dia e o mês.</p>
+              </div>
+            )}
 
             {/* Gestor direto */}
             <div className="space-y-2">

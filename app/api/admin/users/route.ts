@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { canManageUsers, requireStaff } from "@/lib/auth/staff";
+import { parseBirthDate } from "@/lib/perfil/birth-date";
 import { apiError } from "@/lib/api/error";
 
 export async function GET() {
@@ -83,10 +84,17 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
-    const { id, full_name, role, sector, unit, phone_ext, is_manager, manager_id } =
+    const { id, full_name, role, sector, unit, phone_ext, is_manager, manager_id, birth_date } =
       await req.json();
 
     if (!id) return NextResponse.json({ error: "ID obrigatório" }, { status: 400 });
+
+    let birthDate: string | null | undefined;
+    try {
+      birthDate = parseBirthDate(birth_date);
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    }
 
     // RH só pode alterar manager_id e is_manager
     const isRHOnly = profile.role === "rh";
@@ -103,6 +111,8 @@ export async function PATCH(req: NextRequest) {
           phone_ext: phone_ext || null,
           is_manager: is_manager === true,
           manager_id: manager_id || null,
+          // só envia quando o formulário mandou o campo (não quebra antes da migração 048)
+          ...(birthDate !== undefined ? { birth_date: birthDate } : {}),
         };
 
     const serviceClient = createServiceClient();
