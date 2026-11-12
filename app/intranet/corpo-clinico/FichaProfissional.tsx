@@ -46,7 +46,7 @@ export function FichaProfissional({ prof, termoConvenio, hoje, podeEditar, onEdi
 
   return (
     <article className="space-y-4 rounded-xl border border-border bg-white p-5 shadow-sm">
-      <header className="flex items-start gap-3">
+      <div className="flex items-start gap-3">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-primary">
           {iniciais(prof.nome) || "?"}
         </span>
@@ -62,7 +62,7 @@ export function FichaProfissional({ prof, termoConvenio, hoje, podeEditar, onEdi
             </Button>
           </div>
         )}
-      </header>
+      </div>
 
       {atendeHoje && (
         <span className="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">

@@ -11,7 +11,7 @@ export function SetorCaixa({ titulo, quantidade, icone, acoesAdmin, children }: 
 }) {
   return (
     <section className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-border bg-white shadow-sm">
-      <header className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         {icone}
         <h2 className="text-sm font-semibold text-slate-900">{titulo}</h2>
         <span className="text-xs text-slate-500">{quantidade}</span>
@@ -31,7 +31,7 @@ export function SetorCaixa({ titulo, quantidade, icone, acoesAdmin, children }: 
             </button>
           </span>
         )}
-      </header>
+      </div>
       <ul className="divide-y divide-slate-100">{children}</ul>
     </section>
   );

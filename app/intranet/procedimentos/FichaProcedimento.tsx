@@ -38,7 +38,7 @@ export function FichaProcedimento({ item: p, podeEditar, onEditar, onAlternarAti
 
   return (
     <article className="space-y-4 rounded-xl border border-border bg-white p-5 shadow-sm">
-      <header className="flex items-start gap-3">
+      <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-primary">
@@ -66,7 +66,7 @@ export function FichaProcedimento({ item: p, podeEditar, onEditar, onAlternarAti
             </Button>
           </div>
         )}
-      </header>
+      </div>
 
       <Bloco titulo="Valor">
         {!temValor ? (
