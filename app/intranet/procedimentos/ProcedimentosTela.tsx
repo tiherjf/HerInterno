@@ -12,6 +12,8 @@ import { agruparPorCategoria, filtrarProcedimentos, medicosDaUnidade, type Filtr
 import { FiltrosProc } from "./FiltrosProc";
 import { ListaProc } from "./ListaProc";
 import { FichaProcedimento } from "./FichaProcedimento";
+import { ProcedimentoDialog } from "./ProcedimentoDialog";
+import { medicosDe } from "@/lib/procedimentos/filtro";
 
 const UNIDADE_PADRAO = "Hospital";
 
@@ -27,6 +29,7 @@ export default function ProcedimentosTela({ initialItems, initialQ }: { initialI
     medico: null,
   });
   const [aviso, setAviso] = useState("");
+  const [dialog, setDialog] = useState<{ aberto: boolean; original?: Procedimento }>({ aberto: false });
 
   const recarregar = useCallback(async () => {
     const res = await fetch("/api/procedimentos");
@@ -44,6 +47,11 @@ export default function ProcedimentosTela({ initialItems, initialQ }: { initialI
     recarregar();
   }
 
+  const distintos = (valores: string[]) =>
+    Array.from(new Set(valores.map((v) => v.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const categorias = useMemo(() => distintos(items.map((p) => p.categoria ?? "")), [items]);
+  const conveniosExistentes = useMemo(() => distintos(items.flatMap((p) => p.convenios ?? [])), [items]);
+  const medicosExistentes = useMemo(() => distintos(items.flatMap(medicosDe)), [items]);
   const medicos = useMemo(() => medicosDaUnidade(items, filtros.unidade), [items, filtros.unidade]);
   const filtrados = useMemo(() => filtrarProcedimentos(items, filtros), [items, filtros]);
   const grupos = useMemo(() => agruparPorCategoria(filtrados), [filtrados]);
@@ -58,7 +66,7 @@ export default function ProcedimentosTela({ initialItems, initialQ }: { initialI
         titulo="Procedimentos e Exames"
         subtitulo={`${n} ${n === 1 ? "item" : "itens"}`}
         acoes={podeEditar ? (
-          <Button onClick={() => { /* janela de cadastro: Task 10 */ }}>
+          <Button onClick={() => setDialog({ aberto: true })}>
             <Plus size={15} /> Novo item
           </Button>
         ) : undefined}
@@ -85,7 +93,7 @@ export default function ProcedimentosTela({ initialItems, initialQ }: { initialI
           <FichaProcedimento
             item={p}
             podeEditar={podeEditar}
-            onEditar={() => { /* janela de edição: Task 10 */ }}
+            onEditar={() => setDialog({ aberto: true, original: p })}
             onAlternarAtivo={() => alternarAtivo(p)}
           />
         )}
@@ -95,6 +103,17 @@ export default function ProcedimentosTela({ initialItems, initialQ }: { initialI
             <p>Nenhum item encontrado{filtros.busca.trim() ? ` para "${filtros.busca.trim()}"` : ""}.</p>
           </div>
         }
+      />
+
+      <ProcedimentoDialog
+        aberto={dialog.aberto}
+        original={dialog.original}
+        unidadeInicial={filtros.unidade ?? UNIDADE_PADRAO}
+        categorias={categorias}
+        convenios={conveniosExistentes}
+        medicos={medicosExistentes}
+        onFechar={() => setDialog({ aberto: false })}
+        onSalvo={(a) => { setAviso(a); recarregar(); }}
       />
     </div>
   );
