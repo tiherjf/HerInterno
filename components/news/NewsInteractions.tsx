@@ -19,16 +19,18 @@ interface Props {
   newsId: string;
   currentUserId: string;
   isAdminOrTi: boolean;
+  /** Começa com os comentários abertos e carregados (notícia aberta). */
+  defaultShowComments?: boolean;
 }
 
-export function NewsInteractions({ newsId, currentUserId, isAdminOrTi }: Props) {
+export function NewsInteractions({ newsId, currentUserId, isAdminOrTi, defaultShowComments = false }: Props) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [liking, setLiking] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(defaultShowComments);
   const [loadingComments, setLoadingComments] = useState(false);
   const commentRef = useRef<HTMLTextAreaElement>(null);
 
@@ -51,6 +53,12 @@ export function NewsInteractions({ newsId, currentUserId, isAdminOrTi }: Props) 
       setLiking(false);
     }
   }
+
+  // Notícia aberta: comentários já visíveis, sem precisar clicar
+  useEffect(() => {
+    if (defaultShowComments) loadComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newsId, defaultShowComments]);
 
   async function loadComments() {
     setLoadingComments(true);

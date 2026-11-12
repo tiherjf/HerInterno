@@ -6,9 +6,10 @@ import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, Edit, Eye, Calendar } from "lucide-react";
+import { ArrowLeft, Edit, Eye, Calendar, Clock } from "lucide-react";
 import { MarcarLida } from "@/components/news/MarcarLida";
-import { ImageLightbox } from "@/components/news/ImageLightbox";
+import { CoverImage } from "@/components/ui-her/CoverImage";
+import { readingMinutes } from "@/lib/news/reading";
 import { NewsInteractions } from "@/components/news/NewsInteractions";
 import { DeleteNewsButton } from "@/components/news/DeleteNewsButton";
 import { LeitoresDialog } from "@/components/news/LeitoresDialog";
@@ -21,13 +22,9 @@ interface NewsArticle {
   profiles?: { full_name: string } | null;
 }
 
-const categoryColors: Record<string, string> = {
-  Institucional: "bg-blue-100 text-blue-800",
-  RH: "bg-green-100 text-green-800",
-  Qualidade: "bg-purple-100 text-purple-800",
-  TI: "bg-yellow-100 text-yellow-800",
-  Eventos: "bg-pink-100 text-pink-800",
-};
+const longDate = (iso: string) =>
+  new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "numeric", month: "long", year: "numeric" })
+    .format(new Date(iso));
 
 export default async function NoticiaPage({ params }: { params: { id: string } }) {
   const profile = await requireStaff();
@@ -37,6 +34,7 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
 
   let news: NewsArticle | null = null;
   let readCount = 0;
+  let more: { id: string; title: string; published_at: string | null }[] = [];
 
   try {
     // Editores veem rascunhos também
@@ -48,15 +46,25 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
 
     if (!canEdit) query.eq("status", "published");
 
-    const [{ data }, { count }] = await Promise.all([
+    const [{ data }, { count }, { data: moreData }] = await Promise.all([
       query.single(),
       createServiceClient()
         .from("news_reads")
         .select("*", { count: "exact", head: true })
         .eq("news_id", params.id),
+      // "Mais notícias": as 4 publicadas mais recentes, sem a atual
+      createClient()
+        .from("news")
+        .select("id, title, published_at")
+        .eq("status", "published")
+        .lte("published_at", new Date().toISOString())
+        .neq("id", params.id)
+        .order("published_at", { ascending: false })
+        .limit(4),
     ]);
     news = data as NewsArticle;
     readCount = count ?? 0;
+    more = moreData ?? [];
   } catch { /* supabase não configurado */ }
 
   if (!news) notFound();
@@ -72,90 +80,108 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
 
   const canEditThis = canEdit && (isAdminOrTi || news.author_id === profile.id);
 
+  const authorName = news.profiles?.full_name ?? "Redação HER";
+  const minutes = readingMinutes(news.body);
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
       <MarcarLida newsId={params.id} />
 
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <Link href="/intranet/noticias">
-          <Button variant="ghost" size="sm"><ArrowLeft size={16} /> Voltar</Button>
-        </Link>
-        <div className="flex gap-2">
-          {readCount > 0 && (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground bg-gray-100 px-3 py-1.5 rounded-full">
-              <Eye size={12} /> {readCount} {readCount === 1 ? "leitura" : "leituras"}
-            </span>
-          )}
-          {canEdit && <LeitoresDialog newsId={news.id} />}
-          {canEditThis && (
-            <Link href={`/intranet/noticias/editar/${news.id}`}>
-              <Button variant="outline" size="sm"><Edit size={14} /> Editar</Button>
-            </Link>
-          )}
-          {canDel && (
-            <DeleteNewsButton newsId={news.id} />
-          )}
+      <div className="min-w-0 space-y-4">
+        {/* Topo: voltar + leituras + ações */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <Link href="/intranet/noticias"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-primary">
+            <ArrowLeft size={16} /> Notícias
+          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            {readCount > 0 && (
+              <span className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs text-slate-600">
+                <Eye size={13} /> {readCount} {readCount === 1 ? "leu" : "leram"}
+              </span>
+            )}
+            {canEdit && <LeitoresDialog newsId={news.id} />}
+            {canEditThis && (
+              <Link href={`/intranet/noticias/editar/${news.id}`}>
+                <Button variant="outline" size="sm"><Edit size={14} /> Editar</Button>
+              </Link>
+            )}
+            {canDel && <DeleteNewsButton newsId={news.id} />}
+          </div>
         </div>
+
+        {/* Banner de rascunho/agendado */}
+        {news.status === "draft" && (
+          <div className="bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-2 text-sm text-yellow-800 flex items-center gap-2">
+            <Edit size={14} /> <strong>Rascunho</strong> — não visível para outros colaboradores
+          </div>
+        )}
+        {isScheduled && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-2 text-sm text-amber-800 flex items-center gap-2">
+            <Calendar size={14} />
+            <strong>Agendada</strong> — será publicada em{" "}
+            {news.published_at ? new Date(news.published_at).toLocaleString("pt-BR") : "—"}
+          </div>
+        )}
+
+        <article className="overflow-hidden rounded-xl border border-border bg-card">
+          <header className="space-y-3 p-5 sm:p-7 sm:pb-5">
+            <span className="inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-semibold text-primary">
+              {news.category}
+            </span>
+            <h1 className="text-2xl font-bold leading-tight text-slate-900 md:text-3xl">{news.title}</h1>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+                {authorName.charAt(0).toUpperCase()}
+              </span>
+              <span className="font-medium text-slate-800">{authorName}</span>
+              {news.published_at && !isScheduled && <span>· {longDate(news.published_at)}</span>}
+              <span className="flex items-center gap-1">· <Clock size={13} /> {minutes} min de leitura</span>
+            </div>
+            {news.summary && (
+              <p className="text-base leading-relaxed text-slate-600">{news.summary}</p>
+            )}
+          </header>
+
+          {/* Capa inteira, com "Ampliar" */}
+          {news.cover_url && (
+            <CoverImage src={news.cover_url} alt={news.title} zoomable className="h-80 md:h-[28rem]" />
+          )}
+
+          <div className="space-y-6 p-5 sm:p-7">
+            <div className="news-content" dangerouslySetInnerHTML={{ __html: news.body ?? "" }} />
+
+            {/* Curtir + comentários (já abertos) */}
+            {news.status === "published" && !isScheduled && (
+              <NewsInteractions
+                newsId={news.id}
+                currentUserId={profile.id}
+                isAdminOrTi={isAdminOrTi}
+                defaultShowComments
+              />
+            )}
+          </div>
+        </article>
       </div>
 
-      {/* Banner de rascunho/agendado */}
-      {news.status === "draft" && (
-        <div className="bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-2 text-sm text-yellow-800 flex items-center gap-2">
-          <Edit size={14} /> <strong>Rascunho</strong> — não visível para outros colaboradores
-        </div>
+      {/* Lateral: mais notícias */}
+      {more.length > 0 && (
+        <aside className="hidden lg:block">
+          <section className="rounded-2xl border border-border bg-white p-5">
+            <h3 className="mb-4 text-sm font-semibold text-slate-900">Mais notícias</h3>
+            <ul className="space-y-3">
+              {more.map((n) => (
+                <li key={n.id}>
+                  <Link href={`/intranet/noticias/${n.id}`} className="group block">
+                    <span className="line-clamp-2 text-sm font-medium text-slate-800 group-hover:text-primary">{n.title}</span>
+                    {n.published_at && <span className="text-xs text-slate-500">{formatDate(n.published_at)}</span>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </aside>
       )}
-      {isScheduled && (
-        <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-2 text-sm text-amber-800 flex items-center gap-2">
-          <Calendar size={14} />
-          <strong>Agendada</strong> — será publicada em{" "}
-          {news.published_at ? new Date(news.published_at).toLocaleString("pt-BR") : "—"}
-        </div>
-      )}
-
-      <article className="bg-white rounded-xl shadow-sm border p-6 sm:p-8">
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <span className={`text-sm px-3 py-1 rounded-full font-medium ${
-            categoryColors[news.category] ?? "bg-gray-100 text-gray-800"
-          }`}>
-            {news.category}
-          </span>
-          {news.published_at && !isScheduled && (
-            <span className="text-sm text-muted-foreground">{formatDate(news.published_at)}</span>
-          )}
-        </div>
-
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">{news.title}</h1>
-
-        {news.summary && (
-          <p className="text-lg text-muted-foreground mb-6 leading-relaxed border-l-4 border-primary pl-4">
-            {news.summary}
-          </p>
-        )}
-
-        {news.cover_url && (
-          <ImageLightbox src={news.cover_url} alt={news.title}
-            className="w-full h-64 object-cover rounded-lg mb-6" />
-        )}
-
-        <div className="prose prose-blue max-w-none tiptap-editor border-0 p-0"
-          dangerouslySetInnerHTML={{ __html: news.body ?? "" }} />
-
-        <div className="mt-8 pt-6 border-t flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Publicado por</span>
-          <span className="font-medium text-foreground">
-            {(news as any).profiles?.full_name ?? "Redação HER"}
-          </span>
-        </div>
-
-        {/* Likes + comentários */}
-        {news.status === "published" && !isScheduled && (
-          <NewsInteractions
-            newsId={news.id}
-            currentUserId={profile.id}
-            isAdminOrTi={isAdminOrTi}
-          />
-        )}
-      </article>
     </div>
   );
 }
