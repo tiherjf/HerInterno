@@ -47,8 +47,8 @@ export default function ProcedimentosTela({ initialItems, initialQ }: { initialI
     recarregar();
   }
 
-  const distintos = (valores: string[]) =>
-    Array.from(new Set(valores.map((v) => v.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const distintos = (valores: (string | null)[]) =>
+    Array.from(new Set(valores.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
   const categorias = useMemo(() => distintos(items.map((p) => p.categoria ?? "")), [items]);
   const conveniosExistentes = useMemo(() => distintos(items.flatMap((p) => p.convenios ?? [])), [items]);
   const medicosExistentes = useMemo(() => distintos(items.flatMap(medicosDe)), [items]);

@@ -5,6 +5,7 @@
  */
 import type { AgendaEntry } from "../../components/corpo-clinico/agenda";
 import type { Profissional } from "./types";
+import { limparConvenios } from "./filtro";
 
 export interface FormCC {
   nome: string;
@@ -71,7 +72,7 @@ export function formDeProfissional(p: Profissional): FormCC {
     valor_particular: p.valor_particular ?? null,
     valor_convenio: p.valor_convenio ?? null,
     valor_desconto: p.valor_desconto ?? null,
-    convenios: p.convenios ?? [],
+    convenios: limparConvenios(p.convenios),
     idade_minima: p.idade_minima ?? null,
     local: p.local ?? "",
     subespecialidade: p.subespecialidade ?? "",

@@ -5,7 +5,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { agendaDoDia, atendeNoDia } from "@/components/corpo-clinico/agenda";
 import type { Profissional } from "@/lib/corpo-clinico/types";
-import { conveniosQueCasam, iniciais } from "@/lib/corpo-clinico/filtro";
+import { conveniosQueCasam, iniciais, limparConvenios } from "@/lib/corpo-clinico/filtro";
 import { UNIDADES_CC } from "./FiltrosCC";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -39,7 +39,7 @@ export function FichaProfissional({ prof, termoConvenio, hoje, podeEditar, onEdi
     ["Particular com desconto", prof.valor_desconto],
   ].filter((v): v is [string, number] => v[1] != null);
 
-  const convenios = (prof.convenios ?? []).filter((c) => c.trim());
+  const convenios = limparConvenios(prof.convenios);
   const casam = new Set(conveniosQueCasam(prof, termoConvenio));
   const ordenados = [...convenios.filter((c) => casam.has(c)), ...convenios.filter((c) => !casam.has(c))];
   const subtitulo = [prof.especialidade, prof.subespecialidade, unidade].filter(Boolean).join(" · ");

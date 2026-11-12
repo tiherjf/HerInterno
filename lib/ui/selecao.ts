@@ -3,3 +3,8 @@ export function selecaoValida(idsVisiveis: string[], atual: string | null): stri
   if (atual !== null && idsVisiveis.includes(atual)) return atual;
   return idsVisiveis[0] ?? null;
 }
+
+/** Ficha aberta no celular: só continua aberta se o item ainda está na lista. */
+export function fichaCelularValida(idsVisiveis: string[], aberto: string | null): string | null {
+  return aberto !== null && idsVisiveis.includes(aberto) ? aberto : null;
+}

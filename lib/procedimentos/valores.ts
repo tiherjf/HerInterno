@@ -24,9 +24,14 @@ export function itensPreparo(p: Procedimento): string[] {
   return itens;
 }
 
+/** Há algo a mostrar no bloco Valor (preço, pacote, parcelamento ou protocolo). */
+export function temValor(p: Procedimento): boolean {
+  return p.preco != null || (p.pacote_sessoes != null && p.pacote_preco != null) || !!p.parcelas_max || !!p.protocolo?.trim();
+}
+
 /** Convênios aceitos + "Particular"; "Somente particular" quando não há convênios. */
 export function textoConvenios(p: Procedimento): string[] {
-  const convenios = (p.convenios ?? []).filter((c) => c.trim());
+  const convenios = (p.convenios ?? []).filter((c): c is string => typeof c === "string" && c.trim() !== "");
   if (convenios.length === 0) return p.atende_particular ? ["Somente particular"] : [];
   return p.atende_particular ? [...convenios, "Particular"] : convenios;
 }

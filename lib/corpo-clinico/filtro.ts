@@ -20,8 +20,13 @@ export interface ResultadoCC {
 
 const norm = (s: string) => normalizarTexto(s).trim();
 
+/** Convênios sem vazios nem nulos (um NULL dentro do text[] do banco não pode derrubar a tela). */
+export function limparConvenios(lista: readonly (string | null | undefined)[] | null | undefined): string[] {
+  return (lista ?? []).filter((c): c is string => typeof c === "string" && c.trim() !== "").map((c) => c.trim());
+}
+
 function conveniosValidos(p: Profissional): string[] {
-  return (p.convenios ?? []).filter((c) => typeof c === "string" && c.trim() !== "");
+  return limparConvenios(p.convenios);
 }
 
 /** Convênios do profissional que casam com o termo (por parte do nome, sem acento). */

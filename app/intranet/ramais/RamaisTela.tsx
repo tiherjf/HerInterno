@@ -108,7 +108,7 @@ export default function RamaisTela({ initialSetores, initialMeuRamal, initialQ }
         }
       />
 
-      <div className="flex gap-2 no-print">
+      <div className="sticky top-0 z-10 -mx-4 flex gap-2 bg-background/95 px-4 py-2 backdrop-blur no-print sm:-mx-6 sm:px-6">
         <CampoBusca
           className="flex-1"
           value={busca}

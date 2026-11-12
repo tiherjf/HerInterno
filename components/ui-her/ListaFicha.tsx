@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { selecaoValida } from "@/lib/ui/selecao";
+import { fichaCelularValida, selecaoValida } from "@/lib/ui/selecao";
 
 const DESKTOP = "(min-width: 1024px)";
 
@@ -43,7 +43,12 @@ export function ListaFicha<T>({ itens, idDe, lista, ficha, tituloFicha, vazio }:
   const ids = useMemo(() => itens.map(idDe), [itens, idDe]);
   const selecionado = selecaoValida(ids, escolhido);
   const itemSelecionado = selecionado === null ? undefined : itens[ids.indexOf(selecionado)];
-  const itemCelular = abertoCelular === null ? undefined : itens[ids.indexOf(abertoCelular)];
+  // Se o item aberto saiu da lista, a ficha fecha de vez (não reabre sozinha quando ele volta).
+  const celularValido = fichaCelularValida(ids, abertoCelular);
+  useEffect(() => {
+    if (celularValido !== abertoCelular) setAbertoCelular(celularValido);
+  }, [celularValido, abertoCelular]);
+  const itemCelular = celularValido === null ? undefined : itens[ids.indexOf(celularValido)];
 
   const selecionar = (id: string) => {
     setEscolhido(id);

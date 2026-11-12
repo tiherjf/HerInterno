@@ -18,11 +18,11 @@ export function RamalLinha({ ramal, isAdmin, copiado, onCopiar, onFavorito, onEd
   return (
     <li className="group flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
       <span
-        className={`w-14 shrink-0 text-lg font-bold tabular-nums ${comNumero ? "text-primary" : "text-slate-300"}`}
+        className={`min-w-14 shrink-0 text-lg font-bold tabular-nums ${comNumero ? "text-primary" : "text-slate-300"}`}
       >
         {comNumero ? ramal.numero : "—"}
       </span>
-      <span className="min-w-0 flex-1 text-sm leading-snug text-slate-800 line-clamp-2">{ramal.descricao}</span>
+      <span className="min-w-0 flex-1 text-sm leading-snug text-slate-800 wrap-break-word">{ramal.descricao}</span>
 
       <span className="flex shrink-0 items-center gap-0.5 no-print">
         <button

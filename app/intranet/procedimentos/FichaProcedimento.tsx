@@ -5,7 +5,7 @@ import { AlertCircle, Package, Pencil, ToggleLeft, ToggleRight } from "lucide-re
 import { Button } from "@/components/ui/button";
 import type { Procedimento } from "@/lib/procedimentos/types";
 import { medicosDe } from "@/lib/procedimentos/filtro";
-import { economiaPacote, itensPreparo, parcela, textoConvenios } from "@/lib/procedimentos/valores";
+import { economiaPacote, itensPreparo, parcela, temValor, textoConvenios } from "@/lib/procedimentos/valores";
 import { TIPOS, UNIDADES_PROC } from "./FiltrosProc";
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -34,7 +34,6 @@ export function FichaProcedimento({ item: p, podeEditar, onEditar, onAlternarAti
   const convenios = textoConvenios(p);
   const medicos = medicosDe(p);
   const agenda = [p.dias, p.horarios].filter((v) => v?.trim()).join(" · ");
-  const temValor = p.preco != null || temPacote || !!p.protocolo?.trim();
 
   return (
     <article className="space-y-4 rounded-xl border border-border bg-white p-5 shadow-sm">
@@ -69,7 +68,7 @@ export function FichaProcedimento({ item: p, podeEditar, onEditar, onAlternarAti
       </div>
 
       <Bloco titulo="Valor">
-        {!temValor ? (
+        {!temValor(p) ? (
           <span className="text-slate-500">Valor não cadastrado</span>
         ) : (
           <div className="space-y-1.5">
@@ -77,13 +76,13 @@ export function FichaProcedimento({ item: p, podeEditar, onEditar, onAlternarAti
               <p>
                 <span className="text-lg font-bold tabular-nums text-emerald-700">{BRL.format(p.preco)}</span>
                 {p.unidade_medida?.trim() && <span className="text-slate-500"> /{p.unidade_medida.trim()}</span>}
-                {p.parcelas_max ? (
-                  <span className="text-slate-500">
-                    {" "}· em até {p.parcelas_max}x{valorParcela != null ? ` de ${BRL.format(valorParcela)}` : ""}
-                  </span>
-                ) : null}
               </p>
             )}
+            {p.parcelas_max ? (
+              <p className="text-slate-500">
+                em até {p.parcelas_max}x{valorParcela != null ? ` de ${BRL.format(valorParcela)}` : ""}
+              </p>
+            ) : null}
             {temPacote && (
               <p className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
                 <Package size={12} className="shrink-0" />

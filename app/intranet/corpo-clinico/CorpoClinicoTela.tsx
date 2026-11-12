@@ -8,7 +8,7 @@ import { Cabecalho } from "@/components/ui-her/Cabecalho";
 import { ListaFicha } from "@/components/ui-her/ListaFicha";
 import { useMenuPermission } from "@/components/menu/MenuPermissionsContext";
 import type { Profissional } from "@/lib/corpo-clinico/types";
-import { agruparPorGrupo, filtrarProfissionais, type FiltrosCC as Filtros } from "@/lib/corpo-clinico/filtro";
+import { agruparPorGrupo, filtrarProfissionais, limparConvenios, type FiltrosCC as Filtros } from "@/lib/corpo-clinico/filtro";
 import { FiltrosCC } from "./FiltrosCC";
 import { ListaCC } from "./ListaCC";
 import { FichaProfissional } from "./FichaProfissional";
@@ -62,7 +62,7 @@ export default function CorpoClinicoTela({ initialProfissionais, initialQ }: {
   const grupos = useMemo(() => agruparPorGrupo(profissionais).map((g) => g.grupo), [profissionais]);
   const convenios = useMemo(() => {
     const set = new Set<string>();
-    for (const p of profissionais) for (const c of p.convenios ?? []) if (c.trim()) set.add(c.trim());
+    for (const p of profissionais) for (const c of limparConvenios(p.convenios)) set.add(c);
     return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [profissionais]);
 
