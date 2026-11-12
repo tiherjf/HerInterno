@@ -1,9 +1,10 @@
 import { requireStaff } from "@/lib/auth/staff";
 import { getProfissionais } from "@/lib/corpo-clinico/server";
-import CorpoClinicoView, { type Profissional } from "./CorpoClinicoView";
+import type { Profissional } from "@/lib/corpo-clinico/types";
+import CorpoClinicoTela from "./CorpoClinicoTela";
 
-export default async function CorpoClinicoPage() {
+export default async function CorpoClinicoPage({ searchParams }: { searchParams: { q?: string } }) {
   await requireStaff();
   const profissionais = (await getProfissionais()) as Profissional[];
-  return <CorpoClinicoView initialProfissionais={profissionais} />;
+  return <CorpoClinicoTela initialProfissionais={profissionais} initialQ={searchParams.q ?? ""} />;
 }
