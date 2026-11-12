@@ -81,7 +81,7 @@ const IGNORAR = new Set(["dr", "dra", "de", "da", "do", "dos", "das", "e"]);
 export function iniciais(nome: string): string {
   const partes = nome
     .split(/\s+/)
-    .map((p) => p.replace(/[^\p{L}]/gu, ""))
+    .map((p) => p.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, ""))
     .filter((p) => p && !IGNORAR.has(p.toLowerCase()));
   if (partes.length === 0) return "";
   const letras = partes.length === 1 ? [partes[0]] : [partes[0], partes[partes.length - 1]];
