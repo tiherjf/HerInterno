@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import { HomeCard } from "./HomeCard";
+import { DateBlock } from "@/components/ui-her/DateBlock";
 
 export interface HomeEvent {
   id: string;
@@ -22,12 +23,7 @@ export function UpcomingEventsCard({ events }: { events: HomeEvent[] }) {
           {events.map((ev) => (
             <li key={ev.id}>
               <Link href={`/intranet/eventos/${ev.id}`} className="group flex items-center gap-3">
-                <span className="flex w-11 shrink-0 flex-col items-center rounded-lg bg-slate-100 py-1 leading-tight text-primary">
-                  <span className="text-base font-bold">{fmt(ev.event_date, { day: "2-digit" })}</span>
-                  <span className="text-[10px] font-semibold uppercase">
-                    {fmt(ev.event_date, { month: "short" }).replace(".", "")}
-                  </span>
-                </span>
+                <DateBlock iso={ev.event_date} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-slate-800 group-hover:text-primary">
                     {ev.title}

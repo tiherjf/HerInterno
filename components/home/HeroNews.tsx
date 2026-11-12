@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Newspaper } from "lucide-react";
+import { CoverImage } from "@/components/ui-her/CoverImage";
 
 export interface HeroNewsItem {
   id: string;
@@ -32,20 +33,16 @@ export function HeroNews({ news }: { news: HeroNewsItem }) {
   }
 
   return (
-    <Link href={href} className="group relative flex h-56 flex-col justify-end overflow-hidden rounded-2xl md:h-72">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={news.cover_url}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/85 via-slate-900/35 to-transparent" />
+    <Link href={href} className="group relative flex h-56 flex-col justify-end overflow-hidden rounded-2xl bg-slate-900 md:h-72">
+      {/* Imagem inteira (cartaz não é cortado); no desktop fica à direita, deixando o texto livre */}
+      <CoverImage src={news.cover_url} alt={news.title} position="right" className="absolute inset-0 h-full w-full" />
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/85 via-slate-900/30 to-transparent md:bg-gradient-to-r md:from-slate-900/90 md:via-slate-900/50" />
       <div className="relative space-y-2 p-5 text-white md:p-7">
         <span className="inline-block rounded-full bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
           {news.category}
         </span>
-        <h2 className="max-w-3xl text-xl font-bold leading-tight md:text-3xl">{news.title}</h2>
-        {news.summary && <p className="line-clamp-2 max-w-2xl text-sm text-white/85">{news.summary}</p>}
+        <h2 className="max-w-xl text-xl font-bold leading-tight md:text-3xl">{news.title}</h2>
+        {news.summary && <p className="line-clamp-2 max-w-md text-sm text-white/85">{news.summary}</p>}
       </div>
     </Link>
   );
