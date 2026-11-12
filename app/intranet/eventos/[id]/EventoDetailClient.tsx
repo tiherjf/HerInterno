@@ -3,13 +3,15 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  CheckCircle, Loader2, Users, UserCheck, Clock3, Download, Check, X,
+  CheckCircle2, Loader2, Users, UserCheck, Clock3, Download, Check,
 } from "lucide-react";
+import { SlotsBar } from "@/components/eventos/SlotsBar";
+import { isUnlimited } from "@/lib/eventos/status";
 
 interface Props {
   eventId: string;
   event: {
-    max_slots: number;
+    max_slots: number | null;
     slots_used: number;
     registration_deadline: string | null;
     is_past: boolean;
@@ -18,6 +20,7 @@ interface Props {
   initialWaitlist: { joined_at: string } | null;
   isOrganizer: boolean;
   userId: string;
+  waitlistCount: number;
 }
 
 interface Participant {
@@ -37,34 +40,19 @@ interface Waiter {
   joined_at: string;
 }
 
+/** Quadro de inscrição (lateral do evento aberto). */
 export default function EventoDetailClient({
-  eventId, event, initialReg, initialWaitlist, isOrganizer,
+  eventId, event, initialReg, initialWaitlist, waitlistCount,
 }: Props) {
   const [reg, setReg] = useState(initialReg);
   const [waitlist, setWaitlist] = useState(initialWaitlist);
   const [slotsUsed, setSlotsUsed] = useState(event.slots_used);
   const [acting, setActing] = useState(false);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [waiters, setWaiters] = useState<Waiter[]>([]);
-  const [loadingPart, setLoadingPart] = useState(false);
-  const [togglingCheckin, setTogglingCheckin] = useState<string | null>(null);
 
-  const isFull = slotsUsed >= event.max_slots;
+  const isFull = !isUnlimited(event.max_slots) && slotsUsed >= (event.max_slots as number);
   const deadlinePassed = event.registration_deadline
     ? new Date(event.registration_deadline) < new Date()
     : false;
-
-  useEffect(() => {
-    if (!isOrganizer) return;
-    setLoadingPart(true);
-    fetch(`/api/eventos/${eventId}/participantes`)
-      .then(r => r.json())
-      .then(d => {
-        setParticipants(d.registrations ?? []);
-        setWaiters(d.waitlist ?? []);
-        setLoadingPart(false);
-      });
-  }, [eventId, isOrganizer]);
 
   async function handleRegister() {
     setActing(true);
@@ -87,6 +75,93 @@ export default function EventoDetailClient({
     }
     setActing(false);
   }
+
+  const countLine = (
+    <p className="flex items-center gap-1.5 text-sm text-slate-600">
+      <Users size={14} className="text-primary" />
+      {slotsUsed} {slotsUsed === 1 ? "inscrito" : "inscritos"}
+      {waitlistCount > 0 ? ` · ${waitlistCount} na fila` : ""}
+    </p>
+  );
+
+  // Evento que já aconteceu: sem botão
+  if (event.is_past) {
+    return (
+      <div className="space-y-3">
+        {countLine}
+        <div className="rounded-lg bg-slate-100 px-3 py-2.5 text-center text-sm font-semibold text-slate-600">
+          Evento encerrado
+        </div>
+        {reg && (
+          <div className="flex items-center justify-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
+            <CheckCircle2 size={15} /> Você participou
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <SlotsBar used={slotsUsed} max={event.max_slots} />
+      {countLine}
+
+      {reg ? (
+        <p className="flex items-center gap-1.5 text-sm font-medium text-green-700">
+          <CheckCircle2 size={15} />
+          {reg.checked_in ? "Você fez check-in neste evento!" : "Você está inscrito."}
+        </p>
+      ) : waitlist ? (
+        <p className="flex items-center gap-1.5 text-sm font-medium text-amber-700">
+          <Clock3 size={15} /> Você está na lista de espera.
+        </p>
+      ) : isFull && !deadlinePassed ? (
+        <p className="text-sm text-slate-500">Vagas esgotadas: entre na fila de espera.</p>
+      ) : null}
+
+      {!reg && !waitlist && deadlinePassed ? (
+        <div className="rounded-lg bg-slate-100 px-3 py-2.5 text-center text-sm font-semibold text-slate-500">
+          Inscrições encerradas
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleRegister}
+          disabled={acting}
+          className={`flex h-10 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 ${
+            reg || waitlist
+              ? "border border-red-200 bg-white text-red-700 hover:bg-red-50"
+              : isFull
+              ? "border border-primary/30 bg-white text-primary hover:bg-accent"
+              : "bg-primary text-white hover:bg-primary/90"
+          }`}
+        >
+          {acting && <Loader2 size={15} className="animate-spin" />}
+          {reg ? "Cancelar inscrição" : waitlist ? "Sair da fila" : isFull ? "Entrar na fila" : "Inscrever-se"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Lista de inscritos, fila e check-in: só para quem organiza eventos. */
+export function ParticipantesPanel({ eventId }: { eventId: string }) {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [waiters, setWaiters] = useState<Waiter[]>([]);
+  const [loadingPart, setLoadingPart] = useState(false);
+  const [togglingCheckin, setTogglingCheckin] = useState<string | null>(null);
+
+
+  useEffect(() => {
+    setLoadingPart(true);
+    fetch(`/api/eventos/${eventId}/participantes`)
+      .then(r => r.json())
+      .then(d => {
+        setParticipants(d.registrations ?? []);
+        setWaiters(d.waitlist ?? []);
+        setLoadingPart(false);
+      });
+  }, [eventId]);
 
   async function toggleCheckin(userId: string, current: boolean) {
     setTogglingCheckin(userId);
@@ -113,48 +188,9 @@ export default function EventoDetailClient({
 
   return (
     <div className="space-y-6">
-      {/* Ação do usuário */}
-      {!event.is_past && (
-        <div className="flex items-center gap-3 p-4 rounded-xl border">
-          {reg ? (
-            <div className="flex items-center gap-2 text-green-700 text-sm font-medium flex-1">
-              <CheckCircle size={16} />
-              {reg.checked_in ? "Você fez check-in neste evento!" : "Você está inscrito neste evento."}
-            </div>
-          ) : waitlist ? (
-            <div className="flex items-center gap-2 text-yellow-700 text-sm font-medium flex-1">
-              <Clock3 size={16} />
-              Você está na lista de espera.
-            </div>
-          ) : (
-            <div className="flex-1 text-sm text-muted-foreground">
-              {isFull
-                ? "Vagas esgotadas — você pode entrar na fila de espera."
-                : deadlinePassed
-                ? "Prazo de inscrição encerrado."
-                : "Garanta sua vaga neste evento."}
-            </div>
-          )}
-          <Button
-            size="sm"
-            variant={reg || waitlist ? "outline" : "default"}
-            onClick={handleRegister}
-            disabled={acting || (deadlinePassed && !reg && !waitlist)}
-            className={reg || waitlist ? "border-red-300 text-red-700 hover:bg-red-50" : ""}
-          >
-            {acting ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : reg ? "Cancelar inscrição"
-              : waitlist ? "Sair da fila"
-              : isFull ? "Entrar na fila"
-              : "Inscrever-se"}
-          </Button>
-        </div>
-      )}
-
       {/* Painel do organizador */}
-      {isOrganizer && (
-        <div className="space-y-4">
+      {(
+        <div className="space-y-4 rounded-xl border border-border bg-card p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h3 className="font-semibold text-base">
               Participantes ({participants.length})
