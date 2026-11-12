@@ -5,7 +5,8 @@ import { NewsInteractions } from "@/components/news/NewsInteractions";
 import { refreshNoticiasUnread } from "@/components/news/NotificacaoDot";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
-import { Edit, Newspaper, ChevronDown } from "lucide-react";
+import { Edit, Newspaper, ChevronDown, Eye } from "lucide-react";
+import { CoverImage } from "@/components/ui-her/CoverImage";
 
 interface FeedItem {
   id: string;
@@ -24,39 +25,42 @@ interface NewsFeedProps {
   currentUserId: string;
   isAdminOrTi: boolean;
   canEdit: boolean;
+  /** Número de leituras por notícia (visível para todos). */
+  readCounts?: Record<string, number>;
   emptyMessage?: string;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  Institucional: "bg-blue-100 text-blue-800",
-  RH: "bg-green-100 text-green-800",
-  Qualidade: "bg-purple-100 text-purple-800",
-  TI: "bg-yellow-100 text-yellow-800",
-  Eventos: "bg-pink-100 text-pink-800",
-};
-
 function AuthorBadge({ name }: { name: string }) {
   return (
-    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm shrink-0">
+    <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center font-bold text-white text-sm shrink-0">
       {name.charAt(0).toUpperCase()}
     </div>
   );
 }
 
 function ArticleCard({
-  item, isNovo, canEdit, currentUserId, isAdminOrTi, onRead,
+  item, isNovo, canEdit, currentUserId, isAdminOrTi, readCount, onRead,
 }: {
   item: FeedItem;
   isNovo: boolean;
   canEdit: boolean;
   currentUserId: string;
   isAdminOrTi: boolean;
+  readCount: number;
   onRead: (id: string) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
 
   const hasBody = !!item.body && item.body !== "<p></p>" && item.body !== "<p><br></p>";
+
+  // "Ver mais" só quando o texto passa da altura recolhida
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) setOverflows(el.scrollHeight > el.clientHeight + 4);
+  }, [item.body]);
 
   // Marca como lido quando 50% do card entrar no viewport
   useEffect(() => {
@@ -76,83 +80,69 @@ function ArticleCard({
   }, [item.id, onRead]);
 
   return (
-    <article ref={ref} className="bg-white border rounded-2xl overflow-hidden shadow-sm">
-      {/* Capa */}
-      {item.cover_url && (
-        <div className="relative bg-gray-100">
-          <img
-            src={item.cover_url}
-            alt={item.title}
-            className="w-full h-auto block"
-          />
-          {isNovo && (
-            <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
-              NOVO
-            </span>
-          )}
+    <article ref={ref} className="bg-card border border-border rounded-xl overflow-hidden">
+      {/* Autor + data + categoria */}
+      <div className="flex items-center gap-2.5 px-4 py-3">
+        <AuthorBadge name={item.author_name ?? "R"} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-900 leading-none">
+            {item.author_name ?? "Redação HER"}
+          </p>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[11px] text-slate-500">
+            {item.published_at && <span>{formatDate(item.published_at)}</span>}
+            <span className="px-2 py-0.5 rounded-full font-semibold bg-accent text-primary">{item.category}</span>
+            {readCount > 0 && (
+              <span className="flex items-center gap-1">
+                <Eye size={11} /> {readCount} {readCount === 1 ? "leitura" : "leituras"}
+              </span>
+            )}
+          </div>
         </div>
+        {isNovo && (
+          <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+            NOVO
+          </span>
+        )}
+        {canEdit && (
+          <Link
+            href={`/intranet/noticias/editar/${item.id}`}
+            className="text-slate-400 hover:text-primary p-1.5 rounded-lg hover:bg-accent transition-colors"
+            title="Editar notícia"
+          >
+            <Edit size={14} />
+          </Link>
+        )}
+      </div>
+
+      {/* Capa inteira (cartaz não é cortado) */}
+      {item.cover_url && (
+        <CoverImage src={item.cover_url} alt={item.title} zoomable className="h-80 md:h-[26rem]" />
       )}
 
       <div className="p-4 space-y-3">
-        {/* Autor + categoria + editar */}
-        <div className="flex items-center gap-2.5">
-          <AuthorBadge name={item.author_name ?? "R"} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-800 leading-none">
-              {item.author_name ?? "Redação HER"}
-            </p>
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[item.category] ?? "bg-gray-100 text-gray-700"}`}>
-                {item.category}
-              </span>
-              {item.published_at && (
-                <span className="text-[11px] text-muted-foreground">
-                  {formatDate(item.published_at)}
-                </span>
-              )}
-            </div>
-          </div>
-          {!item.cover_url && isNovo && (
-            <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse shrink-0">
-              NOVO
-            </span>
-          )}
-          {canEdit && (
-            <Link
-              href={`/intranet/noticias/editar/${item.id}`}
-              className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Editar notícia"
-            >
-              <Edit size={14} />
-            </Link>
-          )}
-        </div>
-
-        {/* Título */}
-        <h2 className="text-base font-bold text-gray-900 leading-snug">
-          {item.title}
+        <h2 className="text-lg font-bold text-slate-900 leading-snug">
+          <Link href={`/intranet/noticias/${item.id}`} className="hover:text-primary">
+            {item.title}
+          </Link>
         </h2>
 
-        {/* Resumo */}
         {item.summary && (
-          <p className="text-sm text-muted-foreground leading-relaxed border-l-2 border-primary/30 pl-3 italic">
-            {item.summary}
-          </p>
+          <p className="text-sm text-slate-600 leading-relaxed">{item.summary}</p>
         )}
 
         {/* Corpo do artigo */}
         {hasBody && (
           <>
-            <div className={`relative ${!expanded ? "max-h-52 overflow-hidden" : ""}`}>
+            <div ref={bodyRef} className={`relative ${!expanded ? "max-h-52 overflow-hidden" : ""}`}>
               <div
-                className="prose prose-sm prose-blue max-w-none tiptap-editor border-0 p-0"
+                className="news-content"
                 dangerouslySetInnerHTML={{ __html: item.body! }}
               />
-              {!expanded && (
+              {!expanded && overflows && (
                 <div className="absolute bottom-0 left-0 right-0 h-20 bg-linear-to-t from-white to-transparent pointer-events-none" />
               )}
             </div>
-            {!expanded && (
+            {!expanded && overflows && (
               <button
                 onClick={() => setExpanded(true)}
                 className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
@@ -163,21 +153,19 @@ function ArticleCard({
           </>
         )}
 
-        {/* Interações */}
-        <div className="border-t pt-3">
-          <NewsInteractions
-            newsId={item.id}
-            currentUserId={currentUserId}
-            isAdminOrTi={isAdminOrTi}
-          />
-        </div>
+        {/* Interações (o componente já traz a linha divisória) */}
+        <NewsInteractions
+          newsId={item.id}
+          currentUserId={currentUserId}
+          isAdminOrTi={isAdminOrTi}
+        />
       </div>
     </article>
   );
 }
 
 export function NewsFeed({
-  items, readIds, currentUserId, isAdminOrTi, canEdit, emptyMessage,
+  items, readIds, currentUserId, isAdminOrTi, canEdit, readCounts, emptyMessage,
 }: NewsFeedProps) {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const markedRef = useRef<Set<string>>(new Set(readIds));
@@ -197,7 +185,7 @@ export function NewsFeed({
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-slate-500">
         <Newspaper size={48} className="mb-3 opacity-30" />
         <p>{emptyMessage ?? "Nenhuma notícia encontrada."}</p>
       </div>
@@ -205,7 +193,7 @@ export function NewsFeed({
   }
 
   return (
-    <div className="max-w-150 mx-auto space-y-5">
+    <div className="space-y-5">
       {items.map(item => (
         <ArticleCard
           key={item.id}
@@ -214,6 +202,7 @@ export function NewsFeed({
           canEdit={canEdit}
           currentUserId={currentUserId}
           isAdminOrTi={isAdminOrTi}
+          readCount={readCounts?.[item.id] ?? 0}
           onRead={handleRead}
         />
       ))}

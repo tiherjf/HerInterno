@@ -5,7 +5,9 @@ import { canEditMenuItem } from "@/lib/menu/server";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus, FileEdit, Calendar } from "lucide-react";
+import { Suspense } from "react";
 import { NewsFeed } from "@/components/news/NewsFeed";
+import { NewsSidebar } from "@/components/news/NewsSidebar";
 import type { StaffRole } from "@/lib/auth/staff";
 
 const CATEGORIES = ["Todos", "Institucional", "RH", "Qualidade", "TI", "Eventos"];
@@ -38,6 +40,7 @@ export default async function NoticiasPage({
   let scheduled: NewsItem[] = [];
   let totalPages = 0;
   let readIds: string[] = [];
+  const readCounts: Record<string, number> = {};
 
   try {
     const supabase = createClient();
@@ -71,6 +74,15 @@ export default async function NoticiasPage({
     totalPages = Math.ceil((count ?? 0) / limit);
     readIds = (reads ?? []).map((r: any) => r.news_id);
 
+    // Número de leituras de cada notícia da página (visível para todos, como na notícia aberta)
+    if (feed.length > 0) {
+      const { data: allReads } = await createServiceClient()
+        .from("news_reads")
+        .select("news_id")
+        .in("news_id", feed.map((n) => n.id));
+      for (const r of allReads ?? []) readCounts[r.news_id] = (readCounts[r.news_id] ?? 0) + 1;
+    }
+
     if (canCreate) {
       const [{ data: draftData }, { data: schedData }] = await Promise.all([
         svc.from("news")
@@ -94,12 +106,12 @@ export default async function NoticiasPage({
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold">Notícias e Comunicados</h2>
-          <p className="text-muted-foreground text-sm">Fique por dentro das novidades do hospital</p>
+          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">Notícias</h1>
+          <p className="text-sm text-slate-500">Fique por dentro das novidades do hospital</p>
         </div>
         {canCreate && (
           <Button asChild className="w-full sm:w-auto">
-            <Link href="/intranet/noticias/nova"><Plus size={16} /> Nova Notícia</Link>
+            <Link href="/intranet/noticias/nova"><Plus size={16} /> Nova notícia</Link>
           </Button>
         )}
       </div>
@@ -125,49 +137,49 @@ export default async function NoticiasPage({
         </div>
       )}
 
-      {/* Busca + filtros (aba publicadas) */}
       {aba === "publicadas" && (
-        <>
-          <form method="GET" action="/intranet/noticias" className="relative max-w-150 mx-auto">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,42rem)_300px] lg:justify-center">
+          <div className="min-w-0 space-y-5">
+          <form method="GET" action="/intranet/noticias" className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input name="q" defaultValue={search}
               placeholder="Buscar notícias..."
-              className="w-full pl-9 pr-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
+              className="w-full h-10 pl-9 pr-4 border border-border rounded-xl text-sm focus:outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/15 bg-white" />
             {searchParams.categoria && (
               <input type="hidden" name="categoria" value={searchParams.categoria} />
             )}
           </form>
 
-          <div className="flex flex-wrap gap-2 max-w-150 mx-auto">
+          <div className="flex flex-wrap gap-2">
             {CATEGORIES.map(cat => (
-              <Button key={cat} size="sm"
-                variant={activeCategory === cat ? "default" : "outline"}
-                className="rounded-full h-7 text-xs" asChild>
-                <Link href={
+              <Link key={cat}
+                href={
                   cat === "Todos"
                     ? `/intranet/noticias${search ? `?q=${search}` : ""}`
                     : `/intranet/noticias?categoria=${cat}${search ? `&q=${search}` : ""}`
-                }>{cat}</Link>
-              </Button>
+                }
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  activeCategory === cat
+                    ? "border-primary/30 bg-accent text-primary font-semibold"
+                    : "border-border bg-white text-slate-600 hover:border-primary/30 hover:text-primary"
+                }`}>
+                {cat}
+              </Link>
             ))}
           </div>
-        </>
-      )}
 
-      {/* Feed Instagram */}
-      {aba === "publicadas" && (
-        <>
           <NewsFeed
             items={feed}
             readIds={readIds}
             currentUserId={profile.id}
             isAdminOrTi={isAdminOrTi}
             canEdit={canCreate}
+            readCounts={readCounts}
             emptyMessage={search ? `Nenhum resultado para "${search}"` : "Nenhuma notícia publicada ainda."}
           />
 
           {totalPages > 1 && (
-            <div className="flex justify-center gap-2 pt-2 max-w-150 mx-auto">
+            <div className="flex justify-center gap-2 pt-2">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                 <Button key={p} size="sm" variant={p === page ? "default" : "outline"} asChild>
                   <Link href={`/intranet/noticias?pagina=${p}${
@@ -177,7 +189,14 @@ export default async function NoticiasPage({
               ))}
             </div>
           )}
-        </>
+          </div>
+
+          <aside className="hidden lg:block">
+            <Suspense fallback={null}>
+              <NewsSidebar />
+            </Suspense>
+          </aside>
+        </div>
       )}
 
       {/* Rascunhos */}

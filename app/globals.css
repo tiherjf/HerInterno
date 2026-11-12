@@ -186,6 +186,20 @@
 .tiptap-editor em     { @apply italic; }
 .tiptap-editor a      { @apply text-primary underline; }
 
+/* Texto publicado de notícias (mesma tipografia do editor, sem a caixa dele) */
+.news-content          { @apply text-[15px] leading-relaxed text-slate-700; }
+.news-content h1       { @apply text-2xl font-bold text-slate-900 mt-4 mb-2; }
+.news-content h2       { @apply text-xl font-bold text-slate-900 mt-4 mb-2; }
+.news-content h3       { @apply text-lg font-semibold text-slate-900 mt-3 mb-2; }
+.news-content p        { @apply mb-3; }
+.news-content ul       { @apply list-disc pl-6 mb-3; }
+.news-content ol       { @apply list-decimal pl-6 mb-3; }
+.news-content strong   { @apply font-bold text-slate-900; }
+.news-content em       { @apply italic; }
+.news-content a        { @apply text-primary underline; }
+.news-content img      { @apply my-3 max-w-full rounded-lg; }
+.news-content > :last-child { @apply mb-0; }
+
 /* ─────────────────────────────────────────────────────────────
    Print
    ───────────────────────────────────────────────────────────── */
