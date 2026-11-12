@@ -56,10 +56,17 @@ function ArticleCard({
 
   const hasBody = !!item.body && item.body !== "<p></p>" && item.body !== "<p><br></p>";
 
-  // "Ver mais" só quando o texto passa da altura recolhida
+  // "Ver mais" só quando o texto passa da altura recolhida. Reavalia quando o
+  // conteúdo cresce depois (imagens do corpo, fontes carregando).
   useEffect(() => {
-    const el = bodyRef.current;
-    if (el) setOverflows(el.scrollHeight > el.clientHeight + 4);
+    const box = bodyRef.current;
+    const content = box?.firstElementChild;
+    if (!box || !content) return;
+    const check = () => setOverflows(box.scrollHeight > box.clientHeight + 4);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(content);
+    return () => ro.disconnect();
   }, [item.body]);
 
   // Marca como lido quando 50% do card entrar no viewport

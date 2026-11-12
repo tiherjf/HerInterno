@@ -36,3 +36,33 @@ export function eventStatus(ev: EventStatusInput, now: Date): EventStatus {
   if (!isUnlimited(ev.max_slots) && ev.slots_used >= (ev.max_slots as number)) return "full";
   return "open";
 }
+
+export interface RegistrationPanel {
+  registered: boolean;
+  waitlisted: boolean;
+  slotsUsed: number;
+  waitlistCount: number;
+}
+
+/**
+ * Atualiza o quadro do evento com o status que /api/eventos/[id]/inscrever
+ * devolveu. Ao cancelar com fila, a API promove o primeiro da fila: os
+ * inscritos ficam iguais e a fila diminui. Sair da fila não mexe nos inscritos.
+ */
+export function afterRegistrationChange(
+  prev: RegistrationPanel,
+  result: "registered" | "waitlist" | "unregistered" | "left_waitlist"
+): RegistrationPanel {
+  switch (result) {
+    case "registered":
+      return { ...prev, registered: true, slotsUsed: prev.slotsUsed + 1 };
+    case "waitlist":
+      return { ...prev, waitlisted: true, waitlistCount: prev.waitlistCount + 1 };
+    case "left_waitlist":
+      return { ...prev, waitlisted: false, waitlistCount: Math.max(0, prev.waitlistCount - 1) };
+    case "unregistered":
+      return prev.waitlistCount > 0
+        ? { ...prev, registered: false, waitlistCount: prev.waitlistCount - 1 }
+        : { ...prev, registered: false, slotsUsed: Math.max(0, prev.slotsUsed - 1) };
+  }
+}

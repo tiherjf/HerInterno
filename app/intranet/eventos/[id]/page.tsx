@@ -78,13 +78,16 @@ export default async function EventoDetailPage({ params }: Params) {
         {/* Capa: no celular vem primeiro, antes do quadro */}
         <div className="order-1 min-w-0 lg:col-start-1">
           <article className="overflow-hidden rounded-xl border border-border bg-card">
-            {ev.cover_url ? (
-              <CoverImage src={ev.cover_url} alt={ev.title} zoomable className="h-72 md:h-96" />
-            ) : (
-              <div className="flex h-40 items-center justify-center bg-accent text-primary">
-                <CalendarDays size={48} strokeWidth={1.5} />
-              </div>
-            )}
+            {(() => {
+              const placeholder = (
+                <div className="flex h-40 items-center justify-center bg-accent text-primary">
+                  <CalendarDays size={48} strokeWidth={1.5} />
+                </div>
+              );
+              return ev.cover_url
+                ? <CoverImage src={ev.cover_url} alt={ev.title} zoomable className="h-72 md:h-96" fallback={placeholder} />
+                : placeholder;
+            })()}
             <div className="space-y-3 p-5 sm:p-7">
               <div className="flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-semibold text-primary">

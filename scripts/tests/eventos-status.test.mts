@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 
-const { eventStatus, isUnlimited } = await import(
+const { eventStatus, isUnlimited, afterRegistrationChange } = await import(
   pathToFileURL(path.resolve("lib/eventos/status.ts")).href
 );
 
@@ -36,5 +36,24 @@ assert.equal(eventStatus({ ...base, event_date: "2026-11-10T17:00:00Z", is_regis
 assert.equal(isUnlimited(null), true);
 assert.equal(isUnlimited(0), false);
 assert.equal(isUnlimited(40), false);
+
+// Quadro do evento depois da resposta de /inscrever (status devolvido pela API)
+const q = { registered: false, waitlisted: false, slotsUsed: 10, waitlistCount: 0 };
+assert.deepEqual(afterRegistrationChange(q, "registered"), { ...q, registered: true, slotsUsed: 11 });
+assert.deepEqual(afterRegistrationChange(q, "waitlist"), { ...q, waitlisted: true, waitlistCount: 1 });
+// sair da fila NÃO mexe nos inscritos, só na fila
+assert.deepEqual(
+  afterRegistrationChange({ ...q, waitlisted: true, waitlistCount: 3 }, "left_waitlist"),
+  { ...q, waitlisted: false, waitlistCount: 2 }
+);
+// cancelar inscrição sem fila: vaga liberada
+assert.deepEqual(afterRegistrationChange({ ...q, registered: true }, "unregistered"), { ...q, registered: false, slotsUsed: 9 });
+// cancelar com fila: o primeiro da fila é promovido, inscritos ficam iguais
+assert.deepEqual(
+  afterRegistrationChange({ ...q, registered: true, waitlistCount: 2 }, "unregistered"),
+  { ...q, registered: false, slotsUsed: 10, waitlistCount: 1 }
+);
+// nunca negativo
+assert.deepEqual(afterRegistrationChange({ ...q, waitlisted: true, waitlistCount: 0 }, "left_waitlist").waitlistCount, 0);
 
 console.log("eventos-status ok");

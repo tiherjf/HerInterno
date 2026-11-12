@@ -8,6 +8,7 @@ import { Plus, FileEdit, Calendar } from "lucide-react";
 import { Suspense } from "react";
 import { NewsFeed } from "@/components/news/NewsFeed";
 import { NewsSidebar } from "@/components/news/NewsSidebar";
+import { countReadsByNews } from "@/lib/news/read-counts";
 import type { StaffRole } from "@/lib/auth/staff";
 
 const CATEGORIES = ["Todos", "Institucional", "RH", "Qualidade", "TI", "Eventos"];
@@ -40,7 +41,7 @@ export default async function NoticiasPage({
   let scheduled: NewsItem[] = [];
   let totalPages = 0;
   let readIds: string[] = [];
-  const readCounts: Record<string, number> = {};
+  let readCounts: Record<string, number> = {};
 
   try {
     const supabase = createClient();
@@ -75,13 +76,7 @@ export default async function NoticiasPage({
     readIds = (reads ?? []).map((r: any) => r.news_id);
 
     // Número de leituras de cada notícia da página (visível para todos, como na notícia aberta)
-    if (feed.length > 0) {
-      const { data: allReads } = await createServiceClient()
-        .from("news_reads")
-        .select("news_id")
-        .in("news_id", feed.map((n) => n.id));
-      for (const r of allReads ?? []) readCounts[r.news_id] = (readCounts[r.news_id] ?? 0) + 1;
-    }
+    readCounts = await countReadsByNews(createServiceClient(), feed.map((n) => n.id));
 
     if (canCreate) {
       const [{ data: draftData }, { data: schedData }] = await Promise.all([

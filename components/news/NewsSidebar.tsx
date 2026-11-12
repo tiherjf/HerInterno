@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Eye, TrendingUp } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase/server";
-import { topRead } from "@/lib/news/reading";
+import { topFromCounts } from "@/lib/news/reading";
+import { countReadsByNews } from "@/lib/news/read-counts";
 import { UpcomingEventsCard, type HomeEvent } from "@/components/home/UpcomingEventsCard";
 import { HomeCard } from "@/components/home/HomeCard";
 
@@ -19,12 +20,9 @@ async function mostRead(): Promise<{ id: string; title: string; count: number }[
       .lte("published_at", now.toISOString())
       .gte("published_at", since);
     if (!news?.length) return [];
-    const { data: reads } = await svc
-      .from("news_reads")
-      .select("news_id")
-      .in("news_id", news.map((n) => n.id));
+    const counts = await countReadsByNews(svc, news.map((n) => n.id as string));
     const titles = new Map(news.map((n) => [n.id, n.title as string]));
-    return topRead(reads ?? [], 5, 2).map((r) => ({ id: r.news_id, title: titles.get(r.news_id) ?? "", count: r.count }));
+    return topFromCounts(counts, 5, 2).map((r) => ({ id: r.news_id, title: titles.get(r.news_id) ?? "", count: r.count }));
   } catch {
     return [];
   }

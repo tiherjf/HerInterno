@@ -19,10 +19,24 @@ export function topRead(
   max: number,
   minItems: number
 ): { news_id: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const r of reads) counts.set(r.news_id, (counts.get(r.news_id) ?? 0) + 1);
-  const ranked = Array.from(counts, ([news_id, count]) => ({ news_id, count }))
-    .sort((a, b) => b.count - a.count) // sort estável: empate mantém a ordem de aparição
+  const counts: Record<string, number> = {};
+  for (const r of reads) counts[r.news_id] = (counts[r.news_id] ?? 0) + 1;
+  return topFromCounts(counts, max, minItems);
+}
+
+/**
+ * Ranking a partir de contagens já feitas no banco: ignora quem tem 0, ordena
+ * desc (empate: ordem de entrada) e corta em `max`. Vazio se sobrarem menos de `minItems`.
+ */
+export function topFromCounts(
+  counts: Record<string, number>,
+  max: number,
+  minItems: number
+): { news_id: string; count: number }[] {
+  const ranked = Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([news_id, count]) => ({ news_id, count }))
+    .sort((a, b) => b.count - a.count) // sort estável: empate mantém a ordem de entrada
     .slice(0, max);
   return ranked.length < minItems ? [] : ranked;
 }

@@ -24,15 +24,18 @@ export function EventHighlight({
 }) {
   const rel = relativeDaysLabel(ev.event_date, new Date());
   const place = eventPlace(ev);
+  const placeholder = (
+    <div className="flex h-40 items-center justify-center bg-accent text-primary md:h-full">
+      <CalendarDays size={48} strokeWidth={1.5} />
+    </div>
+  );
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card md:flex md:h-80">
       <Link href={`/intranet/eventos/${ev.id}`} className="block md:h-full md:w-[42%] md:shrink-0">
         {ev.cover_url ? (
-          <CoverImage src={ev.cover_url} alt={ev.title} className="h-56 md:h-full" />
+          <CoverImage src={ev.cover_url} alt={ev.title} className="h-56 md:h-full" fallback={placeholder} />
         ) : (
-          <div className="flex h-40 items-center justify-center bg-accent text-primary md:h-full">
-            <CalendarDays size={48} strokeWidth={1.5} />
-          </div>
+          placeholder
         )}
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-hidden p-5 md:p-6">

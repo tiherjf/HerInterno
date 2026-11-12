@@ -6,7 +6,7 @@ import {
   CheckCircle2, Loader2, Users, UserCheck, Clock3, Download, Check,
 } from "lucide-react";
 import { SlotsBar } from "@/components/eventos/SlotsBar";
-import { isUnlimited } from "@/lib/eventos/status";
+import { afterRegistrationChange, isUnlimited } from "@/lib/eventos/status";
 
 interface Props {
   eventId: string;
@@ -47,6 +47,7 @@ export default function EventoDetailClient({
   const [reg, setReg] = useState(initialReg);
   const [waitlist, setWaitlist] = useState(initialWaitlist);
   const [slotsUsed, setSlotsUsed] = useState(event.slots_used);
+  const [queue, setQueue] = useState(waitlistCount);
   const [acting, setActing] = useState(false);
 
   const isFull = !isUnlimited(event.max_slots) && slotsUsed >= (event.max_slots as number);
@@ -61,17 +62,15 @@ export default function EventoDetailClient({
       method: isReg ? "DELETE" : "POST",
     });
     const json = await res.json();
-    if (res.ok) {
-      if (isReg) {
-        setReg(null);
-        setWaitlist(null);
-        setSlotsUsed(s => Math.max(0, s - 1));
-      } else if (json.status === "waitlist") {
-        setWaitlist({ joined_at: new Date().toISOString() });
-      } else {
-        setReg({ checked_in: false });
-        setSlotsUsed(s => s + 1);
-      }
+    if (res.ok && json.status) {
+      const next = afterRegistrationChange(
+        { registered: !!reg, waitlisted: !!waitlist, slotsUsed, waitlistCount: queue },
+        json.status
+      );
+      setReg(next.registered ? reg ?? { checked_in: false } : null);
+      setWaitlist(next.waitlisted ? waitlist ?? { joined_at: new Date().toISOString() } : null);
+      setSlotsUsed(next.slotsUsed);
+      setQueue(next.waitlistCount);
     }
     setActing(false);
   }
@@ -80,7 +79,7 @@ export default function EventoDetailClient({
     <p className="flex items-center gap-1.5 text-sm text-slate-600">
       <Users size={14} className="text-primary" />
       {slotsUsed} {slotsUsed === 1 ? "inscrito" : "inscritos"}
-      {waitlistCount > 0 ? ` · ${waitlistCount} na fila` : ""}
+      {queue > 0 ? ` · ${queue} na fila` : ""}
     </p>
   );
 
@@ -159,8 +158,9 @@ export function ParticipantesPanel({ eventId }: { eventId: string }) {
       .then(d => {
         setParticipants(d.registrations ?? []);
         setWaiters(d.waitlist ?? []);
-        setLoadingPart(false);
-      });
+      })
+      .catch(() => {})
+      .finally(() => setLoadingPart(false));
   }, [eventId]);
 
   async function toggleCheckin(userId: string, current: boolean) {
@@ -187,9 +187,6 @@ export function ParticipantesPanel({ eventId }: { eventId: string }) {
   const checkedInCount = participants.filter(p => p.checked_in).length;
 
   return (
-    <div className="space-y-6">
-      {/* Painel do organizador */}
-      {(
         <div className="space-y-4 rounded-xl border border-border bg-card p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h3 className="font-semibold text-base">
@@ -286,7 +283,5 @@ export function ParticipantesPanel({ eventId }: { eventId: string }) {
             </div>
           )}
         </div>
-      )}
-    </div>
   );
 }

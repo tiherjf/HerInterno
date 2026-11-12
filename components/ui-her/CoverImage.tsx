@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LightboxOverlay } from "@/components/news/ImageLightbox";
@@ -14,6 +14,8 @@ interface Props {
   zoomable?: boolean;
   /** Onde a imagem fica quando sobra espaço nas laterais. */
   position?: "center" | "right";
+  /** O que mostrar se a imagem não carregar (padrão: nada). */
+  fallback?: React.ReactNode;
 }
 
 /**
@@ -21,12 +23,20 @@ interface Props {
  * dela mesma, desfocada, preenchendo o espaço. Cartaz vertical fica inteiro;
  * foto horizontal preenche praticamente tudo.
  */
-export function CoverImage({ src, alt, className, zoomable, position = "center" }: Props) {
+export function CoverImage({ src, alt, className, zoomable, position = "center", fallback = null }: Props) {
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  if (failed) return null;
+  // A imagem vem do servidor: se ela falhar antes da hidratação, o onError do
+  // React não dispara. Confere o estado real ao montar.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth === 0) setFailed(true);
+  }, [src]);
+
+  if (failed) return <>{fallback}</>;
 
   return (
     <div className={cn("relative overflow-hidden bg-slate-900", className)}>
@@ -39,6 +49,7 @@ export function CoverImage({ src, alt, className, zoomable, position = "center" 
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        ref={imgRef}
         src={src}
         alt={alt}
         onError={() => setFailed(true)}
