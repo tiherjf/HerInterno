@@ -12,6 +12,7 @@ import { agruparPorGrupo, filtrarProfissionais, type FiltrosCC as Filtros } from
 import { FiltrosCC } from "./FiltrosCC";
 import { ListaCC } from "./ListaCC";
 import { FichaProfissional } from "./FichaProfissional";
+import { ProfissionalDialog } from "./ProfissionalDialog";
 
 const DIAS: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
@@ -33,6 +34,7 @@ export default function CorpoClinicoTela({ initialProfissionais, initialQ }: {
   const vazio: Filtros = { busca: "", convenio: "", unidade: null, grupo: null, hoje: false, turnos: [] };
   const [filtros, setFiltros] = useState<Filtros>({ ...vazio, busca: initialQ });
   const [aviso, setAviso] = useState("");
+  const [dialog, setDialog] = useState<{ aberto: boolean; original?: Profissional }>({ aberto: false });
   const hoje = diaSemanaSP(new Date());
 
   const recarregar = useCallback(async () => {
@@ -88,7 +90,7 @@ export default function CorpoClinicoTela({ initialProfissionais, initialQ }: {
         titulo="Corpo Clínico"
         subtitulo={subtitulo}
         acoes={podeEditar ? (
-          <Button onClick={() => { /* janela de cadastro: Task 8 */ }}>
+          <Button onClick={() => setDialog({ aberto: true })}>
             <Plus size={15} /> Novo profissional
           </Button>
         ) : undefined}
@@ -126,7 +128,7 @@ export default function CorpoClinicoTela({ initialProfissionais, initialQ }: {
             termoConvenio={filtros.convenio}
             hoje={hoje}
             podeEditar={podeEditar}
-            onEditar={() => { /* janela de edição: Task 8 */ }}
+            onEditar={() => setDialog({ aberto: true, original: p })}
             onRemover={() => remover(p)}
           />
         )}
@@ -139,6 +141,16 @@ export default function CorpoClinicoTela({ initialProfissionais, initialQ }: {
             )}
           </div>
         }
+      />
+
+      <ProfissionalDialog
+        aberto={dialog.aberto}
+        original={dialog.original}
+        grupoInicial={filtros.grupo ?? undefined}
+        grupos={grupos}
+        convenios={convenios}
+        onFechar={() => setDialog({ aberto: false })}
+        onSalvo={(a) => { setAviso(a); recarregar(); }}
       />
     </div>
   );

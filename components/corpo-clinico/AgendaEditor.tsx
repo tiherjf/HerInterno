@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -62,10 +61,6 @@ export function AgendaEditor({ value, onChange }: AgendaEditorProps) {
 
   return (
     <div className="space-y-3">
-      <Label className="flex items-center gap-1">
-        <Clock size={13} /> Agenda de atendimento
-      </Label>
-
       <div className="flex flex-wrap gap-1.5">
         {DIAS_CURTOS.map((nome, dia) => {
           const ativo = diasSelecionados.includes(dia);
@@ -77,8 +72,8 @@ export function AgendaEditor({ value, onChange }: AgendaEditorProps) {
               aria-pressed={ativo}
               className={`h-8 px-3 rounded-full text-xs font-medium border transition-colors ${
                 ativo
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-input hover:bg-muted"
+                  ? "border-primary/30 bg-accent text-primary font-semibold"
+                  : "border-border bg-white text-slate-600 hover:border-primary/30 hover:text-primary"
               }`}
             >
               {nome}
