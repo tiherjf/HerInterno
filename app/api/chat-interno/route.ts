@@ -2,29 +2,17 @@ import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
+import { erroColuna040, isMissingTable } from "@/lib/chat-interno/colunas";
+import { resumirConversas } from "@/lib/chat-interno/conversas";
+import type { Mensagem } from "@/lib/chat-interno/tipos";
 
-// Códigos de erro quando a tabela chat_messages ainda não existe (migração 039 pendente)
-const MISSING_TABLE_CODES = ["PGRST205", "42P01"];
-
-function isMissingTable(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  if (error.code && MISSING_TABLE_CODES.includes(error.code)) return true;
-  return /chat_messages/.test(error.message ?? "") && /não existe|does not exist|schema cache/i.test(error.message ?? "");
-}
-
-interface ChatMessageRow {
-  id: string;
-  sender_id: string;
-  recipient_id: string;
-  content: string;
-  created_at: string;
-  read_at: string | null;
-}
+const COLUNAS_RESUMO = "id, sender_id, recipient_id, content, created_at, read_at, attachment_name";
+const COLUNAS_RESUMO_040 = `${COLUNAS_RESUMO}, urgent`;
 
 /**
  * GET /api/chat-interno
- * Lista de conversas do usuário (última mensagem por interlocutor + não lidas)
- * e diretório completo de colaboradores ativos agrupável por setor.
+ * Lista de conversas do usuário (última mensagem por interlocutor, não lidas e
+ * se há urgente não lido) e diretório completo de colaboradores ativos.
  */
 export async function GET() {
   try {
@@ -47,12 +35,19 @@ export async function GET() {
     };
 
     // Mensagens recentes envolvendo o usuário — reduzidas para 1 conversa por interlocutor
-    const { data: recent, error: msgError } = await supabase
-      .from("chat_messages")
-      .select("id, sender_id, recipient_id, content, created_at, read_at")
-      .or(`sender_id.eq.${profile.id},recipient_id.eq.${profile.id}`)
-      .order("created_at", { ascending: false })
-      .limit(1000);
+    const buscar = (colunas: string) =>
+      supabase
+        .from("chat_messages")
+        .select(colunas)
+        .or(`sender_id.eq.${profile.id},recipient_id.eq.${profile.id}`)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+    let { data: recent, error: msgError } = await buscar(COLUNAS_RESUMO_040);
+    // Migração 040 pendente: sem urgent/attachment_name
+    if (msgError && erroColuna040(msgError)) {
+      ({ data: recent, error: msgError } = await buscar("id, sender_id, recipient_id, content, created_at, read_at"));
+    }
 
     if (msgError) {
       if (isMissingTable(msgError)) {
@@ -66,21 +61,10 @@ export async function GET() {
       throw msgError;
     }
 
-    const byCounterpart = new Map<string, { with: string; last_message: ChatMessageRow; unread: number }>();
-    for (const msg of (recent ?? []) as ChatMessageRow[]) {
-      const other = msg.sender_id === profile.id ? msg.recipient_id : msg.sender_id;
-      let conv = byCounterpart.get(other);
-      if (!conv) {
-        conv = { with: other, last_message: msg, unread: 0 };
-        byCounterpart.set(other, conv);
-      }
-      if (msg.recipient_id === profile.id && !msg.read_at) conv.unread += 1;
-    }
-
     return NextResponse.json({
       me,
       directory: directory ?? [],
-      conversations: Array.from(byCounterpart.values()),
+      conversations: resumirConversas((recent ?? []) as unknown as Mensagem[], profile.id),
     });
   } catch (err) {
     return apiError(err);
