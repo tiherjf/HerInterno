@@ -177,7 +177,7 @@ export default async function EventoDetailPage({ params }: Params) {
               <p className="whitespace-pre-line text-[15px] leading-relaxed text-slate-700">{ev.description}</p>
             </section>
           )}
-          {isOrganizer && <ParticipantesPanel eventId={params.id} />}
+          {isOrganizer && <ParticipantesPanel eventId={params.id} userId={profile.id} />}
         </div>
       </div>
     </div>

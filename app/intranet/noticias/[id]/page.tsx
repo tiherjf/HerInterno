@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, Edit, Eye, Calendar, Clock } from "lucide-react";
+import { BotaoMensagem } from "@/components/chat/BotaoMensagem";
 import { MarcarLida } from "@/components/news/MarcarLida";
 import { CoverImage } from "@/components/ui-her/CoverImage";
 import { readingMinutes } from "@/lib/news/reading";
@@ -135,6 +136,7 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
                 {authorName.charAt(0).toUpperCase()}
               </span>
               <span className="font-medium text-slate-800">{authorName}</span>
+              {news.profiles && <BotaoMensagem profileId={news.author_id} nome={authorName} meuId={profile.id} />}
               {news.published_at && !isScheduled && <span>· {longDate(news.published_at)}</span>}
               <span className="flex items-center gap-1">· <Clock size={13} /> {minutes} min de leitura</span>
             </div>

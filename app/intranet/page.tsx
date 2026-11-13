@@ -109,7 +109,7 @@ export default async function IntranetHome() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <UpcomingEventsCard events={events} />
-        <BirthdaysCard people={birthdaysOfMonth(people, now)} monthLabel={monthLabel} />
+        <BirthdaysCard people={birthdaysOfMonth(people, now)} monthLabel={monthLabel} meuId={profile.id} />
         <MyTicketsCard openCount={openTickets} />
       </div>
 

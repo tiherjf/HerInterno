@@ -1,6 +1,7 @@
 import { Cake } from "lucide-react";
 import { HomeCard } from "./HomeCard";
 import type { Birthday } from "@/lib/home/greeting";
+import { BotaoMensagem } from "@/components/chat/BotaoMensagem";
 
 const MAX_SHOWN = 6;
 
@@ -14,7 +15,7 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export function BirthdaysCard({ people, monthLabel }: { people: Birthday[]; monthLabel: string }) {
+export function BirthdaysCard({ people, monthLabel, meuId }: { people: Birthday[]; monthLabel: string; meuId: string }) {
   const shown = people.slice(0, MAX_SHOWN);
   const rest = people.length - shown.length;
   return (
@@ -39,6 +40,7 @@ export function BirthdaysCard({ people, monthLabel }: { people: Birthday[]; mont
               ) : (
                 <span className="text-xs font-medium text-slate-500">dia {p.day}</span>
               )}
+              <BotaoMensagem profileId={p.id} nome={p.full_name} meuId={meuId} />
             </li>
           ))}
           {rest > 0 && <li className="text-xs text-slate-500">e mais {rest}</li>}

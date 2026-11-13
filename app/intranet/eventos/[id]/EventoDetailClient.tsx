@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   CheckCircle2, Loader2, Users, UserCheck, Clock3, Download, Check,
 } from "lucide-react";
+import { BotaoMensagem } from "@/components/chat/BotaoMensagem";
 import { SlotsBar } from "@/components/eventos/SlotsBar";
 import { afterRegistrationChange, isUnlimited } from "@/lib/eventos/status";
 
@@ -144,7 +145,7 @@ export default function EventoDetailClient({
 }
 
 /** Lista de inscritos, fila e check-in: só para quem organiza eventos. */
-export function ParticipantesPanel({ eventId }: { eventId: string }) {
+export function ParticipantesPanel({ eventId, userId }: { eventId: string; userId: string }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [loadingPart, setLoadingPart] = useState(false);
@@ -225,7 +226,10 @@ export function ParticipantesPanel({ eventId }: { eventId: string }) {
                   {participants.map((p, i) => (
                     <tr key={p.user_id} className={`border-b last:border-0 ${i % 2 === 0 ? "" : "bg-muted/20"}`}>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium">{p.full_name}</div>
+                        <div className="flex items-center gap-1 font-medium">
+                          {p.full_name}
+                          <BotaoMensagem profileId={p.user_id} nome={p.full_name} meuId={userId} />
+                        </div>
                       </td>
                       <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">
                         {p.sector}
@@ -269,7 +273,10 @@ export function ParticipantesPanel({ eventId }: { eventId: string }) {
                     {waiters.map((w, i) => (
                       <tr key={w.user_id} className={`border-b last:border-0 ${i % 2 === 0 ? "" : "bg-muted/20"}`}>
                         <td className="px-4 py-2.5">
-                          <div className="font-medium">{w.full_name}</div>
+                          <div className="flex items-center gap-1 font-medium">
+                            {w.full_name}
+                            <BotaoMensagem profileId={w.user_id} nome={w.full_name} meuId={userId} />
+                          </div>
                           <div className="text-xs text-muted-foreground">{w.sector}</div>
                         </td>
                         <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
