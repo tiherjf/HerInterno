@@ -3,39 +3,14 @@ import { requireStaff } from "@/lib/auth/staff";
 import { createServiceClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api/error";
 import { broadcastToUser } from "@/lib/chat-interno/realtime";
+import { avisoDeMensagem } from "@/lib/chat-interno/aviso";
+import { BASE_COLUMNS, FULL_COLUMNS, SAFE_ID, erroColuna040, isMissingTable } from "@/lib/chat-interno/colunas";
 
-const MISSING_TABLE_CODES = ["PGRST205", "42P01"];
 const PAGE_SIZE = 50;
 const MAX_CONTENT = 2000;
 const MIN_URGENT_REASON = 5;
 const MAX_URGENT_REASON = 300;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
-
-// Colunas base (migração 039) e completas (039 + 040)
-const BASE_COLUMNS = "id, sender_id, recipient_id, content, created_at, read_at";
-const FULL_COLUMNS = `${BASE_COLUMNS}, attachment_path, attachment_name, attachment_size, urgent, urgent_reason`;
-
-// Ids são UUIDs em produção e "dev-*" em modo dev — restringe a charset seguro
-// para não quebrar a sintaxe de filtros do PostgREST.
-const SAFE_ID = /^[A-Za-z0-9-]+$/;
-
-function isMissingTable(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  if (error.code && MISSING_TABLE_CODES.includes(error.code)) return true;
-  return /chat_messages/.test(error.message ?? "") && /não existe|does not exist|schema cache/i.test(error.message ?? "");
-}
-
-/**
- * Detecta coluna inexistente das melhorias do chat (migração 040 não aplicada).
- * Postgres: 42703 (undefined_column); PostgREST: PGRST204 (fora do schema cache).
- * Mesmo padrão de erroColunaAgenda em components/corpo-clinico/agenda.ts.
- */
-function erroColuna040(error: unknown): boolean {
-  const e = error as { code?: string; message?: string } | null;
-  if (!e) return false;
-  const msg = (e.message ?? "").toLowerCase();
-  return (e.code === "42703" || e.code === "PGRST204") && /attachment|urgent/.test(msg);
-}
 
 /**
  * GET /api/chat-interno/mensagens?with=<userId>&before=<iso?>
@@ -238,10 +213,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Broadcast server-side (REST, sem subscribe) — melhor esforço; o polling cobre falhas
-    await broadcastToUser(supabase, to, "message", {
-      ...(message as unknown as Record<string, unknown>),
-      sender_name: profile.full_name,
-    });
+    // Só o aviso (sem conteúdo): o canal é público; o destinatário busca a
+    // mensagem em GET /api/chat-interno/mensagens/<id>, que confere a permissão.
+    await broadcastToUser(supabase, to, "message", { ...avisoDeMensagem(message as unknown as Record<string, unknown>) });
 
     return NextResponse.json({ ok: true, message }, { status: 201 });
   } catch (err) {

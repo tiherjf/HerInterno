@@ -14,6 +14,7 @@ import {
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
+import type { AvisoMensagem } from "@/lib/chat-interno/aviso";
 
 // ─── Tipos ──────────────────────────────────────────────────
 export type ChatStatus = "disponivel" | "ausente" | "ocupado";
@@ -31,7 +32,7 @@ export interface PresenceMeta {
   status: ChatStatus;
 }
 
-/** Mensagem recebida via broadcast (linha do banco + nome do remetente). */
+/** Mensagem recebida (linha do banco + nome do remetente), buscada na API após o aviso do tempo real. */
 export interface ChatBroadcastMessage {
   id: string;
   sender_id: string;
@@ -196,7 +197,7 @@ export function ChatProvider({ me, children }: { me: ChatMe; children: React.Rea
       msgChannel = client.channel(`chat:user:${me.id}`);
       msgChannel.on("broadcast", { event: "message" }, ({ payload }) => {
         try {
-          handleIncoming(payload as ChatBroadcastMessage);
+          handleAviso(payload as Partial<AvisoMensagem>);
         } catch { /* payload inesperado */ }
       });
       msgChannel.on("broadcast", { event: "typing" }, ({ payload }) => {
@@ -241,21 +242,35 @@ export function ChatProvider({ me, children }: { me: ChatMe; children: React.Rea
   }, [me.id, me.name, me.sector]);
 
   // ─── Mensagem recebida ─────────────────────────────────────
-  function handleIncoming(msg: ChatBroadcastMessage) {
-    if (!msg?.id || !msg.sender_id) return;
+  // O tempo real só avisa (sem conteúdo — o canal é público). O contador sobe
+  // na hora; a mensagem completa vem da API, que confere a permissão.
+  function handleAviso(aviso: Partial<AvisoMensagem>) {
+    if (typeof aviso?.id !== "string" || !aviso.id) return;
+    if (typeof aviso.sender_id !== "string" || !aviso.sender_id) return;
+    const senderId = aviso.sender_id;
 
+    // Contador: mensagens da conversa aberta são consumidas pela página
+    if (activeConvRef.current !== senderId) {
+      setUnreadFrom(prev => ({
+        ...prev,
+        [senderId]: (prev[senderId] ?? 0) + 1,
+      }));
+    }
+
+    fetch(`/api/chat-interno/mensagens/${encodeURIComponent(aviso.id)}`, { cache: "no-store" })
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        const msg = json?.message as ChatBroadcastMessage | undefined;
+        if (msg?.id && msg.sender_id === senderId) handleIncoming(msg);
+      })
+      .catch(() => { /* rede indisponível — o polling da página cobre */ });
+  }
+
+  function handleIncoming(msg: ChatBroadcastMessage) {
     // Assinantes (página de chat) recebem toda mensagem
     msgSubsRef.current.forEach(cb => {
       try { cb(msg); } catch { /* assinante quebrado */ }
     });
-
-    // Contador: mensagens da conversa aberta são consumidas pela página
-    if (activeConvRef.current !== msg.sender_id) {
-      setUnreadFrom(prev => ({
-        ...prev,
-        [msg.sender_id]: (prev[msg.sender_id] ?? 0) + 1,
-      }));
-    }
 
     // Notificação do navegador: urgente sempre; demais só com aba oculta
     // ou fora da página do chat
