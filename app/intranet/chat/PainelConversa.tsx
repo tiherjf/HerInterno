@@ -49,6 +49,15 @@ export function PainelConversa({ pessoa, meuId, status, offlineLabel, foraExpedi
   const canalDigitando = useRef<RealtimeChannel | null>(null);
   const canalPronto = useRef(false);
   const ultimoDigitando = useRef(0);
+  // Urgentes que chegaram ainda não lidos enquanto o painel está aberto: a faixa
+  // fica até responder ou fechar, mesmo depois que o polling os traz como lidos.
+  const urgentesNaoLidos = useRef(new Set<string>());
+  const registrar = useCallback((lista: Mensagem[]) => {
+    for (const m of lista) {
+      if (m.urgent === true && !m.read_at && m.sender_id !== meuId) urgentesNaoLidos.current.add(m.id);
+    }
+    return lista;
+  }, [meuId]);
 
   const url = `/api/chat-interno/mensagens?with=${encodeURIComponent(pessoa.id)}`;
   const primeiroNome = pessoa.full_name.split(" ")[0];
@@ -73,7 +82,7 @@ export function PainelConversa({ pessoa, meuId, status, offlineLabel, foraExpedi
         const res = await fetch(url);
         const json = await res.json();
         if (cancelado || !res.ok) return;
-        setMensagens(json.messages ?? []);
+        setMensagens(registrar(json.messages ?? []));
         setTemMais(!!json.has_more);
         onMigracao(json);
       } catch { /* rede indisponível — o polling tenta de novo */ }
@@ -109,7 +118,7 @@ export function PainelConversa({ pessoa, meuId, status, offlineLabel, foraExpedi
     if (!assinarMensagens || !assinarLeituras) return;
     const sairMsg = assinarMensagens((m) => {
       if (m.sender_id !== pessoa.id) return;
-      setMensagens((prev) => juntarMensagens(prev, [m]));
+      setMensagens((prev) => juntarMensagens(prev, registrar([m])));
       marcarLida();
     });
     const sairLeitura = assinarLeituras((por) => {
@@ -118,7 +127,7 @@ export function PainelConversa({ pessoa, meuId, status, offlineLabel, foraExpedi
       setMensagens((prev) => prev.map((m) => (m.sender_id === meuId && !m.read_at ? { ...m, read_at: agora } : m)));
     });
     return () => { sairMsg(); sairLeitura(); };
-  }, [assinarMensagens, assinarLeituras, pessoa.id, meuId, marcarLida]);
+  }, [assinarMensagens, assinarLeituras, pessoa.id, meuId, marcarLida, registrar]);
 
   // Polling de segurança (janela focada)
   useEffect(() => {
@@ -201,7 +210,10 @@ export function PainelConversa({ pessoa, meuId, status, offlineLabel, foraExpedi
     }
   }
 
-  const urgente = urgentePendente(mensagens, meuId);
+  const urgente = urgentePendente(
+    mensagens.map((m) => (urgentesNaoLidos.current.has(m.id) ? { ...m, read_at: null } : m)),
+    meuId,
+  );
   const mostrarFaixa = !!urgente && !urgentesFechados.has(urgente.id);
   const digitando = !!chat?.typingFrom[pessoa.id];
 

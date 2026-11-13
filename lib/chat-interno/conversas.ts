@@ -80,12 +80,16 @@ export function agruparPorSetor(pessoas: Pessoa[], online: (id: string) => boole
     }));
 }
 
-/** Último urgente recebido sem nenhuma mensagem minha depois dele. `msgs` em ordem crescente. */
+/**
+ * Último urgente recebido, ainda não lido quando a conversa foi carregada, sem
+ * nenhuma mensagem minha depois dele. `msgs` em ordem crescente.
+ * (Já lido = a pessoa já viu a faixa antes; ela não volta ao reabrir.)
+ */
 export function urgentePendente(msgs: Mensagem[], meuId: string): Mensagem | null {
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i];
     if (m.sender_id === meuId) return null;
-    if (m.urgent === true) return m;
+    if (m.urgent === true) return m.read_at ? null : m;
   }
   return null;
 }
